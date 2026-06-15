@@ -882,6 +882,29 @@ elif choice == "🤖 Step 4: LLM判定実行":
         time.sleep(0.5)
         st.rerun()
 
+    # 過去データクリアボタン (実行中でない場合のみ有効化)
+    if st.button("🧹 過去の判定データを完全にクリアして初期化する", disabled=is_running, use_container_width=True):
+        files_to_remove = [PATH_LLM_JUDGMENTS, PATH_MERGED_FOR_VERIFICATION, PATH_LLM_PROGRESS]
+        removed_files = []
+        for f_path in files_to_remove:
+            if os.path.exists(f_path):
+                try:
+                    os.remove(f_path)
+                    removed_files.append(os.path.basename(f_path))
+                except Exception as e:
+                    st.error(f"ファイル削除エラー ({f_path}): {e}")
+        
+        # セッション上の判定状況もリセット
+        if "verifications" in st.session_state:
+            st.session_state["verifications"] = {}
+            
+        if removed_files:
+            st.success(f"以下のファイルをクリアしました: {', '.join(removed_files)}")
+        else:
+            st.info("初期化する過去データは存在しませんでした。")
+        time.sleep(1.5)
+        st.rerun()
+
     # 進捗状況の表示
     if progress_data:
         st.subheader("📊 判定プロセスのステータス")
@@ -939,6 +962,19 @@ elif choice == "🤖 Step 4: LLM判定実行":
             progress_val = min(1.0, max(0.0, curr / tot))
             st.progress(progress_val)
             st.info(f"進捗: {curr} / {tot} 件 (残り {tot - curr} 件)\n\n**現在処理中:** {title}")
+            
+            # 中断処理ボタン
+            if st.button("🛑 判定処理を中断する", use_container_width=True):
+                if progress_data:
+                    progress_data["stop_requested"] = True
+                    try:
+                        with open(PATH_LLM_PROGRESS, 'w', encoding='utf-8') as f:
+                            json.dump(progress_data, f, ensure_ascii=False, indent=2)
+                        st.warning("⚠️ 中断を要求しました。現在の1件が完了次第、安全に停止してマージを行います...")
+                        time.sleep(1.5)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"中断処理の書き込みに失敗しました: {e}")
             
             # リアルタイムの集計を表示
             st.markdown("##### 📈 判定内訳 (リアルタイム途中経過)")

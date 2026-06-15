@@ -257,7 +257,17 @@ def run_merge_data(original_jsonl, judgments_jsonl, output_merged_jsonl):
 
 # ----------------- バックグラウンド実行（進捗ファイル書き出し用） -----------------
 
-def update_progress_file(progress_path, running, current, total, title, completed=False, error=None):
+def check_stop_requested(progress_path):
+    if not os.path.exists(progress_path):
+        return False
+    try:
+        with open(progress_path, 'r', encoding='utf-8', errors='replace') as f:
+            data = json.load(f)
+            return data.get("stop_requested", False)
+    except Exception:
+        return False
+
+def update_progress_file(progress_path, running, current, total, title, completed=False, error=None, stop_requested=False):
     try:
         with open(progress_path, 'w', encoding='utf-8') as f:
             json.dump({
@@ -266,7 +276,8 @@ def update_progress_file(progress_path, running, current, total, title, complete
                 "total": total,
                 "title": title,
                 "completed": completed,
-                "error": error
+                "error": error,
+                "stop_requested": stop_requested
             }, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
@@ -290,9 +301,19 @@ def run_llm_judgment_background(input_jsonl, output_jsonl, base_url, api_key, mo
         )
         
         total_count = 1
+        stopped = False
+        current_idx = 0
+        
         # 1件ずつ処理
         for current, total, title, record in generator:
             total_count = total
+            current_idx = current
+            
+            # 中断フラグが立っているかチェック
+            if check_stop_requested(progress_path):
+                stopped = True
+                break
+                
             if record is None:
                 status_title = f"【判定中】 {title}"
             else:
@@ -300,7 +321,18 @@ def run_llm_judgment_background(input_jsonl, output_jsonl, base_url, api_key, mo
                 status_title = f"【完了】 {title} (判定: {judge_str})"
             update_progress_file(progress_path, running=True, current=current, total=total, title=status_title, completed=False)
             
-        # 判定が終わったらマージ処理を実行
+        if stopped:
+            # 中断された場合、そこまでの結果をマージして保存
+            update_progress_file(progress_path, running=False, current=current_idx - 1, total=total_count, title="処理を中断しています（マージ中）...", completed=False, stop_requested=True)
+            m_cnt = run_merge_data(
+                original_jsonl=original_jsonl,
+                judgments_jsonl=output_jsonl,
+                output_merged_jsonl=output_merged_jsonl
+            )
+            update_progress_file(progress_path, running=False, current=current_idx - 1, total=total_count, title=f"ユーザーにより中断されました (判定済み {current_idx - 1} 件をマージ完了)", completed=True, stop_requested=True)
+            return
+
+        # 判定が最後まで終わったらマージ処理を実行
         update_progress_file(progress_path, running=True, current=total_count, total=total_count, title="データをマージ中...", completed=False)
         m_cnt = run_merge_data(
             original_jsonl=original_jsonl,
