@@ -66,8 +66,11 @@ def check_file_exists_and_size(path):
 def count_lines(path):
     if not os.path.exists(path):
         return 0
-    with open(path, 'r', encoding='utf-8') as f:
-        return sum(1 for _ in f)
+    try:
+        with open(path, 'r', encoding='utf-8', errors='replace') as f:
+            return sum(1 for _ in f)
+    except Exception:
+        return 0
 
 def load_text_list_to_set(path):
     if os.path.exists(path):
@@ -830,56 +833,162 @@ elif choice == "🤖 Step 4: LLM判定実行":
 
     st.divider()
 
-    # 二重実行防止のための状態制御
-    if "llm_running" not in st.session_state:
-        st.session_state["llm_running"] = False
+    # 進捗ファイルのパス
+    PATH_LLM_PROGRESS = f"{DATA_DIR}/llm_progress.json"
 
-    if st.button("🚀 LLM判定を開始する", type="primary", disabled=st.session_state["llm_running"], use_container_width=True):
-        st.session_state["llm_running"] = True
-        
-        progress_bar = st.progress(0.0)
-        status_text = st.empty()
-        log_area = st.empty()
-        
-        log_lines = []
-        
+    def load_progress(path):
+        if not os.path.exists(path):
+            return None
         try:
-            # ジェネレータを回してリアルタイムに進捗を表示
-            for count, total, title, record in run_llm_judgment_generator(
-                input_jsonl=PATH_TARGET_FOR_LLM,
-                output_jsonl=PATH_LLM_JUDGMENTS,
-                base_url=base_url,
-                api_key=api_key,
-                model_name=model_name,
-                use_web_search=use_web_search,
-                test_limit=test_limit if test_limit > 0 else None
-            ):
-                progress = count / total
-                progress_bar.progress(progress)
-                status_text.text(f"処理中: {count} / {total} 件 (残り {total - count} 件)")
-                
-                # APIコールバック後の結果ログを出力
-                if record:
-                    judge_str = "楽譜" if record["judgment"] else "ノイズ"
-                    log_lines.append(f"・[{judge_str}] {title} (理由: {record['reason'][:30]}...)")
-                    # 最新の5件を画面にログ表示
-                    log_area.code("\n".join(log_lines[-5:]))
+            with open(path, 'r', encoding='utf-8', errors='replace') as f:
+                return json.load(f)
+        except Exception:
+            return None
+
+    progress_data = load_progress(PATH_LLM_PROGRESS)
+    is_running = bool(progress_data.get("running", False)) if progress_data else False
+
+    # 二重実行防止のためにボタンを活性/非活性化
+    if st.button("🚀 LLM判定を開始する", type="primary", disabled=is_running, use_container_width=True):
+        if os.path.exists(PATH_LLM_PROGRESS):
+            try:
+                os.remove(PATH_LLM_PROGRESS)
+            except:
+                pass
+        
+        import threading
+        from modules.llm_pipeline import run_llm_judgment_background
+        
+        # 非同期スレッドで判定実行
+        t = threading.Thread(
+            target=run_llm_judgment_background,
+            kwargs={
+                "input_jsonl": PATH_TARGET_FOR_LLM,
+                "output_jsonl": PATH_LLM_JUDGMENTS,
+                "base_url": base_url,
+                "api_key": api_key,
+                "model_name": model_name,
+                "use_web_search": use_web_search,
+                "test_limit": test_limit if test_limit > 0 else None,
+                "progress_path": PATH_LLM_PROGRESS,
+                "original_jsonl": PATH_SUFFIX_FILTERED,
+                "output_merged_jsonl": PATH_MERGED_FOR_VERIFICATION
+            }
+        )
+        t.daemon = True
+        t.start()
+        
+        st.success("🤖 バックグラウンドでLLM判定プロセスを起動しました！")
+        time.sleep(0.5)
+        st.rerun()
+
+    # 進捗状況の表示
+    if progress_data:
+        st.subheader("📊 判定プロセスのステータス")
+        
+        curr = progress_data.get("current", 0)
+        tot = progress_data.get("total", 1)
+        title = progress_data.get("title", "")
+        completed = progress_data.get("completed", False)
+        error = progress_data.get("error", None)
+
+        # リアルタイムで書き出されている判定結果を読み込んで集計
+        judged_records = []
+        if os.path.exists(PATH_LLM_JUDGMENTS):
+            try:
+                with open(PATH_LLM_JUDGMENTS, 'r', encoding='utf-8', errors='replace') as f:
+                    for line in f:
+                        if line.strip():
+                            judged_records.append(json.loads(line))
+            except:
+                pass
+
+        yes_count = sum(1 for r in judged_records if r.get("judgment") is True)
+        no_count = sum(1 for r in judged_records if r.get("judgment") is False)
+        unknown_count = sum(1 for r in judged_records if r.get("judgment") is None)
+        
+        if error:
+            st.error(f"❌ エラーが発生しました: {error}")
+            if st.button("進捗ログをクリアしてやり直す"):
+                if os.path.exists(PATH_LLM_PROGRESS):
+                    try:
+                        os.remove(PATH_LLM_PROGRESS)
+                    except:
+                        pass
+                st.rerun()
+        elif completed:
+            st.success(f"🎉 LLM自動判定およびデータのマージが完了しました！\n\nステータス: {title}")
             
-            st.success("🎉 LLM自動判定が完了しました！")
+            # 完了サマリー表示
+            st.markdown("##### 📈 最終判定サマリー")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("🎼 楽譜判定 (YES)", f"{yes_count} 件")
+            c2.metric("⛔ ノイズ判定 (NO)", f"{no_count} 件")
+            c3.metric("❓ 判定不能 (UNKNOWN)", f"{unknown_count} 件")
             
-            # 自動マージ
-            with st.spinner("判定結果を元データとマージ中..."):
-                m_cnt = run_merge_data(
-                    original_jsonl=PATH_SUFFIX_FILTERED,
-                    judgments_jsonl=PATH_LLM_JUDGMENTS,
-                    output_merged_jsonl=PATH_MERGED_FOR_VERIFICATION
-                )
-                st.success(f"マージ完了！ {m_cnt} 件の査読用データ（{PATH_MERGED_FOR_VERIFICATION}）を生成しました。")
+            st.info("「🔍 Step 5: 査読 ＆ 最終確定」へ進み、判定結果を確認してください。")
+            if st.button("進捗ログをクリア"):
+                if os.path.exists(PATH_LLM_PROGRESS):
+                    try:
+                        os.remove(PATH_LLM_PROGRESS)
+                    except:
+                        pass
+                st.rerun()
+        else:
+            # 進捗バーと詳細表示
+            progress_val = min(1.0, max(0.0, curr / tot))
+            st.progress(progress_val)
+            st.info(f"進捗: {curr} / {tot} 件 (残り {tot - curr} 件)\n\n**現在処理中:** {title}")
+            
+            # リアルタイムの集計を表示
+            st.markdown("##### 📈 判定内訳 (リアルタイム途中経過)")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("🎼 楽譜判定 (YES)", f"{yes_count} 件")
+            c2.metric("⛔ ノイズ判定 (NO)", f"{no_count} 件")
+            c3.metric("❓ 判定不能 (UNKNOWN)", f"{unknown_count} 件")
+            
+            # 直近5件のリアルタイムログ
+            if judged_records:
+                with st.expander("📋 直近の判定ログを表示", expanded=True):
+                    recent = judged_records[-5:] # 最新の5件
+                    for r in reversed(recent):
+                        j_val = r.get("judgment")
+                        if j_val is True:
+                            badge = "🟢 楽譜 (YES)"
+                        elif j_val is False:
+                            badge = "🔴 ノイズ (NO)"
+                        else:
+                            badge = "🟡 不明 (UNKNOWN)"
+                        
+                        st.markdown(f"**{r.get('label')}** : {badge}")
+                        st.caption(f"reason: {r.get('reason')}")
                 
-        except Exception as e:
-            st.error(f"エラーが発生しました: {str(e)}")
-        finally:
-            st.session_state["llm_running"] = False
+                # スクロール可能な判定履歴一覧テーブルの表示を追加
+                with st.expander("🗂️ すべての判定履歴一覧を表示", expanded=False):
+                    df_log = pd.DataFrame([
+                        {
+                            "No.": i + 1,
+                            "資料名": r.get("label"),
+                            "判定": "🟢 楽譜 (YES)" if r.get("judgment") is True else ("🔴 ノイズ (NO)" if r.get("judgment") is False else "🟡 不明"),
+                            "判定理由": r.get("reason")
+                        }
+                        for i, r in enumerate(judged_records)
+                    ])
+                    st.dataframe(
+                        df_log,
+                        use_container_width=True,
+                        hide_index=True,
+                        column_config={
+                            "No.": st.column_config.NumberColumn(width=60),
+                            "資料名": st.column_config.TextColumn(width=200),
+                            "判定": st.column_config.TextColumn(width=120),
+                            "判定理由": st.column_config.TextColumn(width=420)
+                        }
+                    )
+            
+            # 自動更新
+            time.sleep(2)
+            st.rerun()
 
 # ==========================================
 # 🔍 Step 5: 査読 ＆ 最終確定
@@ -893,13 +1002,17 @@ elif choice == "🔍 Step 5: 査読 ＆ 最終確定":
         st.warning("⚠️ 前提データ (merged_for_verification.jsonl) が存在しません。まず Step 4 のLLM判定を完了してください。")
         st.stop()
 
-    # データのロード
-    @st.cache_data
+    # データのロード (キャッシュを無効化し、エラー耐性を高めて最新のファイルを即時ロード)
     def load_merged_data(path):
         rows = []
-        with open(path, 'r', encoding='utf-8') as f:
+        if not os.path.exists(path):
+            return rows
+        with open(path, 'r', encoding='utf-8', errors='replace') as f:
             for line in f:
-                rows.append(json.loads(line))
+                try:
+                    rows.append(json.loads(line))
+                except Exception:
+                    continue
         return rows
 
     data_list = load_merged_data(PATH_MERGED_FOR_VERIFICATION)
@@ -913,8 +1026,8 @@ elif choice == "🔍 Step 5: 査読 ＆ 最終確定":
     # グリッド・テーブル形式で査読
     # ページネーション
     page_size = 10
-    total_pages = (total_items - 1) // page_size + 1
-    page = st.number_input("ページ", min_value=1, max_value=total_pages, value=1)
+    total_pages = (total_items - 1) // page_size + 1 if total_items > 0 else 1
+    page = st.number_input("ページ", min_value=1, max_value=max(1, total_pages), value=1)
     
     start_idx = (page - 1) * page_size
     end_idx = min(start_idx + page_size, total_items)
@@ -930,34 +1043,109 @@ elif choice == "🔍 Step 5: 査読 ＆ 最終確定":
         reason = inf_meta.get("_evidence", {}).get("score_reason", "")
         
         label = item.get("rdfs:label", item.get("schema:name", "No Title"))
-        desc = item.get("schema:description", "説明なし")
+        desc = item.get("schema:description", item.get("description", ""))
         
         # セッションに既存の決定がなければLLMの判断で初期化
         if item_id not in st.session_state["verifications"]:
             st.session_state["verifications"][item_id] = llm_decision
 
+        # 説明文の箇条書き整形
+        def format_description(d_val):
+            if not d_val:
+                return "説明情報なし"
+            import ast
+            if isinstance(d_val, str) and d_val.startswith('[') and d_val.endswith(']'):
+                try:
+                    d_val = ast.literal_eval(d_val)
+                except:
+                    pass
+            if isinstance(d_val, list):
+                items = []
+                for x in d_val:
+                    if isinstance(x, str) and x.startswith('[') and x.endswith(']'):
+                        try:
+                            items.extend(ast.literal_eval(x))
+                        except:
+                            items.append(x)
+                    else:
+                        items.append(x)
+                return "\n".join([f"- {str(item).strip()}" for item in items if item])
+            return str(d_val)
+
+        formatted_desc = format_description(desc)
+
+        # その他のメタデータ整理（日本語ラベルへマッピング）
+        other_metadata = {}
+        for k, v in item.items():
+            if k in ['_inferred_metadata', 'is_score']: 
+                continue
+            friendly_key = k
+            if k == '@id' or k == 'id': friendly_key = "ID / URL"
+            elif k == 'rdfs:label': friendly_key = "ラベル"
+            elif k == 'schema:name': friendly_key = "名称"
+            elif k == 'schema:description' or k == 'description': friendly_key = "説明"
+            elif k == 'schema:about': friendly_key = "関連テーマ (about)"
+            elif k == 'schema:creator' or k == 'creator': friendly_key = "作成者/著者"
+            elif k == 'schema:publisher' or k == 'publisher': friendly_key = "所蔵先"
+            
+            if isinstance(v, list):
+                other_metadata[friendly_key] = ", ".join([str(x) for x in v if x])
+            else:
+                other_metadata[friendly_key] = str(v)
+
         c1, c2, c3 = st.columns([5, 3, 2])
         with c1:
             st.markdown(f"**[{start_idx + idx + 1}] {label}**")
-            st.caption(f"説明: {desc[:100]}...")
+            
+            # 箇条書き説明文の表示
+            st.markdown(formatted_desc)
+            
+            # オリジナルメタデータの詳細アコーディオン
+            with st.expander("📄 オリジナルメタデータの詳細を表示"):
+                for k_f, v_f in other_metadata.items():
+                    if k_f == "ID / URL" and str(v_f).startswith("http"):
+                        st.markdown(f"**{k_f}**: [{v_f}]({v_f})")
+                    else:
+                        st.markdown(f"**{k_f}**: {v_f}")
+
+            # Web検索スニペットの表示
+            web_snippets = inf_meta.get("_evidence", {}).get("retrieved_web_snippets", [])
+            if web_snippets:
+                web_text = web_snippets[0] if isinstance(web_snippets, list) and len(web_snippets) > 0 else str(web_snippets)
+                if web_text and web_text != "None" and web_text != "検索結果なし":
+                    with st.expander("🌐 Web検索の補足情報を表示"):
+                        st.info(web_text)
+                        
         with c2:
-            st.caption(f"🤖 LLM判断: {'✅ 楽譜' if llm_decision else '⛔ ノイズ'}")
+            if llm_decision is True:
+                decision_label = "✅ 楽譜 (YES)"
+            elif llm_decision is False:
+                decision_label = "⛔ ノイズ (NO)"
+            else:
+                decision_label = "❓ 判定不能 (UNKNOWN)"
+            st.caption(f"🤖 LLM判断: {decision_label}")
             st.caption(f"理由: {reason}")
         with c3:
+            v_val = st.session_state["verifications"][item_id]
             user_val = st.radio(
                 "判定:", 
-                ("楽譜 (OK)", "ノイズ (NG)"), 
-                index=0 if st.session_state["verifications"][item_id] else 1,
+                ("楽譜 (OK)", "ノイズ (NG)", "保留 / 判定待ち"), 
+                index=0 if v_val is True else (1 if v_val is False else 2),
                 key=f"rad_verify_{item_id}"
             )
-            st.session_state["verifications"][item_id] = True if "楽譜" in user_val else False
+            if "楽譜" in user_val:
+                st.session_state["verifications"][item_id] = True
+            elif "ノイズ" in user_val:
+                st.session_state["verifications"][item_id] = False
+            else:
+                st.session_state["verifications"][item_id] = None
             
         st.divider()
 
     st.subheader("💾 最終成果物の確定出力")
     st.markdown("すべての査読が終わったら（または現状の判断で）、最終クレンジング済みデータを書き出します。")
     
-    c_ok = sum(1 for v in st.session_state["verifications"].values() if v)
+    c_ok = sum(1 for v in st.session_state["verifications"].values() if v is True)
     st.caption(f"現在 確定OK予定件数: {c_ok} 件")
 
     if st.button("🏆 クレンジング済み最終ファイルを書き出す", type="primary", use_container_width=True):
@@ -971,7 +1159,7 @@ elif choice == "🔍 Step 5: 査読 ＆ 最終確定":
         # 2. 査読したグレーゾーンからOK判定のもののみマージ
         for item in data_list:
             item_id = item.get("@id", item.get("id"))
-            if st.session_state["verifications"].get(item_id):
+            if st.session_state["verifications"].get(item_id) is True:
                 # ユーザーが修正したメタデータ構造を書き出し
                 item["is_score"] = True
                 final_records.append(item)

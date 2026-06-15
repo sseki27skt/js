@@ -52,12 +52,19 @@ def search_ddg(query, num_results=3):
 
 def check_is_score(client, title, label, description, model_name, search_info=None):
     """LM Studioやその他OpenAI互換APIに判定させる"""
-    system_prompt = "あなたは東アジア地域の古典籍資料を専門とする研究者であり、特に日本の伝統芸能に精通しています。JSON形式でのみ回答してください。"
+    # システムプロンプトで思考の抑制とJSON出力を強制
+    system_prompt = (
+        "あなたは東アジア地域の古典籍資料を専門とする研究者であり、特に日本の伝統芸能に精通しています。\n"
+        "【重要】思考プロセス（Thinking）は最小限に留め、速やかに最終判定をJSON形式でのみ出力してください。"
+        "回答の前後に追加の説明テキストやMarkdownのコードブロック（```json）は絶対に出力しないでください。"
+    )
     
     if search_info:
         web_info_section = f"""
 【Web検索による補足情報】
 {search_info}
+
+※上記Web検索結果に「楽譜」「演奏用の譜」「歌唱用の謡本」である具体的な記述や説明が見つかった場合、それを最も重要な判定根拠として YES (true) と判定してください。
 """
         evidence_desc = "Web検索結果やメタデータのどこに依拠して判断をしたかを簡潔に説明してください"
     else:
@@ -65,13 +72,23 @@ def check_is_score(client, title, label, description, model_name, search_info=No
         evidence_desc = "メタデータのどこに依拠して判断をしたかを簡潔に説明してください"
 
     user_prompt = f"""
-以下の書誌データは日本古典籍に関する大規模データベースの一部です。この資料が演奏のために記された「楽譜（Musical Score）」であるか判定してください。多くの資料に「譜」という語が含まれていますが、「譜」という語は多義的であり「系統立てて順序よく書き並べた記録。」
-という意味で用いられる場合もあることに留意してください。
+以下の書誌データは日本古典籍に関する大規模データベースの一部です。この資料が演奏のために記された「楽譜（Musical Score）」であるか判定してください。
 
 【判定基準】
 - YES (true): メタデータやWeb検索結果から判断して楽譜（謡本、三味線譜、箏譜、雅楽譜など演奏、もしくは歌唱のための楽譜）であることが確実なもの。
 - NO (false): メタデータやWeb検索結果から判断して楽譜ではないもの（系譜、年譜、図鑑、画譜、日誌、歴史書など）。
 - UNKNOWN (null): メタデータおよびWeb検索結果からでも、演奏用の楽譜であるか判断できないもの。
+
+【典型的な判定例】
+- YES (true) とすべき例:
+  * タイトル: 「声曲類纂」 / 詳細: 「芸能・音楽。歌唱のための楽曲集」 -> 「声曲」は歌唱用の楽曲を指すため楽譜（楽曲集）とみなす。
+  * タイトル: 「三味線独稽古」 -> 演奏・稽古用の譜面。
+  * タイトル: 「新撰謡本」 -> 歌唱用の譜（謡本）。
+- NO (false) とすべき例:
+  * タイトル: 「徳川家譜」 -> 歴史や系図（系譜）のため楽譜ではない。
+  * タイトル: 「本草図譜」 -> 動植物の図鑑（画譜）のため楽譜ではない。
+  * タイトル: 「葵氏艶譜」 -> 浮世絵・絵画集（画譜）のため楽譜ではない。
+  * タイトル: 「阿淡御両国御譜録」 -> 郷土史料・歴史書（譜録）のため楽譜ではない。
 
 【対象データ】
 タイトル: {title}
@@ -79,7 +96,7 @@ def check_is_score(client, title, label, description, model_name, search_info=No
 詳細/注記: {description}
 {web_info_section}
 【出力形式】
-以下のJSONキーのみを含むオブジェクトを出力してください。
+必ず以下のキーのみを持つJSONを出力してください。
 {{
   "is_score": true または false または null,
   "reason": "判断した理由({evidence_desc})"
@@ -121,7 +138,7 @@ def run_llm_judgment_generator(input_jsonl, output_jsonl, base_url, api_key, mod
     client = OpenAI(base_url=base_url, api_key=api_key)
 
     # 全行数カウント
-    with open(input_jsonl, 'r', encoding='utf-8') as f:
+    with open(input_jsonl, 'r', encoding='utf-8', errors='replace') as f:
         total_lines = sum(1 for _ in f)
 
     if test_limit and test_limit > 0:
@@ -130,8 +147,8 @@ def run_llm_judgment_generator(input_jsonl, output_jsonl, base_url, api_key, mod
     os.makedirs(os.path.dirname(output_jsonl), exist_ok=True)
 
     # 中途半端な終了時のために毎回上書きでオープン
-    with open(input_jsonl, 'r', encoding='utf-8') as fin, \
-         open(output_jsonl, 'w', encoding='utf-8') as fout:
+    with open(input_jsonl, 'r', encoding='utf-8', errors='replace') as fin, \
+         open(output_jsonl, 'w', encoding='utf-8', errors='replace') as fout:
         
         for i, line in enumerate(fin):
             if test_limit and test_limit > 0 and i >= test_limit:
@@ -194,7 +211,7 @@ def run_merge_data(original_jsonl, judgments_jsonl, output_merged_jsonl):
 
     # 1. 判定結果を読み込んで辞書化 (ID -> 判定データ)
     judgments = {}
-    with open(judgments_jsonl, 'r', encoding='utf-8') as f:
+    with open(judgments_jsonl, 'r', encoding='utf-8', errors='replace') as f:
         for line in f:
             try:
                 row = json.loads(line)
@@ -207,8 +224,8 @@ def run_merge_data(original_jsonl, judgments_jsonl, output_merged_jsonl):
     merged_count = 0
     os.makedirs(os.path.dirname(output_merged_jsonl), exist_ok=True)
 
-    with open(original_jsonl, 'r', encoding='utf-8') as fin, \
-         open(output_merged_jsonl, 'w', encoding='utf-8') as fout:
+    with open(original_jsonl, 'r', encoding='utf-8', errors='replace') as fin, \
+         open(output_merged_jsonl, 'w', encoding='utf-8', errors='replace') as fout:
         
         for line in fin:
             try:
@@ -237,3 +254,63 @@ def run_merge_data(original_jsonl, judgments_jsonl, output_merged_jsonl):
                 continue
 
     return merged_count
+
+# ----------------- バックグラウンド実行（進捗ファイル書き出し用） -----------------
+
+def update_progress_file(progress_path, running, current, total, title, completed=False, error=None):
+    try:
+        with open(progress_path, 'w', encoding='utf-8') as f:
+            json.dump({
+                "running": running,
+                "current": current,
+                "total": total,
+                "title": title,
+                "completed": completed,
+                "error": error
+            }, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+def run_llm_judgment_background(input_jsonl, output_jsonl, base_url, api_key, model_name, use_web_search, test_limit, progress_path, original_jsonl, output_merged_jsonl):
+    """
+    バックグラウンドスレッドでLLM判定を実行し、進捗をJSONファイルに記録します。
+    """
+    try:
+        # 初期状態書き込み
+        update_progress_file(progress_path, running=True, current=0, total=1, title="準備中...", completed=False)
+        
+        generator = run_llm_judgment_generator(
+            input_jsonl=input_jsonl,
+            output_jsonl=output_jsonl,
+            base_url=base_url,
+            api_key=api_key,
+            model_name=model_name,
+            use_web_search=use_web_search,
+            test_limit=test_limit
+        )
+        
+        total_count = 1
+        # 1件ずつ処理
+        for current, total, title, record in generator:
+            total_count = total
+            if record is None:
+                status_title = f"【判定中】 {title}"
+            else:
+                judge_str = "楽譜" if record.get("judgment") is True else "ノイズ" if record.get("judgment") is False else "不明"
+                status_title = f"【完了】 {title} (判定: {judge_str})"
+            update_progress_file(progress_path, running=True, current=current, total=total, title=status_title, completed=False)
+            
+        # 判定が終わったらマージ処理を実行
+        update_progress_file(progress_path, running=True, current=total_count, total=total_count, title="データをマージ中...", completed=False)
+        m_cnt = run_merge_data(
+            original_jsonl=original_jsonl,
+            judgments_jsonl=output_jsonl,
+            output_merged_jsonl=output_merged_jsonl
+        )
+        
+        # 完了状態の書き込み
+        update_progress_file(progress_path, running=False, current=total_count, total=total_count, title=f"完了 (マージ件数: {m_cnt}件)", completed=True)
+        
+    except Exception as e:
+        update_progress_file(progress_path, running=False, current=0, total=1, title="エラー発生", completed=False, error=str(e))
+
