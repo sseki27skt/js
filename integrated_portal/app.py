@@ -837,6 +837,17 @@ elif choice == "🤖 Step 4: LLM判定実行":
     PATH_LLM_PROGRESS = f"{DATA_DIR}/llm_progress.json"
 
     def load_progress(path):
+        # 1. インメモリのグローバル進捗を優先取得 (マルチスレッド同一プロセスでの最速・確実な同期)
+        try:
+            from modules.llm_pipeline import get_progress
+            prog = get_progress()
+            # 処理が走っている (runningがTrue)、または完了している (completedがTrue) 場合にメモリデータを採用
+            if prog and (prog.get("running") or prog.get("completed")):
+                return prog
+        except Exception:
+            pass
+
+        # 2. メモリ上から取得できなかった場合は物理ファイルを読み込む (フォールバック)
         if not os.path.exists(path):
             return None
         # Windows環境等でのファイルロック・競合回避のためのリトライ機構
@@ -859,8 +870,32 @@ elif choice == "🤖 Step 4: LLM判定実行":
             except:
                 pass
         
+        # 開始前にインメモリの進捗データを即座にリセット（UI状態の同期ズレ防止）
+        try:
+            from modules.llm_pipeline import set_progress
+            set_progress({
+                "running": True,
+                "current": 0,
+                "total": test_limit if (test_limit and test_limit > 0) else 1,
+                "title": "準備中...",
+                "completed": False,
+                "error": None,
+                "stop_requested": False,
+                "web_status": "待機中..."
+            })
+        except Exception as e:
+            print(f"⚠️ [Streamlit] メモリ進捗初期化エラー: {e}", flush=True)
+        
         import threading
         from modules.llm_pipeline import run_llm_judgment_background
+        
+        # コンソールへ起動ログを出力（デバッグ用）
+        print("="*60, flush=True)
+        print("🚀 [Streamlit] LLM判定スレッドを起動します...", flush=True)
+        print(f"  Input: {PATH_TARGET_FOR_LLM}", flush=True)
+        print(f"  Output: {PATH_LLM_JUDGMENTS}", flush=True)
+        print(f"  Model: {model_name} (Base URL: {base_url})", flush=True)
+        print("="*60, flush=True)
         
         # 非同期スレッドで判定実行
         t = threading.Thread(
@@ -977,6 +1012,10 @@ elif choice == "🤖 Step 4: LLM判定実行":
                 if progress_data:
                     progress_data["stop_requested"] = True
                     try:
+                        # メモリ上の状態にも即時中断シグナルを適用
+                        from modules.llm_pipeline import set_progress
+                        set_progress({"stop_requested": True})
+                        
                         with open(PATH_LLM_PROGRESS, 'w', encoding='utf-8') as f:
                             json.dump(progress_data, f, ensure_ascii=False, indent=2)
                         st.warning("⚠️ 中断を要求しました。現在の1件が完了次第、安全に停止してマージを行います...")
