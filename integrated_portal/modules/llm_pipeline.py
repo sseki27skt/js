@@ -4,8 +4,18 @@ import os
 import time
 import requests
 import urllib.parse
+import random
 from bs4 import BeautifulSoup
 from openai import OpenAI
+
+USER_AGENTS = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+]
 
 def get_id(data):
     """データからID（識別子）を取得する関数"""
@@ -14,41 +24,104 @@ def get_id(data):
             return data[key]
     return None
 
-def search_ddg(query, num_results=3):
-    """DuckDuckGoから簡易検索を行い、上位のスニペットを取得する"""
+def search_wikipedia(query):
+    """Wikipedia APIから要約を取得する"""
+    clean_query = query.replace(" とは", "").replace("とは", "").strip()
+    url = f"https://ja.wikipedia.org/w/api.php?action=query&format=json&prop=extracts&exintro=1&explaintext=1&titles={urllib.parse.quote(clean_query)}"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": random.choice(USER_AGENTS)
     }
-    url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=5)
         if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            results = []
-            
-            items = soup.find_all('div', class_='result')
-            for item in items:
-                title_elem = item.find('a', class_='result__a')
-                snippet_elem = item.find('a', class_='result__snippet')
-                
-                if title_elem and snippet_elem:
-                    title = title_elem.get_text(strip=True)
-                    snippet = snippet_elem.get_text(strip=True)
-                    results.append(f"・{title}\n  {snippet}")
-                    if len(results) >= num_results:
-                        break
-            
-            if not results:
-                for a in soup.find_all('a', class_='result__snippet'):
-                    results.append(a.get_text(strip=True))
-                    if len(results) >= num_results:
-                        break
-            
-            return "\n".join(results) if results else "検索結果なし"
-        else:
-            return f"検索エラー (ステータスコード: {response.status_code})"
+            data = response.json()
+            pages = data.get("query", {}).get("pages", {})
+            for page_id, page_info in pages.items():
+                if page_id != "-1":
+                    title = page_info.get("title")
+                    extract = page_info.get("extract", "")
+                    if extract:
+                        return f"・Wikipedia: {title}\n  {extract[:300]}"
+            return None
+        return f"Wikipediaエラー (ステータスコード: {response.status_code})"
     except Exception as e:
-        return f"検索エラー: {str(e)}"
+        return f"Wikipediaエラー: {str(e)}"
+
+def search_ddg_backend(query, num_results=3):
+    """DuckDuckGoから簡易検索を行い、上位のスニペットを取得する（リトライ機構付き）"""
+    url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
+    max_retries = 3
+    last_error = None
+    
+    for attempt in range(max_retries):
+        headers = {
+            "User-Agent": random.choice(USER_AGENTS),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+            "Referer": "https://duckduckgo.com/",
+            "DNT": "1",
+            "Connection": "keep-alive"
+        }
+        try:
+            if attempt > 0:
+                # リトライ時は指数バックオフ（2.5s, 5s...）＋少しのゆらぎ
+                wait_time = (attempt * 2.5) + random.uniform(0.5, 1.5)
+                time.sleep(wait_time)
+                
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                results = []
+                
+                items = soup.find_all('div', class_='result')
+                for item in items:
+                    title_elem = item.find('a', class_='result__a')
+                    snippet_elem = item.find('a', class_='result__snippet')
+                    
+                    if title_elem and snippet_elem:
+                        title = title_elem.get_text(strip=True)
+                        snippet = snippet_elem.get_text(strip=True)
+                        results.append(f"・{title}\n  {snippet}")
+                        if len(results) >= num_results:
+                            break
+                
+                if not results:
+                    for a in soup.find_all('a', class_='result__snippet'):
+                        results.append(a.get_text(strip=True))
+                        if len(results) >= num_results:
+                            break
+                
+                return "\n".join(results) if results else "検索結果なし"
+            
+            last_error = f"DuckDuckGoエラー (ステータスコード: {response.status_code})"
+            # 202, 429 または 5xx サーバーエラーの場合はリトライを試みる
+            if response.status_code in [202, 429, 500, 502, 503, 504]:
+                continue
+            else:
+                # その他のエラーは即座に終了
+                return last_error
+                
+        except Exception as e:
+            last_error = f"DuckDuckGoエラー: {str(e)}"
+            
+    return last_error
+
+def search_ddg(query, num_results=3):
+    """
+    Wikipedia と DuckDuckGo を併用して検索結果を取得する。
+    1. まずWikipediaを検索（より信頼性の高い解説記事）。
+    2. Wikipediaで該当なし、あるいはエラーの場合は、リトライ機構付きDuckDuckGo検索を実行する。
+    """
+    # 1. Wikipedia 検索を試行
+    wiki_result = search_wikipedia(query)
+    if wiki_result and not wiki_result.startswith("Wikipediaエラー"):
+        return wiki_result
+        
+    # 2. DuckDuckGo 検索を試行
+    ddg_result = search_ddg_backend(query, num_results)
+    return ddg_result
+
 
 def check_is_score(client, title, label, description, model_name, search_info=None):
     """LM Studioやその他OpenAI互換APIに判定させる"""
@@ -175,7 +248,7 @@ def run_llm_judgment_generator(input_jsonl, output_jsonl, base_url, api_key, mod
                 if use_web_search:
                     search_query = f"{title_text} とは"
                     search_info = search_ddg(search_query, 3)
-                    time.sleep(1) # IPブロック防止およびユーザー指定によるスリープ
+                    time.sleep(1.5) # IPブロック防止およびユーザー指定によるスリープ
 
                 # LLM判定
                 judgment = check_is_score(client, title_text, label, description, model_name, search_info=search_info)
