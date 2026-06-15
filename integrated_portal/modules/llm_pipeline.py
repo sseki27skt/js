@@ -8,6 +8,7 @@ import urllib.parse
 import random
 from bs4 import BeautifulSoup
 from openai import OpenAI
+from ddgs import DDGS
 
 # Windows / Streamlit のモジュール再ロード対策として sys に状態を逃がす
 if not hasattr(sys, "_global_llm_progress"):
@@ -68,64 +69,21 @@ def search_wikipedia(query):
         return f"Wikipediaエラー: {str(e)}"
 
 def search_ddg_backend(query, num_results=3):
-    """DuckDuckGoから簡易検索を行い、上位のスニペットを取得する（リトライ機構付き）"""
-    url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
-    max_retries = 3
-    last_error = None
-    
-    for attempt in range(max_retries):
-        headers = {
-            "User-Agent": random.choice(USER_AGENTS),
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-            "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
-            "Referer": "https://duckduckgo.com/",
-            "DNT": "1",
-            "Connection": "keep-alive"
-        }
-        try:
-            if attempt > 0:
-                # リトライ時は指数バックオフ（2.5s, 5s...）＋少しのゆらぎ
-                wait_time = (attempt * 2.5) + random.uniform(0.5, 1.5)
-                time.sleep(wait_time)
-                
-            response = requests.get(url, headers=headers, timeout=10)
+    """DuckDuckGoから簡易検索を行い、上位のスニペットを取得する（ddgsライブラリを使用）"""
+    try:
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, region="jp-jp", max_results=num_results))
+            if not results:
+                return "検索結果なし"
             
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
-                results = []
-                
-                items = soup.find_all('div', class_='result')
-                for item in items:
-                    title_elem = item.find('a', class_='result__a')
-                    snippet_elem = item.find('a', class_='result__snippet')
-                    
-                    if title_elem and snippet_elem:
-                        title = title_elem.get_text(strip=True)
-                        snippet = snippet_elem.get_text(strip=True)
-                        results.append(f"・{title}\n  {snippet}")
-                        if len(results) >= num_results:
-                            break
-                
-                if not results:
-                    for a in soup.find_all('a', class_='result__snippet'):
-                        results.append(a.get_text(strip=True))
-                        if len(results) >= num_results:
-                            break
-                
-                return "\n".join(results) if results else "検索結果なし"
-            
-            last_error = f"DuckDuckGoエラー (ステータスコード: {response.status_code})"
-            # 202, 429 または 5xx サーバーエラーの場合はリトライを試みる
-            if response.status_code in [202, 429, 500, 502, 503, 504]:
-                continue
-            else:
-                # その他のエラーは即座に終了
-                return last_error
-                
-        except Exception as e:
-            last_error = f"DuckDuckGoエラー: {str(e)}"
-            
-    return last_error
+            output = []
+            for r in results:
+                title = r.get("title", "")
+                body = r.get("body", "")
+                output.append(f"・{title}\n  {body}")
+            return "\n".join(output)
+    except Exception as e:
+        return f"DuckDuckGoエラー: {str(e)}"
 
 def search_ddg(query, num_results=3):
     """
