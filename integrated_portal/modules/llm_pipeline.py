@@ -87,18 +87,22 @@ def search_ddg_backend(query, num_results=3):
 
 def search_ddg(query, num_results=3):
     """
-    Wikipedia と DuckDuckGo を併用して検索結果を取得する。
-    1. まずWikipediaを検索（より信頼性の高い解説記事）。
-    2. Wikipediaで該当なし、あるいはエラーの場合は、リトライ機構付きDuckDuckGo検索を実行する。
+    DuckDuckGo と Wikipedia を併用して検索結果を取得する。
+    1. まず DuckDuckGo 検索を試行 (ddgsライブラリを使用)。
+    2. DuckDuckGo で該当なし、あるいはエラーの場合は、Wikipedia 検索をフォールバックとして実行する。
     """
-    # 1. Wikipedia 検索を試行
+    # 1. DuckDuckGo 検索を試行
+    ddg_result = search_ddg_backend(query, num_results)
+    if ddg_result and not ddg_result.startswith("DuckDuckGoエラー") and ddg_result != "検索結果なし":
+        return ddg_result
+        
+    # 2. Wikipedia 検索を試行 (フォールバック)
     wiki_result = search_wikipedia(query)
     if wiki_result and not wiki_result.startswith("Wikipediaエラー"):
         return wiki_result
         
-    # 2. DuckDuckGo 検索を試行
-    ddg_result = search_ddg_backend(query, num_results)
     return ddg_result
+
 
 
 def check_is_score(client, title, label, description, model_name, search_info=None):
