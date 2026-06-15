@@ -2,11 +2,31 @@
 import json
 import os
 import time
+import sys
 import requests
 import urllib.parse
 import random
 from bs4 import BeautifulSoup
 from openai import OpenAI
+
+# Windows / Streamlit のモジュール再ロード対策として sys に状態を逃がす
+if not hasattr(sys, "_global_llm_progress"):
+    sys._global_llm_progress = {
+        "running": False,
+        "current": 0,
+        "total": 1,
+        "title": "準備中...",
+        "completed": False,
+        "error": None,
+        "stop_requested": False,
+        "web_status": None
+    }
+
+def get_progress():
+    return sys._global_llm_progress.copy()
+
+def set_progress(data):
+    sys._global_llm_progress.update(data)
 
 USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -183,6 +203,7 @@ def check_is_score(client, title, label, description, model_name, search_info=No
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.0,
+            timeout=30.0  # モデルハング時のUIフリーズ防止用にタイムアウトを設定
         )
         content = response.choices[0].message.content
         
@@ -202,7 +223,7 @@ def check_is_score(client, title, label, description, model_name, search_info=No
 def run_llm_judgment_generator(input_jsonl, output_jsonl, base_url, api_key, model_name, use_web_search=False, test_limit=None):
     """
     LLM判定を1件ずつ実行するジェネレータ。
-    UIに進捗情報をリアルタイムに返すために、(現在の件数, 総件数, 現在処理中のタイトル, 判定レコード) を yield します。
+    UIに進捗情報をリアルタイムに返すために、(現在の件数, 総件数, 現在処理中のタイトル, 判定レコード, Web検索ステータス) を yield します。
     """
     if not os.path.exists(input_jsonl):
         raise FileNotFoundError(f"入力ファイルが見つかりません: {input_jsonl}")
@@ -241,16 +262,30 @@ def run_llm_judgment_generator(input_jsonl, output_jsonl, base_url, api_key, mod
                     continue
 
                 # 現在処理中の情報をUIに報告
-                yield (i + 1, total_lines, title_text, None)
+                yield (i + 1, total_lines, title_text, None, "待機中...")
 
                 # Web検索実行
                 search_info = None
+                web_status = "Web検索オフ"
                 if use_web_search:
                     search_query = f"{title_text} とは"
+                    yield (i + 1, total_lines, title_text, None, "🔍 Web検索リクエスト中...")
                     search_info = search_ddg(search_query, 3)
+                    
+                    if not search_info or search_info == "検索結果なし":
+                        web_status = "⚠️ 検索結果なし (Wikipedia / DuckDuckGo)"
+                    elif search_info.startswith("・Wikipedia:"):
+                        web_status = "📚 Wikipediaからデータ取得"
+                    elif "エラー" in search_info or "status:" in search_info or "status_code:" in search_info:
+                        web_status = f"❌ 検索エラー ({search_info})"
+                    else:
+                        web_status = "🌐 DuckDuckGoからデータ取得"
+                    
+                    yield (i + 1, total_lines, title_text, None, web_status)
                     time.sleep(1.5) # IPブロック防止およびユーザー指定によるスリープ
 
                 # LLM判定
+                yield (i + 1, total_lines, title_text, None, f"{web_status} ➡ 🤖 LLM判定中...")
                 judgment = check_is_score(client, title_text, label, description, model_name, search_info=search_info)
                 
                 record = {
@@ -265,7 +300,7 @@ def run_llm_judgment_generator(input_jsonl, output_jsonl, base_url, api_key, mod
                 fout.flush() # ディスクに即時書き出し
                 
                 # 判定結果も含めてUIに再報告
-                yield (i + 1, total_lines, title_text, record)
+                yield (i + 1, total_lines, title_text, record, web_status)
                 
             except json.JSONDecodeError:
                 continue
@@ -331,29 +366,65 @@ def run_merge_data(original_jsonl, judgments_jsonl, output_merged_jsonl):
 # ----------------- バックグラウンド実行（進捗ファイル書き出し用） -----------------
 
 def check_stop_requested(progress_path):
+    # メモリ上の中断シグナルを優先して確認
+    if sys._global_llm_progress.get("stop_requested", False):
+        return True
+    # ファイルからのフォールバック確認
     if not os.path.exists(progress_path):
         return False
-    try:
-        with open(progress_path, 'r', encoding='utf-8', errors='replace') as f:
-            data = json.load(f)
-            return data.get("stop_requested", False)
-    except Exception:
-        return False
+    for _ in range(5):
+        try:
+            with open(progress_path, 'r', encoding='utf-8', errors='replace') as f:
+                data = json.load(f)
+                return data.get("stop_requested", False)
+        except (IOError, PermissionError, json.JSONDecodeError):
+            time.sleep(0.05)
+    return False
 
-def update_progress_file(progress_path, running, current, total, title, completed=False, error=None, stop_requested=False):
-    try:
-        with open(progress_path, 'w', encoding='utf-8') as f:
-            json.dump({
-                "running": running,
-                "current": current,
-                "total": total,
-                "title": title,
-                "completed": completed,
-                "error": error,
-                "stop_requested": stop_requested
-            }, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+def update_progress_file(progress_path, running, current, total, title, completed=False, error=None, stop_requested=False, web_status=None):
+    # メモリ上のグローバル進捗変数を瞬時に更新（遅延・ファイルロックなし）
+    set_progress({
+        "running": running,
+        "current": current,
+        "total": total,
+        "title": title,
+        "completed": completed,
+        "error": error,
+        "stop_requested": stop_requested,
+        "web_status": web_status
+    })
+    
+    # 物理ファイルへの書き出しも試みる
+    data = {
+        "running": running,
+        "current": current,
+        "total": total,
+        "title": title,
+        "completed": completed,
+        "error": error,
+        "stop_requested": stop_requested,
+        "web_status": web_status
+    }
+    
+    temp_path = progress_path + ".tmp"
+    # 1. 一時ファイルに書き出す (メインファイルへの書き込み競合を避ける)
+    for _ in range(3):
+        try:
+            with open(temp_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            break
+        except Exception:
+            time.sleep(0.02)
+            
+    # 2. 一時ファイルをメインファイルに置き換える (Windows対応)
+    for _ in range(3):
+        try:
+            if os.path.exists(progress_path):
+                os.remove(progress_path)
+            os.rename(temp_path, progress_path)
+            break
+        except Exception:
+            time.sleep(0.02)
 
 def run_llm_judgment_background(input_jsonl, output_jsonl, base_url, api_key, model_name, use_web_search, test_limit, progress_path, original_jsonl, output_merged_jsonl):
     """
@@ -378,7 +449,7 @@ def run_llm_judgment_background(input_jsonl, output_jsonl, base_url, api_key, mo
         current_idx = 0
         
         # 1件ずつ処理
-        for current, total, title, record in generator:
+        for current, total, title, record, web_status in generator:
             total_count = total
             current_idx = current
             
@@ -392,7 +463,7 @@ def run_llm_judgment_background(input_jsonl, output_jsonl, base_url, api_key, mo
             else:
                 judge_str = "楽譜" if record.get("judgment") is True else "ノイズ" if record.get("judgment") is False else "不明"
                 status_title = f"【完了】 {title} (判定: {judge_str})"
-            update_progress_file(progress_path, running=True, current=current, total=total, title=status_title, completed=False)
+            update_progress_file(progress_path, running=True, current=current, total=total, title=status_title, completed=False, web_status=web_status)
             
         if stopped:
             # 中断された場合、そこまでの結果をマージして保存
@@ -417,5 +488,10 @@ def run_llm_judgment_background(input_jsonl, output_jsonl, base_url, api_key, mo
         update_progress_file(progress_path, running=False, current=total_count, total=total_count, title=f"完了 (マージ件数: {m_cnt}件)", completed=True)
         
     except Exception as e:
-        update_progress_file(progress_path, running=False, current=0, total=1, title="エラー発生", completed=False, error=str(e))
+        import traceback
+        print("="*60, flush=True)
+        print("【エラー】LLM判定バックグラウンドスレッドで例外が発生しました:", flush=True)
+        traceback.print_exc()
+        print("="*60, flush=True)
+        update_progress_file(progress_path, running=False, current=0, total=1, title=f"エラー発生: {str(e)}", completed=False, error=str(e))
 
