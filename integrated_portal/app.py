@@ -961,7 +961,13 @@ elif choice == "🤖 Step 4: LLM判定実行":
             # 進捗バーと詳細表示
             progress_val = min(1.0, max(0.0, curr / tot))
             st.progress(progress_val)
-            st.info(f"進捗: {curr} / {tot} 件 (残り {tot - curr} 件)\n\n**現在処理中:** {title}")
+            
+            web_status = progress_data.get("web_status", "待機中")
+            st.info(
+                f"進捗: {curr} / {tot} 件 (残り {tot - curr} 件)\n\n"
+                f"**現在処理中:** {title}\n\n"
+                f"**📡 Web検索状況:** {web_status}"
+            )
             
             # 中断処理ボタン
             if st.button("🛑 判定処理を中断する", use_container_width=True):
