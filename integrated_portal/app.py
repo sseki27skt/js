@@ -839,11 +839,14 @@ elif choice == "🤖 Step 4: LLM判定実行":
     def load_progress(path):
         if not os.path.exists(path):
             return None
-        try:
-            with open(path, 'r', encoding='utf-8', errors='replace') as f:
-                return json.load(f)
-        except Exception:
-            return None
+        # Windows環境等でのファイルロック・競合回避のためのリトライ機構
+        for _ in range(5):
+            try:
+                with open(path, 'r', encoding='utf-8', errors='replace') as f:
+                    return json.load(f)
+            except (IOError, PermissionError, json.JSONDecodeError):
+                time.sleep(0.05)  # 50ms待機してリトライ
+        return None
 
     progress_data = load_progress(PATH_LLM_PROGRESS)
     is_running = bool(progress_data.get("running", False)) if progress_data else False
