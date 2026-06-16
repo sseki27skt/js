@@ -142,47 +142,103 @@ def inject_save_shortcut():
         width=0
     )
 
+def inject_pagination_shortcut():
+    # 画面上には表示しない隠し要素として親DOMにキーボードリスナーを注入
+    components.html(
+        """
+        <script>
+        const doc = window.parent.document;
+        // 重複登録を防ぐため、既存のリスナーがあれば一度削除
+        if (window.parent.__paginationShortcutListener) {
+            doc.removeEventListener('keydown', window.parent.__paginationShortcutListener);
+        }
+        
+        window.parent.__paginationShortcutListener = function(e) {
+            // アクティブな要素が入力フィールド（input, textarea, select）の場合はショートカットを無視
+            const activeEl = doc.activeElement;
+            if (activeEl && (
+                activeEl.tagName === 'INPUT' || 
+                activeEl.tagName === 'TEXTAREA' || 
+                activeEl.tagName === 'SELECT' || 
+                activeEl.isContentEditable
+            )) {
+                return;
+            }
+
+            // Alt (Option) + ArrowRight (次のページ)
+            if (e.altKey && e.key === 'ArrowRight') {
+                e.preventDefault();
+                const buttons = doc.querySelectorAll('button');
+                for (const btn of buttons) {
+                    if (btn.textContent.includes('次のページ')) {
+                        btn.click();
+                        console.log("Portal Shortcut: Next page triggered.");
+                        break;
+                    }
+                }
+            }
+            // Alt (Option) + ArrowLeft (前のページ)
+            else if (e.altKey && e.key === 'ArrowLeft') {
+                e.preventDefault();
+                const buttons = doc.querySelectorAll('button');
+                for (const btn of buttons) {
+                    if (btn.textContent.includes('前のページ')) {
+                        btn.click();
+                        console.log("Portal Shortcut: Previous page triggered.");
+                        break;
+                    }
+                }
+            }
+        };
+        
+        doc.addEventListener('keydown', window.parent.__paginationShortcutListener);
+        </script>
+        """,
+        height=0,
+        width=0
+    )
+
 # ==========================================
 # メイン画面とナビゲーション
 # ==========================================
 # ショートカットキーリスナーの有効化
 inject_save_shortcut()
 
-st.sidebar.title("🎼 楽譜メタデータ精査")
-st.sidebar.caption("統合クレンジング・ポータル")
+st.sidebar.title("古典籍データ判定ポータル")
+st.sidebar.caption("楽譜書誌精査システム")
 
 menu_options = [
-    "📊 ダッシュボード",
-    "📥 Step 1: データインポート・収集",
-    "🏷️ Step 2-A: About仕分け",
-    "🎼 Step 2-B: 末尾語彙仕分け",
-    "🧠 Step 3: N-gram仕分け",
-    "🤖 Step 4: LLM判定実行",
-    "🔍 Step 5: 査読 ＆ 最終確定"
+    "Dashboard",
+    "Step 1: データインポート・収集",
+    "Step 2-A: Aboutキーワード仕分け",
+    "Step 2-B: 末尾語彙仕分け",
+    "Step 3: N-gram仕分け",
+    "Step 4: LLM自動判定",
+    "Step 5: 最終査読と確定"
 ]
 choice = st.sidebar.radio("工程を選択:", menu_options)
 
 # ==========================================
-# 📊 ダッシュボード
+# Dashboard
 # ==========================================
-if choice == "📊 ダッシュボード":
-    st.title("📊 パイプライン全体ダッシュボード")
+if choice == "Dashboard":
+    st.title("パイプライン全体ダッシュボード")
     st.markdown("クレンジングプロセスの全体進捗状況と、各フェーズの中間ファイル件数を可視化します。")
     
     # 既存インポート状況のサマリー
-    st.subheader("📁 各ステップの中間ファイル状態")
+    st.subheader("各ステップの中間ファイル状態")
     
     cols = st.columns(3)
     
     # 収集データ
     with cols[0]:
-        st.info("📥 Phase 1: 収集")
+        st.info("Phase 1: 収集")
         _, meta_status = check_file_exists_and_size(PATH_RAW_METADATA)
         st.metric("収集済み書誌データ", f"{count_lines(PATH_RAW_METADATA)} 件", help=meta_status)
         
     # ルールベース合格データ
     with cols[1]:
-        st.warning("🏷️ Phase 2: ルールベース")
+        st.warning("Phase 2: ルールベース")
         _, about_status = check_file_exists_and_size(PATH_ABOUT_FILTERED)
         _, suffix_status = check_file_exists_and_size(PATH_SUFFIX_FILTERED)
         st.metric("About フィルタ通過件数", f"{count_lines(PATH_ABOUT_FILTERED)} 件", help=about_status)
@@ -190,7 +246,7 @@ if choice == "📊 ダッシュボード":
         
     # ハイブリッド分類データ
     with cols[2]:
-        st.success("🧠 Phase 3: ハイブリッド判定")
+        st.success("Phase 3: ハイブリッド判定")
         st.metric("N-gram 確定OK件数", f"{count_lines(PATH_CONFIRMED_OK)} 件")
         st.metric("LLM判定対象 (Gray)", f"{count_lines(PATH_TARGET_FOR_LLM)} 件")
         st.metric("LLM判定済み件数", f"{count_lines(PATH_LLM_JUDGMENTS)} 件")
@@ -198,21 +254,20 @@ if choice == "📊 ダッシュボード":
     st.divider()
     
     # 成果物の状態
-    st.subheader("🏆 最終クレンジング成果物")
+    st.subheader("最終成果物")
     if os.path.exists(PATH_CLEANED_JSONL):
-        st.balloons()
-        st.success(f"🎉 最終成果物が生成されています！: {PATH_CLEANED_JSONL} ({count_lines(PATH_CLEANED_JSONL)}件)")
+        st.success(f"最終成果物が生成されています: {PATH_CLEANED_JSONL} ({count_lines(PATH_CLEANED_JSONL)}件)")
     else:
         st.info("最終成果物は未確定です。Step 5まで進めて「最終確定」を行ってください。")
 
 # ==========================================
-# 📥 Step 1: データインポート・収集
+# Step 1: データインポート・収集
 # ==========================================
-elif choice == "📥 Step 1: データインポート・収集":
-    st.title("📥 データのインポートと初期収集")
+elif choice == "Step 1: データインポート・収集":
+    st.title("データのインポートと初期収集")
     st.markdown("以前の作業で作成された既存のデータ・ルールをインポートするか、SPARQL経由で新規データを収集します。")
     
-    tab_import, tab_collect = st.tabs(["📁 既存アセットのインポート (推奨)", "🌐 ジャパンサーチから新規取得"])
+    tab_import, tab_collect = st.tabs(["既存アセットのインポート (推奨)", "ジャパンサーチから新規取得"])
     
     with tab_import:
         st.subheader("既存データ・ルールの安全コピー")
@@ -227,8 +282,8 @@ elif choice == "📥 Step 1: データインポート・収集":
         for key, s in status.items():
             import_df_data.append({
                 "対象アセット": key,
-                "元アセットの存在": "✅ あり" if s["source_exists"] else "❌ なし",
-                "ポータル内アセットの存在": "✅ 移植済み" if s["dest_exists"] else "未移植",
+                "元アセットの存在": "あり" if s["source_exists"] else "なし",
+                "ポータル内アセットの存在": "移植済み" if s["dest_exists"] else "未移植",
                 "ポータル内配置先": s["dest_path"]
             })
             
@@ -236,7 +291,7 @@ elif choice == "📥 Step 1: データインポート・収集":
         
         c1, c2 = st.columns(2)
         with c1:
-            if st.button("🚀 既存データを安全にインポート", type="primary", use_container_width=True):
+            if st.button("データをインポートする", type="primary", use_container_width=True):
                 with st.spinner("安全コピーを実行中..."):
                     results = import_existing_assets(overwrite=True)
                     st.success("インポート完了！以下のファイルを複製しました。")
@@ -248,20 +303,20 @@ elif choice == "📥 Step 1: データインポート・収集":
 
     with tab_collect:
         st.subheader("SPARQL ＆ Web APIによる新規取得")
-        st.warning("⚠️ 新規に収集を行うと、既存データは上書きされ、API実行に時間がかかります（数十分〜数時間）。")
+        st.warning("新規に収集を行うと、既存データは上書きされ、API実行に時間がかかります。")
         st.button("SPARQLクエリを実行してURI一覧を取得 (URIListMaker)", disabled=True)
         st.button("詳細メタデータの一括グラフ構築 (BuildMetadata)", disabled=True)
 
 # ==========================================
-# 🏷️ Step 2-A: About仕分け
+# Step 2-A: Aboutキーワード仕分け
 # ==========================================
-elif choice == "🏷️ Step 2-A: About仕分け":
-    st.title("🏷️ Aboutキーワード仕分け")
+elif choice == "Step 2-A: Aboutキーワード仕分け":
+    st.title("Aboutキーワード仕分け")
     st.markdown("`schema:about` のキーワード（URIや語彙）に基づいて、楽譜であるレコード（ホワイト）とノイズ（ブラック）を判定します。")
     
     # 前提データチェック
     if not os.path.exists(PATH_RAW_METADATA):
-        st.warning("⚠️ 前提データ (raw_metadata.jsonl) が存在しません。まず Step 1 でインポートを行ってください。")
+        st.warning("前提データ (raw_metadata.jsonl) が存在しません。まず Step 1 でインポートを行ってください。")
         st.stop()
         
     PATH_ABOUT_SAMPLES = f"{STEPS_DIR}/02_rule_based_filtering/about_samples.json"
@@ -356,7 +411,7 @@ elif choice == "🏷️ Step 2-A: About仕分け":
         st.divider()
         st.metric("選択中件数", len(current_selection))
         
-        if st.button("💾 ルールを保存 ＆ フィルタ適用", type="primary", use_container_width=True):
+        if st.button("ルールを保存して適用", type="primary", use_container_width=True):
             # 保存
             rules_data = {
                 "NOISE_PATTERNS": sorted(list(st.session_state["edited_noise"])),
@@ -378,13 +433,13 @@ elif choice == "🏷️ Step 2-A: About仕分け":
                 # 後続のStep 3用の中間ファイルを「要更新」にするため、古いN-gramファイルを削除（手戻り対策）
                 if os.path.exists(PATH_NGRAM_RANKING):
                     os.remove(PATH_NGRAM_RANKING)
-                st.success(f"適用完了！ 合格: {k_cnt} 件 / 除外: {d_cnt} 件")
+                st.success(f"適用完了: 合格 {k_cnt} 件 / 除外 {d_cnt} 件")
                 st.session_state["about_view_version"] += 1
                 time.sleep(4)
                 st.rerun()
 
     # メイン画面の検索と仕分け
-    search_query = st.text_input("🔍 キーワード検索 (部分一致)")
+    search_query = st.text_input("キーワード検索 (部分一致)")
     df_display = about_df
     
     # 既知ルールに含まれるものは、別アプローチ（ルールファイルは温存・UI非表示）に基づき表示制御
@@ -454,19 +509,19 @@ elif choice == "🏷️ Step 2-A: About仕分け":
         )
 
 # ==========================================
-# 🎼 Step 2-B: 末尾語彙仕分け
+# Step 2-B: 末尾語彙仕分け
 # ==========================================
-elif choice == "🎼 Step 2-B: 末尾語彙仕分け":
-    st.title("🎼 末尾語彙(〜譜)仕分け")
+elif choice == "Step 2-B: 末尾語彙仕分け":
+    st.title("末尾語彙(〜譜)仕分け")
     st.markdown("データに含まれる「〇〇譜」という末尾語彙を検出し、そのうち楽譜ではないもの（家譜、年譜など）を除外パターンに登録します。")
     
     # 前提データチェック
     if not os.path.exists(PATH_ABOUT_FILTERED):
-        st.warning("⚠️ 前提データ (about_filtered.jsonl) が存在しません。まず Step 2-A を完了し、フィルタ適用を行ってください。")
+        st.warning("前提データ (about_filtered.jsonl) が存在しません。まず Step 2-A を完了してください。")
         st.stop()
         
     if not os.path.exists(PATH_SUFFIX_RANKING):
-        st.warning("⚠️ 集計データ (suffix_ranking.csv) が存在しません。Step 2-A の「保存 ＆ フィルタ適用」を実行してください。")
+        st.warning("集計データ (suffix_ranking.csv) が存在しません。まず Step 2-A の「ルールを保存して適用」を実行してください。")
         st.stop()
 
     # ルール初期化
@@ -492,7 +547,7 @@ elif choice == "🎼 Step 2-B: 末尾語彙仕分け":
         st.divider()
         st.metric("NG登録件数", len(st.session_state["suffix_ng_set"]))
         
-        if st.button("💾 ルールを保存 ＆ フィルタ適用", type="primary", use_container_width=True):
+        if st.button("ルールを保存して適用", type="primary", use_container_width=True):
             # 保存
             rules_data = {"NOISE_PATTERNS": sorted(list(st.session_state["suffix_ng_set"]))}
             with open(PATH_SUFFIX_RULES, 'w', encoding='utf-8') as f:
@@ -509,7 +564,7 @@ elif choice == "🎼 Step 2-B: 末尾語彙仕分け":
                 # 後続の中間ファイルを「要更新」にするため古いN-gramを削除
                 if os.path.exists(PATH_NGRAM_RANKING):
                     os.remove(PATH_NGRAM_RANKING)
-                st.success(f"適用完了！ 合格: {k_cnt} 件 / 除外: {d_cnt} 件")
+                st.success(f"適用完了: 合格 {k_cnt} 件 / 除外 {d_cnt} 件")
                 st.session_state["suffix_view_version"] += 1
                 time.sleep(4)
                 st.rerun()
@@ -599,15 +654,15 @@ elif choice == "🎼 Step 2-B: 末尾語彙仕分け":
                 )
 
 # ==========================================
-# 🧠 Step 3: N-gram仕分け
+# Step 3: N-gram仕分け
 # ==========================================
-elif choice == "🧠 Step 3: N-gram仕分け":
-    st.title("🧠 N-gram仕分け ＆ 自動3分割")
+elif choice == "Step 3: N-gram仕分け":
+    st.title("N-gram仕分けとデータ分割")
     st.markdown("資料タイトルから抽出したN-gram（部分文字列）をOK（楽譜関連）とNG（無関係）に仕分け、データを3分類します。")
     
     # 前提データチェック
     if not os.path.exists(PATH_SUFFIX_FILTERED):
-        st.warning("⚠️ 前提データ (suffix_filtered.jsonl) が存在しません。まず Step 2-B を完了し、フィルタ適用を行ってください。")
+        st.warning("前提データ (suffix_filtered.jsonl) が存在しません。まず Step 2-B を完了してください。")
         st.stop()
 
     # N-gram分析の自動実行（なければ）
@@ -619,7 +674,7 @@ elif choice == "🧠 Step 3: N-gram仕分け":
             output_samples_json=PATH_NGRAM_SAMPLES,
             top_n=200
         )
-        st.success("N-gramランキングの生成が完了しました！")
+        st.success("N-gramランキングの生成が完了しました")
         st.rerun()
 
     # ルール読み込み
@@ -638,7 +693,7 @@ elif choice == "🧠 Step 3: N-gram仕分け":
         hide_redundant = st.checkbox("判定確定済みの語を非表示", value=True)
         
         st.divider()
-        if st.button("💾 リストを保存 ＆ 3分割実行", type="primary", use_container_width=True):
+        if st.button("リストを保存して実行", type="primary", use_container_width=True):
             # 保存
             save_set_to_text_list(PATH_OK_LIST, st.session_state["ngram_ok_set"])
             save_set_to_text_list(PATH_NG_LIST, st.session_state["ngram_ng_set"])
@@ -654,7 +709,7 @@ elif choice == "🧠 Step 3: N-gram仕分け":
                     out_gray_jsonl=PATH_TARGET_FOR_LLM
                 )
                 st.success(
-                    f"分割完了！\n"
+                    f"分割完了:\n"
                     f"・確定OK: {counts['ok']} 件\n"
                     f"・確定NG: {counts['ng']} 件\n"
                     f"・LLM判定(Gray): {counts['gray']} 件"
@@ -664,8 +719,8 @@ elif choice == "🧠 Step 3: N-gram仕分け":
                 st.rerun()
 
         st.divider()
-        st.metric("⛔ NG登録数", len(st.session_state["ngram_ng_set"]))
-        st.metric("✅ OK登録数", len(st.session_state["ngram_ok_set"]))
+        st.metric("NG登録数", len(st.session_state["ngram_ng_set"]))
+        st.metric("OK登録数", len(st.session_state["ngram_ok_set"]))
 
     # データとサンプルの読み込み
     df = pd.read_csv(PATH_NGRAM_RANKING)
@@ -805,22 +860,22 @@ elif choice == "🧠 Step 3: N-gram仕分け":
                 )
 
 # ==========================================
-# 🤖 Step 4: LLM判定実行
+# Step 4: LLM自動判定
 # ==========================================
-elif choice == "🤖 Step 4: LLM判定実行":
-    st.title("🤖 LLM自動判定")
+elif choice == "Step 4: LLM自動判定":
+    st.title("LLM自動判定")
     st.markdown("N-gramで仕分けきれなかった「グレーゾーン」のデータに対し、OpenAI互換API（LM Studio等）を実行して自動仕分けを行います。")
     
     # 前提データチェック
     if not os.path.exists(PATH_TARGET_FOR_LLM):
-        st.warning("⚠️ 前提データ (target_for_llm.jsonl) が存在しません。まず Step 3 で「保存 ＆ 3分割実行」を行ってください。")
+        st.warning("前提データ (target_for_llm.jsonl) が存在しません。まず Step 3 を完了してください。")
         st.stop()
 
     total_gray_count = count_lines(PATH_TARGET_FOR_LLM)
     st.info(f"現在の判定対象（グレーゾーン）: {total_gray_count} 件")
 
     # APIパラメータ設定
-    st.subheader("⚙️ LLM接続設定")
+    st.subheader("LLM接続設定")
     c1, c2 = st.columns(2)
     with c1:
         base_url = st.text_input("API Base URL", value="http://localhost:1234/v1")
@@ -863,7 +918,7 @@ elif choice == "🤖 Step 4: LLM判定実行":
     is_running = bool(progress_data.get("running", False)) if progress_data else False
 
     # 二重実行防止のためにボタンを活性/非活性化
-    if st.button("🚀 LLM判定を開始する", type="primary", disabled=is_running, use_container_width=True):
+    if st.button("LLM判定を開始する", type="primary", disabled=is_running, use_container_width=True):
         if os.path.exists(PATH_LLM_PROGRESS):
             try:
                 os.remove(PATH_LLM_PROGRESS)
@@ -884,14 +939,14 @@ elif choice == "🤖 Step 4: LLM判定実行":
                 "web_status": "待機中..."
             })
         except Exception as e:
-            print(f"⚠️ [Streamlit] メモリ進捗初期化エラー: {e}", flush=True)
+            print(f"[Streamlit] メモリ進捗初期化エラー: {e}", flush=True)
         
         import threading
         from modules.llm_pipeline import run_llm_judgment_background
         
         # コンソールへ起動ログを出力（デバッグ用）
         print("="*60, flush=True)
-        print("🚀 [Streamlit] LLM判定スレッドを起動します...", flush=True)
+        print("[Streamlit] LLM判定スレッドを起動します...", flush=True)
         print(f"  Input: {PATH_TARGET_FOR_LLM}", flush=True)
         print(f"  Output: {PATH_LLM_JUDGMENTS}", flush=True)
         print(f"  Model: {model_name} (Base URL: {base_url})", flush=True)
@@ -916,12 +971,12 @@ elif choice == "🤖 Step 4: LLM判定実行":
         t.daemon = True
         t.start()
         
-        st.success("🤖 バックグラウンドでLLM判定プロセスを起動しました！")
+        st.success("バックグラウンドでLLM判定プロセスを起動しました。")
         time.sleep(0.5)
         st.rerun()
 
     # 過去データクリアボタン (実行中でない場合のみ有効化)
-    if st.button("🧹 過去の判定データを完全にクリアして初期化する", disabled=is_running, use_container_width=True):
+    if st.button("過去の判定データを初期化", disabled=is_running, use_container_width=True):
         files_to_remove = [PATH_LLM_JUDGMENTS, PATH_MERGED_FOR_VERIFICATION, PATH_LLM_PROGRESS]
         removed_files = []
         for f_path in files_to_remove:
@@ -945,7 +1000,7 @@ elif choice == "🤖 Step 4: LLM判定実行":
 
     # 進捗状況の表示
     if progress_data:
-        st.subheader("📊 判定プロセスのステータス")
+        st.subheader("判定プロセスのステータス")
         
         curr = progress_data.get("current", 0)
         tot = progress_data.get("total", 1)
@@ -969,7 +1024,7 @@ elif choice == "🤖 Step 4: LLM判定実行":
         unknown_count = sum(1 for r in judged_records if r.get("judgment") is None)
         
         if error:
-            st.error(f"❌ エラーが発生しました: {error}")
+            st.error(f"エラーが発生しました: {error}")
             if st.button("進捗ログをクリアしてやり直す"):
                 if os.path.exists(PATH_LLM_PROGRESS):
                     try:
@@ -978,16 +1033,16 @@ elif choice == "🤖 Step 4: LLM判定実行":
                         pass
                 st.rerun()
         elif completed:
-            st.success(f"🎉 LLM自動判定およびデータのマージが完了しました！\n\nステータス: {title}")
+            st.success(f"LLM自動判定およびデータのマージが完了しました。\n\nステータス: {title}")
             
             # 完了サマリー表示
-            st.markdown("##### 📈 最終判定サマリー")
+            st.markdown("##### 最終判定サマリー")
             c1, c2, c3 = st.columns(3)
-            c1.metric("🎼 楽譜判定 (YES)", f"{yes_count} 件")
-            c2.metric("⛔ ノイズ判定 (NO)", f"{no_count} 件")
-            c3.metric("❓ 判定不能 (UNKNOWN)", f"{unknown_count} 件")
+            c1.metric("楽譜判定 (YES)", f"{yes_count} 件")
+            c2.metric("ノイズ判定 (NO)", f"{no_count} 件")
+            c3.metric("判定不能 (UNKNOWN)", f"{unknown_count} 件")
             
-            st.info("「🔍 Step 5: 査読 ＆ 最終確定」へ進み、判定結果を確認してください。")
+            st.info("「Step 5: 最終査読と確定」へ進み、判定結果を確認してください。")
             if st.button("進捗ログをクリア"):
                 if os.path.exists(PATH_LLM_PROGRESS):
                     try:
@@ -1008,7 +1063,7 @@ elif choice == "🤖 Step 4: LLM判定実行":
             )
             
             # 中断処理ボタン
-            if st.button("🛑 判定処理を中断する", use_container_width=True):
+            if st.button("処理を中断する", use_container_width=True):
                 if progress_data:
                     progress_data["stop_requested"] = True
                     try:
@@ -1018,42 +1073,42 @@ elif choice == "🤖 Step 4: LLM判定実行":
                         
                         with open(PATH_LLM_PROGRESS, 'w', encoding='utf-8') as f:
                             json.dump(progress_data, f, ensure_ascii=False, indent=2)
-                        st.warning("⚠️ 中断を要求しました。現在の1件が完了次第、安全に停止してマージを行います...")
+                        st.warning("中断を要求しました。現在の1件が完了次第、安全に停止してマージを行います。")
                         time.sleep(1.5)
                         st.rerun()
                     except Exception as e:
                         st.error(f"中断処理の書き込みに失敗しました: {e}")
             
             # リアルタイムの集計を表示
-            st.markdown("##### 📈 判定内訳 (リアルタイム途中経過)")
+            st.markdown("##### 判定内訳 (途中経過)")
             c1, c2, c3 = st.columns(3)
-            c1.metric("🎼 楽譜判定 (YES)", f"{yes_count} 件")
-            c2.metric("⛔ ノイズ判定 (NO)", f"{no_count} 件")
-            c3.metric("❓ 判定不能 (UNKNOWN)", f"{unknown_count} 件")
+            c1.metric("楽譜判定 (YES)", f"{yes_count} 件")
+            c2.metric("ノイズ判定 (NO)", f"{no_count} 件")
+            c3.metric("判定不能 (UNKNOWN)", f"{unknown_count} 件")
             
             # 直近5件のリアルタイムログ
             if judged_records:
-                with st.expander("📋 直近の判定ログを表示", expanded=True):
+                with st.expander("直近の判定ログを表示", expanded=True):
                     recent = judged_records[-5:] # 最新の5件
                     for r in reversed(recent):
                         j_val = r.get("judgment")
                         if j_val is True:
-                            badge = "🟢 楽譜 (YES)"
+                            badge = '<span class="custom-badge custom-badge-yes">楽譜</span>'
                         elif j_val is False:
-                            badge = "🔴 ノイズ (NO)"
+                            badge = '<span class="custom-badge custom-badge-no">ノイズ</span>'
                         else:
-                            badge = "🟡 不明 (UNKNOWN)"
+                            badge = '<span class="custom-badge custom-badge-unknown">不明</span>'
                         
-                        st.markdown(f"**{r.get('label')}** : {badge}")
+                        st.markdown(f"**{r.get('label')}** : {badge}", unsafe_allow_html=True)
                         st.caption(f"reason: {r.get('reason')}")
                 
                 # スクロール可能な判定履歴一覧テーブルの表示を追加
-                with st.expander("🗂️ すべての判定履歴一覧を表示", expanded=False):
+                with st.expander("判定履歴一覧を表示", expanded=False):
                     df_log = pd.DataFrame([
                         {
                             "No.": i + 1,
                             "資料名": r.get("label"),
-                            "判定": "🟢 楽譜 (YES)" if r.get("judgment") is True else ("🔴 ノイズ (NO)" if r.get("judgment") is False else "🟡 不明"),
+                            "判定": "楽譜" if r.get("judgment") is True else ("ノイズ" if r.get("judgment") is False else "不明"),
                             "判定理由": r.get("reason")
                         }
                         for i, r in enumerate(judged_records)
@@ -1075,15 +1130,18 @@ elif choice == "🤖 Step 4: LLM判定実行":
             st.rerun()
 
 # ==========================================
-# 🔍 Step 5: 査読 ＆ 最終確定
+# Step 5: 最終査読と確定
 # ==========================================
-elif choice == "🔍 Step 5: 査読 ＆ 最終確定":
-    st.title("🔍 最終査読・成果物出力")
+elif choice == "Step 5: 最終査読と確定":
+    # ページ遷移ショートカットJSを注入
+    inject_pagination_shortcut()
+    
+    st.title("最終査読と成果物出力")
     st.markdown("LLMによるグレー判定結果を人間が確認・修正し、最終的な合格楽譜レコードを確定させます。")
     
     # 前提データチェック
     if not os.path.exists(PATH_MERGED_FOR_VERIFICATION):
-        st.warning("⚠️ 前提データ (merged_for_verification.jsonl) が存在しません。まず Step 4 のLLM判定を完了してください。")
+        st.warning("前提データ (merged_for_verification.jsonl) が存在しません。まず Step 4 のLLM判定を完了してください。")
         st.stop()
 
     # データのロード (キャッシュを無効化し、エラー耐性を高めて最新のファイルを即時ロード)
@@ -1108,17 +1166,47 @@ elif choice == "🔍 Step 5: 査読 ＆ 最終確定":
     st.info(f"要査読レコード: {total_items} 件")
 
     # グリッド・テーブル形式で査読
-    # ページネーション
-    page_size = 10
+    # 表示件数の動的選択を追加
+    page_size = st.selectbox("1ページあたりの表示件数", [10, 20, 50, 100], index=1)
+    
+    # ページ状態のセッション初期化
+    if "verification_page" not in st.session_state:
+        st.session_state["verification_page"] = 1
+
     total_pages = (total_items - 1) // page_size + 1 if total_items > 0 else 1
-    page = st.number_input("ページ", min_value=1, max_value=max(1, total_pages), value=1)
+    
+    # 範囲外チェックと補正
+    if st.session_state["verification_page"] > total_pages:
+        st.session_state["verification_page"] = total_pages
+    if st.session_state["verification_page"] < 1:
+        st.session_state["verification_page"] = 1
+
+    # ナビゲーションボタンと入力フィールドの配置
+    c_prev, c_page, c_next = st.columns([2, 3, 2])
+    with c_prev:
+        if st.button("前のページ", key="prev_page_top", disabled=(st.session_state["verification_page"] <= 1), use_container_width=True):
+            st.session_state["verification_page"] -= 1
+            st.rerun()
+            
+    with c_page:
+        page = st.number_input(
+            "ページ", 
+            min_value=1, 
+            max_value=max(1, total_pages), 
+            key="verification_page"
+        )
+        
+    with c_next:
+        if st.button("次のページ", key="next_page_top", disabled=(st.session_state["verification_page"] >= total_pages), use_container_width=True):
+            st.session_state["verification_page"] += 1
+            st.rerun()
     
     start_idx = (page - 1) * page_size
     end_idx = min(start_idx + page_size, total_items)
     
     page_items = data_list[start_idx:end_idx]
 
-    st.subheader(f"📖 査読対象 ( {start_idx + 1} 〜 {end_idx} 件目 / 全 {total_items} 件 )")
+    st.subheader(f"査読対象 ( {start_idx + 1} 〜 {end_idx} 件目 / 全 {total_items} 件 )")
     
     for idx, item in enumerate(page_items):
         item_id = item.get("@id", item.get("id"))
@@ -1185,7 +1273,7 @@ elif choice == "🔍 Step 5: 査読 ＆ 最終確定":
             st.markdown(formatted_desc)
             
             # オリジナルメタデータの詳細アコーディオン
-            with st.expander("📄 オリジナルメタデータの詳細を表示"):
+            with st.expander("オリジナルメタデータの詳細を表示"):
                 for k_f, v_f in other_metadata.items():
                     if k_f == "ID / URL" and str(v_f).startswith("http"):
                         st.markdown(f"**{k_f}**: [{v_f}]({v_f})")
@@ -1197,17 +1285,18 @@ elif choice == "🔍 Step 5: 査読 ＆ 最終確定":
             if web_snippets:
                 web_text = web_snippets[0] if isinstance(web_snippets, list) and len(web_snippets) > 0 else str(web_snippets)
                 if web_text and web_text != "None" and web_text != "検索結果なし":
-                    with st.expander("🌐 Web検索の補足情報を表示"):
+                    with st.expander("Web検索の補足情報を表示"):
                         st.info(web_text)
                         
         with c2:
             if llm_decision is True:
-                decision_label = "✅ 楽譜 (YES)"
+                badge_html = '<span class="custom-badge custom-badge-yes">楽譜</span>'
             elif llm_decision is False:
-                decision_label = "⛔ ノイズ (NO)"
+                badge_html = '<span class="custom-badge custom-badge-no">ノイズ</span>'
             else:
-                decision_label = "❓ 判定不能 (UNKNOWN)"
-            st.caption(f"🤖 LLM判断: {decision_label}")
+                badge_html = '<span class="custom-badge custom-badge-unknown">不明</span>'
+            
+            st.markdown(f"**LLM判断:** {badge_html}", unsafe_allow_html=True)
             st.caption(f"理由: {reason}")
         with c3:
             v_val = st.session_state["verifications"][item_id]
@@ -1226,13 +1315,33 @@ elif choice == "🔍 Step 5: 査読 ＆ 最終確定":
             
         st.divider()
 
-    st.subheader("💾 最終成果物の確定出力")
+    # 下部ナビゲーションボタンの配置
+    if total_pages > 1:
+        c_prev_b, c_info_b, c_next_b = st.columns([2, 3, 2])
+        with c_prev_b:
+            if st.button("前のページ", key="prev_page_bottom", disabled=(st.session_state["verification_page"] <= 1), use_container_width=True):
+                st.session_state["verification_page"] -= 1
+                st.rerun()
+        with c_info_b:
+            st.markdown(
+                f"<div style='text-align: center; color: gray; line-height: 2.5rem;'>"
+                f"{st.session_state['verification_page']} / {total_pages} ページ"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        with c_next_b:
+            if st.button("次のページ", key="next_page_bottom", disabled=(st.session_state["verification_page"] >= total_pages), use_container_width=True):
+                st.session_state["verification_page"] += 1
+                st.rerun()
+        st.divider()
+
+    st.subheader("最終成果物の確定出力")
     st.markdown("すべての査読が終わったら（または現状の判断で）、最終クレンジング済みデータを書き出します。")
     
     c_ok = sum(1 for v in st.session_state["verifications"].values() if v is True)
     st.caption(f"現在 確定OK予定件数: {c_ok} 件")
 
-    if st.button("🏆 クレンジング済み最終ファイルを書き出す", type="primary", use_container_width=True):
+    if st.button("最終成果物を出力する", type="primary", use_container_width=True):
         # 1. 確定OKのN-gramデータを読み込む
         final_records = []
         if os.path.exists(PATH_CONFIRMED_OK):
@@ -1262,7 +1371,7 @@ elif choice == "🔍 Step 5: 査読 ＆ 最終確定":
         df_out[valid_cols + other_cols].to_csv(PATH_CLEANED_CSV, index=False, encoding='utf-8-sig')
         
         st.success(
-            f"🎉 最終クレンジング完了！\n"
-            f"・JSONL成果物: {PATH_CLEANED_JSONL} ({len(final_records)} 件)\n"
-            f"・CSV成果物: {PATH_CLEANED_CSV}"
+            f"最終クレンジングが完了しました。\n"
+            f"・成果物 (JSONL): {PATH_CLEANED_JSONL} ({len(final_records)} 件)\n"
+            f"・成果物 (CSV): {PATH_CLEANED_CSV}"
         )
