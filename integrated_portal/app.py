@@ -1162,7 +1162,29 @@ elif choice == "Step 5: 最終査読と確定":
     if "verifications" not in st.session_state:
         st.session_state["verifications"] = {} # id -> bool
 
-    total_items = len(data_list)
+    # LLM判定結果による絞り込み機能の追加
+    filter_option = st.selectbox(
+        "LLM判定による絞り込み",
+        ["すべて表示", "LLMが「楽譜 (YES)」と判定したレコードのみ", "LLMが「ノイズ (NO)」と判定したレコードのみ", "LLMが「不明 (UNKNOWN)」と判定したレコードのみ"],
+        index=0
+    )
+    
+    # フィルタの適用
+    filtered_list = []
+    for item in data_list:
+        inf_meta = item.get("_inferred_metadata", {})
+        llm_decision = inf_meta.get("is_score")
+        
+        if filter_option == "LLMが「楽譜 (YES)」と判定したレコードのみ" and llm_decision is not True:
+            continue
+        elif filter_option == "LLMが「ノイズ (NO)」と判定したレコードのみ" and llm_decision is not False:
+            continue
+        elif filter_option == "LLMが「不明 (UNKNOWN)」と判定したレコードのみ" and llm_decision is not None:
+            continue
+            
+        filtered_list.append(item)
+
+    total_items = len(filtered_list)
     st.info(f"要査読レコード: {total_items} 件")
 
     # グリッド・テーブル形式で査読
@@ -1204,7 +1226,7 @@ elif choice == "Step 5: 最終査読と確定":
     start_idx = (page - 1) * page_size
     end_idx = min(start_idx + page_size, total_items)
     
-    page_items = data_list[start_idx:end_idx]
+    page_items = filtered_list[start_idx:end_idx]
 
     st.subheader(f"査読対象 ( {start_idx + 1} 〜 {end_idx} 件目 / 全 {total_items} 件 )")
     
