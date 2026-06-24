@@ -14,6 +14,12 @@ from modules.importer import import_existing_assets, get_import_status
 from modules.rule_filter import run_about_filter, run_suffix_filter
 from modules.ngram_sorter import run_ngram_analysis, run_data_split
 from modules.llm_pipeline import run_llm_judgment_generator, run_merge_data
+from modules.metadata_enricher import (
+    run_metadata_enrichment_background, 
+    merge_enriched_metadata, 
+    GENRES, 
+    INSTRUMENTS
+)
 
 # ==========================================
 # 0. 基本設定とパス定義
@@ -50,9 +56,15 @@ PATH_TARGET_FOR_LLM = f"{STEPS_DIR}/03_hybrid_classification/target_for_llm.json
 PATH_LLM_JUDGMENTS = f"{STEPS_DIR}/03_hybrid_classification/llm_judgments.jsonl"
 PATH_MERGED_FOR_VERIFICATION = f"{STEPS_DIR}/03_hybrid_classification/merged_for_verification.jsonl"
 
+PATH_ENRICHED_METADATA = f"{STEPS_DIR}/03_hybrid_classification/enriched_metadata.jsonl"
+PATH_METADATA_PROGRESS = f"{DATA_DIR}/metadata_progress.json"
+
 PATH_CLEANED_JSONL = f"{DATA_DIR}/classical_scores_cleaned.jsonl"
 PATH_CLEANED_CSV = f"{DATA_DIR}/classical_scores_cleaned.csv"
 PATH_VOCAB_RANKING = f"{DATA_DIR}/vocab_ranking_scores.csv"
+
+PATH_EXPORT_DIR = "docs/score_search"
+PATH_EXPORT_JSON = f"{PATH_EXPORT_DIR}/scores_data.json"
 
 # ==========================================
 # ヘルパー関数
@@ -102,6 +114,81 @@ def make_google_link(word):
     
     query = urllib.parse.quote(f"{word_str} とは")
     return f"[[🔍]](https://www.google.com/search?q={query})"
+
+def get_japan_search_link(item):
+    source_info = item.get("https://jpsearch.go.jp/term/property#sourceInfo")
+    if isinstance(source_info, dict):
+        link = source_info.get("schema:relatedLink")
+        if link:
+            return link
+    item_id = item.get("@id", item.get("id"))
+    if item_id and "jpsearch.go.jp/data/" in item_id:
+        return item_id.replace("jpsearch.go.jp/data/", "jpsearch.go.jp/item/")
+    return None
+
+def render_pagination(total_pages, current_page, key_prefix):
+    if total_pages <= 1:
+        return current_page
+
+    pages_to_show = []
+    if total_pages <= 7:
+        pages_to_show = list(range(1, total_pages + 1))
+    else:
+        pages_to_show.append(1)
+        if current_page > 3:
+            pages_to_show.append("...")
+        elif current_page == 3:
+            pages_to_show.append(2)
+            
+        start = max(2, current_page - 1)
+        if current_page == 1 or current_page == 2:
+            start = 2
+        
+        end = min(total_pages - 1, current_page + 1)
+        if current_page == total_pages or current_page == total_pages - 1:
+            end = total_pages - 1
+            
+        for p in range(start, end + 1):
+            if p not in pages_to_show:
+                pages_to_show.append(p)
+                
+        if current_page < total_pages - 2:
+            pages_to_show.append("...")
+        elif current_page == total_pages - 2:
+            if total_pages - 1 not in pages_to_show:
+                pages_to_show.append(total_pages - 1)
+                
+        if total_pages not in pages_to_show:
+            pages_to_show.append(total_pages)
+
+    cols_count = len(pages_to_show) + 2
+    cols = st.columns(cols_count)
+    
+    new_page = current_page
+    
+    with cols[0]:
+        if st.button("◀", key=f"{key_prefix}_prev", disabled=(current_page <= 1), use_container_width=True):
+            new_page = current_page - 1
+            
+    for i, p in enumerate(pages_to_show):
+        with cols[i + 1]:
+            if p == "...":
+                st.markdown("<div style='text-align: center; line-height: 2.2rem; color: gray;'>...</div>", unsafe_allow_html=True)
+            else:
+                is_current = (p == current_page)
+                btn_type = "primary" if is_current else "secondary"
+                if st.button(str(p), key=f"{key_prefix}_page_{p}", type=btn_type, use_container_width=True):
+                    new_page = p
+                    
+    with cols[-1]:
+        if st.button("▶", key=f"{key_prefix}_next", disabled=(current_page >= total_pages), use_container_width=True):
+            new_page = current_page + 1
+            
+    if new_page != current_page:
+        st.session_state["verification_page"] = new_page
+        st.rerun()
+        
+    return new_page
 
 def inject_save_shortcut():
     # 画面上には表示しない隠し要素として親DOMにキーボードリスナーを注入
@@ -214,7 +301,9 @@ menu_options = [
     "Step 2-B: 末尾語彙仕分け",
     "Step 3: N-gram仕分け",
     "Step 4: LLM自動判定",
-    "Step 5: 最終査読と確定"
+    "Step 4-B: 音楽メタデータ付与",
+    "Step 5: 最終査読と確定",
+    "Step 6: 検索ツールのエクスポート"
 ]
 choice = st.sidebar.radio("工程を選択:", menu_options)
 
@@ -1130,6 +1219,195 @@ elif choice == "Step 4: LLM自動判定":
             st.rerun()
 
 # ==========================================
+# Step 4-B: 音楽メタデータ付与
+# ==========================================
+elif choice == "Step 4-B: 音楽メタデータ付与":
+    st.title("音楽的メタデータの自動推定 (LLM)")
+    st.markdown("楽譜として判定された資料に対して、LLM（OpenAI互換API）を使用して「大ジャンル」「サブジャンル」「使用楽器」を自動推定します。")
+
+    # 前提データチェック
+    if not os.path.exists(PATH_MERGED_FOR_VERIFICATION):
+        st.warning("前提データ (merged_for_verification.jsonl) が存在しません。まず Step 4 のLLM自動判定を完了してください。")
+        st.stop()
+
+    # 楽譜と判定されている件数をカウント
+    target_count = 0
+    with open(PATH_MERGED_FOR_VERIFICATION, 'r', encoding='utf-8', errors='replace') as f:
+        for line in f:
+            if line.strip():
+                try:
+                    data = json.loads(line)
+                    if data.get("_inferred_metadata", {}).get("is_score") is True:
+                        target_count += 1
+                except:
+                    continue
+
+    st.info(f"推定対象レコード (判定結果が楽譜の資料): {target_count} 件")
+
+    # APIパラメータ設定
+    st.subheader("LLM接続設定")
+    c1, c2 = st.columns(2)
+    with c1:
+        base_url = st.text_input("API Base URL (メタデータ付与用)", value="http://localhost:1234/v1", key="enrich_base_url")
+        model_name = st.text_input("モデル名 (Model) (メタデータ付与用)", value="local-model", key="enrich_model_name")
+    with c2:
+        api_key = st.text_input("API Key (メタデータ付与用)", value="lm-studio", type="password", key="enrich_api_key")
+        test_limit = st.number_input("テスト制限件数 (0で全件処理) (メタデータ付与用)", min_value=0, max_value=5000, value=10, key="enrich_test_limit")
+
+    st.divider()
+
+    # 進捗ロード
+    from modules.metadata_enricher import get_progress, set_progress
+    progress_data = get_progress()
+    
+    # 物理ファイルが存在すればロード（メモリと物理の同期）
+    if os.path.exists(PATH_METADATA_PROGRESS):
+        try:
+            with open(PATH_METADATA_PROGRESS, 'r', encoding='utf-8') as f:
+                f_prog = json.load(f)
+                if f_prog.get("running") or f_prog.get("completed"):
+                    progress_data = f_prog
+        except:
+            pass
+
+    is_running = progress_data.get("running", False)
+
+    # 推定開始ボタン
+    if st.button("音楽メタデータの推定を開始する", type="primary", disabled=is_running, use_container_width=True):
+        if os.path.exists(PATH_METADATA_PROGRESS):
+            try: os.remove(PATH_METADATA_PROGRESS)
+            except: pass
+        if os.path.exists(PATH_ENRICHED_METADATA):
+            try: os.remove(PATH_ENRICHED_METADATA)
+            except: pass
+
+        set_progress({
+            "running": True,
+            "current": 0,
+            "total": test_limit if test_limit > 0 else (target_count if target_count > 0 else 1),
+            "title": "準備中...",
+            "completed": False,
+            "error": None,
+            "stop_requested": False
+        })
+
+        import threading
+        t = threading.Thread(
+            target=run_metadata_enrichment_background,
+            kwargs={
+                "input_jsonl": PATH_MERGED_FOR_VERIFICATION,
+                "output_jsonl": PATH_ENRICHED_METADATA,
+                "base_url": base_url,
+                "api_key": api_key,
+                "model_name": model_name,
+                "test_limit": test_limit if test_limit > 0 else None,
+                "progress_path": PATH_METADATA_PROGRESS
+            }
+        )
+        t.daemon = True
+        t.start()
+
+        st.success("バックグラウンドで音楽メタデータ推定プロセスを起動しました。")
+        time.sleep(0.5)
+        st.rerun()
+
+    # 過去データ初期化
+    if st.button("メタデータ付与データをクリア", disabled=is_running, use_container_width=True):
+        files_to_remove = [PATH_ENRICHED_METADATA, PATH_METADATA_PROGRESS]
+        removed = []
+        for f_path in files_to_remove:
+            if os.path.exists(f_path):
+                try:
+                    os.remove(f_path)
+                    removed.append(os.path.basename(f_path))
+                except Exception as e:
+                    st.error(f"削除エラー: {e}")
+        if removed: st.success(f"クリア完了: {', '.join(removed)}")
+        time.sleep(1)
+        st.rerun()
+
+    # 進捗表示
+    if progress_data and (progress_data.get("running") or progress_data.get("completed") or progress_data.get("error")):
+        st.subheader("推定プロセスのステータス")
+        
+        curr = progress_data.get("current", 0)
+        tot = progress_data.get("total", 1)
+        title = progress_data.get("title", "")
+        completed = progress_data.get("completed", False)
+        error = progress_data.get("error", None)
+
+        if error:
+            st.error(f"エラー発生: {error}")
+        elif completed:
+            st.success("音楽メタデータの推定が完了しました！")
+            
+            # マージ処理
+            if st.button("推定したメタデータを査読用データにマージする", type="primary", use_container_width=True):
+                with st.spinner("マージを実行中..."):
+                    m_cnt = merge_enriched_metadata(
+                        original_merged_jsonl=PATH_MERGED_FOR_VERIFICATION,
+                        enriched_jsonl=PATH_ENRICHED_METADATA,
+                        output_merged_jsonl=PATH_MERGED_FOR_VERIFICATION
+                    )
+                    st.success(f"マージ完了！ {m_cnt} 件のレコードにメタデータを反映しました。")
+                    time.sleep(2)
+                    st.rerun()
+        else:
+            progress_val = min(1.0, max(0.0, curr / tot))
+            st.progress(progress_val)
+            st.info(f"進捗: {curr} / {tot} 件 (残り {tot - curr} 件)\n\n**現在処理中:** {title}")
+            
+            if st.button("処理を中断する", key="stop_enrich", use_container_width=True):
+                progress_data["stop_requested"] = True
+                set_progress({"stop_requested": True})
+                try:
+                    with open(PATH_METADATA_PROGRESS, 'w', encoding='utf-8') as f:
+                        json.dump(progress_data, f, ensure_ascii=False, indent=2)
+                    st.warning("中断要求を送信しました。現在の処理が完了次第停止します。")
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"エラー: {e}")
+
+        # 推定されたデータの集計と一覧表示
+        enriched_records = []
+        if os.path.exists(PATH_ENRICHED_METADATA):
+            try:
+                with open(PATH_ENRICHED_METADATA, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.strip():
+                            enriched_records.append(json.loads(line))
+            except:
+                pass
+
+        if enriched_records:
+            st.markdown("##### 推定済みデータ内訳")
+            genres_list = [r.get("genre", "不明") for r in enriched_records]
+            instruments_list = []
+            for r in enriched_records:
+                instruments_list.extend(r.get("instruments", []))
+            
+            c_g, c_i = st.columns(2)
+            with c_g:
+                st.markdown("**ジャンル別集計:**")
+                g_counts = Counter(genres_list)
+                st.write(pd.DataFrame([{"ジャンル": k, "件数": v} for k, v in g_counts.items()]))
+            with c_i:
+                st.markdown("**楽器別集計:**")
+                i_counts = Counter(instruments_list)
+                st.write(pd.DataFrame([{"楽器": k, "件数": v} for k, v in i_counts.items()]))
+
+            with st.expander("直近の推定履歴を表示", expanded=True):
+                for r in reversed(enriched_records[-5:]):
+                    st.markdown(f"**{r.get('label')}** : `{r.get('genre')}` (`{r.get('subgenre') or 'サブジャンルなし'}`) - 楽器: `{', '.join(r.get('instruments', []))}`")
+                    st.caption(f"根拠: {r.get('reason')}")
+
+            # 自動更新
+            if is_running:
+                time.sleep(2)
+                st.rerun()
+
+# ==========================================
 # Step 5: 最終査読と確定
 # ==========================================
 elif choice == "Step 5: 最終査読と確定":
@@ -1161,13 +1439,20 @@ elif choice == "Step 5: 最終査読と確定":
     
     if "verifications" not in st.session_state:
         st.session_state["verifications"] = {} # id -> bool
+        
+    if "enriched_metadata" not in st.session_state:
+        st.session_state["enriched_metadata"] = {} # id -> dict
 
-    # LLM判定結果による絞り込み機能の追加
-    filter_option = st.selectbox(
-        "LLM判定による絞り込み",
-        ["すべて表示", "LLMが「楽譜 (YES)」と判定したレコードのみ", "LLMが「ノイズ (NO)」と判定したレコードのみ", "LLMが「不明 (UNKNOWN)」と判定したレコードのみ"],
-        index=0
-    )
+    # LLM判定結果による絞り込み機能とキーワード検索機能の追加
+    c_filt1, c_filt2 = st.columns([1, 1])
+    with c_filt1:
+        filter_option = st.selectbox(
+            "LLM判定による絞り込み",
+            ["すべて表示", "LLMが「楽譜 (YES)」と判定したレコードのみ", "LLMが「ノイズ (NO)」と判定したレコードのみ", "LLMが「不明 (UNKNOWN)」と判定したレコードのみ"],
+            index=0
+        )
+    with c_filt2:
+        search_keyword = st.text_input("🔍 タイトル検索（部分一致）", value="")
     
     # フィルタの適用
     filtered_list = []
@@ -1182,9 +1467,49 @@ elif choice == "Step 5: 最終査読と確定":
         elif filter_option == "LLMが「不明 (UNKNOWN)」と判定したレコードのみ" and llm_decision is not None:
             continue
             
+        # タイトル検索フィルタ
+        label = item.get("rdfs:label", item.get("schema:name", "No Title"))
+        if isinstance(label, list):
+            label_str = " ".join([str(x) for x in label])
+        else:
+            label_str = str(label)
+            
+        if search_keyword and search_keyword.strip().lower() not in label_str.lower():
+            continue
+            
         filtered_list.append(item)
 
     total_items = len(filtered_list)
+    
+    # 検索または絞り込みが行われている場合のみ、一括操作UIを表示する
+    if search_keyword or filter_option != "すべて表示":
+        st.markdown(f"**💡 {total_items}件の検索・絞り込み結果に対する一括操作**")
+        c_bulk_ok, c_bulk_ng, c_bulk_clear = st.columns(3)
+        with c_bulk_ok:
+            if st.button("🟢 すべてを「楽譜 (OK)」に変更", key="bulk_ok_btn", use_container_width=True):
+                for item in filtered_list:
+                    item_id = item.get("@id", item.get("id"))
+                    st.session_state["verifications"][item_id] = True
+                st.success(f"{total_items} 件を「楽譜 (OK)」に一括変更しました。")
+                time.sleep(1)
+                st.rerun()
+        with c_bulk_ng:
+            if st.button("🔴 すべてを「ノイズ (NG)」に変更", key="bulk_ng_btn", use_container_width=True):
+                for item in filtered_list:
+                    item_id = item.get("@id", item.get("id"))
+                    st.session_state["verifications"][item_id] = False
+                st.success(f"{total_items} 件を「ノイズ (NG)」に一括変更しました。")
+                time.sleep(1)
+                st.rerun()
+        with c_bulk_clear:
+            if st.button("⚪ すべてを「保留」に変更", key="bulk_clear_btn", use_container_width=True):
+                for item in filtered_list:
+                    item_id = item.get("@id", item.get("id"))
+                    st.session_state["verifications"][item_id] = None
+                st.success(f"{total_items} 件を「保留」に一括変更しました。")
+                time.sleep(1)
+                st.rerun()
+
     st.info(f"要査読レコード: {total_items} 件")
 
     # グリッド・テーブル形式で査読
@@ -1204,24 +1529,7 @@ elif choice == "Step 5: 最終査読と確定":
         st.session_state["verification_page"] = 1
 
     # ナビゲーションボタンと入力フィールドの配置
-    c_prev, c_page, c_next = st.columns([2, 3, 2])
-    with c_prev:
-        if st.button("前のページ", key="prev_page_top", disabled=(st.session_state["verification_page"] <= 1), use_container_width=True):
-            st.session_state["verification_page"] -= 1
-            st.rerun()
-            
-    with c_page:
-        page = st.number_input(
-            "ページ", 
-            min_value=1, 
-            max_value=max(1, total_pages), 
-            key="verification_page"
-        )
-        
-    with c_next:
-        if st.button("次のページ", key="next_page_top", disabled=(st.session_state["verification_page"] >= total_pages), use_container_width=True):
-            st.session_state["verification_page"] += 1
-            st.rerun()
+    page = render_pagination(total_pages, st.session_state["verification_page"], "top")
     
     start_idx = (page - 1) * page_size
     end_idx = min(start_idx + page_size, total_items)
@@ -1242,6 +1550,13 @@ elif choice == "Step 5: 最終査読と確定":
         # セッションに既存の決定がなければLLMの判断で初期化
         if item_id not in st.session_state["verifications"]:
             st.session_state["verifications"][item_id] = llm_decision
+            
+        if item_id not in st.session_state["enriched_metadata"]:
+            st.session_state["enriched_metadata"][item_id] = {
+                "genre": inf_meta.get("genre", "その他/不明"),
+                "subgenre": inf_meta.get("subgenre"),
+                "instruments": inf_meta.get("instruments", [])
+            }
 
         # 説明文の箇条書き整形
         def format_description(d_val):
@@ -1287,12 +1602,29 @@ elif choice == "Step 5: 最終査読と確定":
             else:
                 other_metadata[friendly_key] = str(v)
 
+        jpsearch_link = get_japan_search_link(item)
         c1, c2, c3 = st.columns([5, 3, 2])
         with c1:
-            st.markdown(f"**[{start_idx + idx + 1}] {label}**")
+            image_url = item.get("schema:image")
+            if isinstance(image_url, list) and image_url:
+                image_url = image_url[0]
             
-            # 箇条書き説明文の表示
-            st.markdown(formatted_desc)
+            if image_url and isinstance(image_url, str):
+                col_img, col_txt = st.columns([1, 4])
+                with col_img:
+                    st.image(image_url, use_container_width=True)
+                with col_txt:
+                    if jpsearch_link:
+                        st.markdown(f"**[{start_idx + idx + 1}] [{label}]({jpsearch_link})**")
+                    else:
+                        st.markdown(f"**[{start_idx + idx + 1}] {label}**")
+                    st.markdown(formatted_desc)
+            else:
+                if jpsearch_link:
+                    st.markdown(f"**[{start_idx + idx + 1}] [{label}]({jpsearch_link})**")
+                else:
+                    st.markdown(f"**[{start_idx + idx + 1}] {label}**")
+                st.markdown(formatted_desc)
             
             # オリジナルメタデータの詳細アコーディオン
             with st.expander("オリジナルメタデータの詳細を表示"):
@@ -1326,7 +1658,7 @@ elif choice == "Step 5: 最終査読と確定":
                 "判定:", 
                 ("楽譜 (OK)", "ノイズ (NG)", "保留 / 判定待ち"), 
                 index=0 if v_val is True else (1 if v_val is False else 2),
-                key=f"rad_verify_{item_id}"
+                key=f"rad_verify_{item_id}_{v_val}"
             )
             if "楽譜" in user_val:
                 st.session_state["verifications"][item_id] = True
@@ -1334,27 +1666,56 @@ elif choice == "Step 5: 最終査読と確定":
                 st.session_state["verifications"][item_id] = False
             else:
                 st.session_state["verifications"][item_id] = None
+                
+            # 楽譜判定されたもののみ、音楽的メタデータ編集UIを表示
+            if st.session_state["verifications"][item_id] is True:
+                st.markdown("---")
+                st.markdown("**音楽的メタデータ:**")
+                enrich_info = st.session_state["enriched_metadata"][item_id]
+                
+                g_options = list(GENRES.keys())
+                g_val = enrich_info.get("genre", "その他/不明")
+                default_g_idx = g_options.index(g_val) if g_val in g_options else g_options.index("その他/不明")
+                
+                sel_genre = st.selectbox(
+                    "大ジャンル:",
+                    g_options,
+                    index=default_g_idx,
+                    key=f"sel_genre_{item_id}"
+                )
+                st.session_state["enriched_metadata"][item_id]["genre"] = sel_genre
+                
+                sub_genres = GENRES.get(sel_genre, [])
+                if sub_genres:
+                    sub_options = [None] + sub_genres
+                    sub_val = enrich_info.get("subgenre")
+                    default_sub_idx = sub_options.index(sub_val) if sub_val in sub_options else 0
+                    
+                    sel_sub = st.selectbox(
+                        "サブジャンル:",
+                        sub_options,
+                        index=default_sub_idx,
+                        format_func=lambda x: "選択なし" if x is None else x,
+                        key=f"sel_sub_{item_id}"
+                    )
+                    st.session_state["enriched_metadata"][item_id]["subgenre"] = sel_sub
+                else:
+                    st.session_state["enriched_metadata"][item_id]["subgenre"] = None
+                    
+                cur_insts = enrich_info.get("instruments", [])
+                sel_insts = st.multiselect(
+                    "使用楽器:",
+                    INSTRUMENTS,
+                    default=[i for i in cur_insts if i in INSTRUMENTS],
+                    key=f"sel_insts_{item_id}"
+                )
+                st.session_state["enriched_metadata"][item_id]["instruments"] = sel_insts
             
         st.divider()
 
     # 下部ナビゲーションボタンの配置
     if total_pages > 1:
-        c_prev_b, c_info_b, c_next_b = st.columns([2, 3, 2])
-        with c_prev_b:
-            if st.button("前のページ", key="prev_page_bottom", disabled=(st.session_state["verification_page"] <= 1), use_container_width=True):
-                st.session_state["verification_page"] -= 1
-                st.rerun()
-        with c_info_b:
-            st.markdown(
-                f"<div style='text-align: center; color: gray; line-height: 2.5rem;'>"
-                f"{st.session_state['verification_page']} / {total_pages} ページ"
-                f"</div>",
-                unsafe_allow_html=True
-            )
-        with c_next_b:
-            if st.button("次のページ", key="next_page_bottom", disabled=(st.session_state["verification_page"] >= total_pages), use_container_width=True):
-                st.session_state["verification_page"] += 1
-                st.rerun()
+        render_pagination(total_pages, st.session_state["verification_page"], "bottom")
         st.divider()
 
     st.subheader("最終成果物の確定出力")
@@ -1379,15 +1740,30 @@ elif choice == "Step 5: 最終査読と確定":
                 item["is_score"] = True
                 final_records.append(item)
                 
-        # 3. ファイル書き出し
+        # 3. 音楽的メタデータ（ジャンル、サブジャンル、楽器）の反映
+        for item in final_records:
+            item_id = item.get("@id", item.get("id"))
+            enrich_info = st.session_state["enriched_metadata"].get(item_id)
+            if not enrich_info:
+                inf = item.get("_inferred_metadata", {})
+                enrich_info = {
+                    "genre": inf.get("genre", "その他/不明"),
+                    "subgenre": inf.get("subgenre"),
+                    "instruments": inf.get("instruments", [])
+                }
+            item["genre"] = enrich_info.get("genre", "その他/不明")
+            item["subgenre"] = enrich_info.get("subgenre")
+            item["instruments"] = enrich_info.get("instruments", [])
+                
+        # 4. ファイル書き出し
         os.makedirs(os.path.dirname(PATH_CLEANED_JSONL), exist_ok=True)
         with open(PATH_CLEANED_JSONL, 'w', encoding='utf-8') as f:
             for item in final_records:
                 f.write(json.dumps(item, ensure_ascii=False) + '\n')
                 
-        # 4. 分析用にCSVも書き出し
+        # 5. 分析用にCSVも書き出し
         df_out = pd.DataFrame(final_records)
-        cols_out = ['@id', 'rdfs:label', 'schema:name', 'schema:description']
+        cols_out = ['@id', 'rdfs:label', 'schema:name', 'genre', 'subgenre', 'instruments', 'schema:description']
         valid_cols = [c for c in cols_out if c in df_out.columns]
         other_cols = [c for c in df_out.columns if c not in valid_cols]
         df_out[valid_cols + other_cols].to_csv(PATH_CLEANED_CSV, index=False, encoding='utf-8-sig')
@@ -1397,3 +1773,181 @@ elif choice == "Step 5: 最終査読と確定":
             f"・成果物 (JSONL): {PATH_CLEANED_JSONL} ({len(final_records)} 件)\n"
             f"・成果物 (CSV): {PATH_CLEANED_CSV}"
         )
+
+# ==========================================
+# Step 6: 検索ツールのエクスポート
+# ==========================================
+elif choice == "Step 6: 検索ツールのエクスポート":
+    st.title("資料検索ツールのエクスポート")
+    st.markdown("確定したクレンジング済み楽譜データと、音楽的メタデータを使用して、GitHub Pagesに公開可能な「静的検索ポータル（HTML/CSS/JS）」を構築します。")
+
+    # 前提データチェック
+    if not os.path.exists(PATH_CLEANED_JSONL):
+        st.warning("最終成果物 (classical_scores_cleaned.jsonl) が存在しません。まず Step 5 で「最終成果物を出力する」を完了してください。")
+        st.stop()
+
+    st.subheader("エクスポート設定")
+    export_dir = st.text_input("エクスポート先ディレクトリ", value=PATH_EXPORT_DIR)
+    
+    st.info(
+        f"以下の場所に検索ポータルを出力します:\n"
+        f"・HTML/CSS/JSファイル ➡ `{export_dir}/` 内\n"
+        f"・軽量検索用データ ➡ `{export_dir}/scores_data.json`"
+    )
+
+    if st.button("検索ポータルをビルドしてエクスポートする", type="primary", use_container_width=True):
+        with st.spinner("検索用JSONデータを構築中..."):
+            # 軽量JSONの構築
+            records = []
+            with open(PATH_CLEANED_JSONL, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if not line.strip(): continue
+                    try:
+                        data = json.loads(line)
+                        label = data.get('rdfs:label')
+                        name = data.get('schema:name')
+                        title = str(label) if label else (str(name) if name else "No Title")
+                        if isinstance(name, list) and name:
+                            title = name[0]
+                        elif isinstance(title, list) and title:
+                            title = title[0]
+                        
+                        image = data.get('schema:image', '')
+                        
+                        # 外部リンク取得
+                        url = ''
+                        access = data.get('https://jpsearch.go.jp/term/property#accessInfo', {})
+                        if isinstance(access, dict):
+                            url = access.get('schema:url', '')
+                        elif isinstance(access, list) and access:
+                            url = access[0].get('schema:url', '') if isinstance(access[0], dict) else ''
+                        
+                        if not url:
+                            source = data.get('https://jpsearch.go.jp/term/property#sourceInfo', {})
+                            if isinstance(source, dict):
+                                url = source.get('schema:url', '')
+                        
+                        if not url:
+                            url = data.get('@id', '')
+                        
+                        # 説明文の整形
+                        desc_val = data.get('schema:description', '') or data.get('description', '')
+                        if isinstance(desc_val, list):
+                            desc = " ".join([str(x) for x in desc_val])
+                        else:
+                            desc = str(desc_val)
+                        
+                        # 日本語以外のゴミ除去やHTMLタグ除去など簡易クリーニング
+                        desc = re.sub(r'<[^>]*>', '', desc)
+                        if len(desc) > 300:
+                            desc = desc[:300] + "..."
+                        
+                        provider = ''
+                        source = data.get('https://jpsearch.go.jp/term/property#sourceInfo', {})
+                        if isinstance(source, dict):
+                            prov_val = source.get('schema:provider', '')
+                            if prov_val:
+                                provider = str(prov_val).split('/')[-1]
+                        
+                        # ルールベースでの初期分類フォールバック（LLM未推定の場合のコールドスタート対策）
+                        genre = data.get("genre", "その他/不明")
+                        subgenre = data.get("subgenre")
+                        instruments = data.get("instruments", [])
+                        
+                        title_desc_text = (title + " " + desc).lower()
+                        
+                        if genre == "その他/不明" or not genre:
+                            # 雅楽
+                            if any(k in title_desc_text for k in ["雅楽", "唐楽", "高麗楽", "朗詠", "催馬楽", "笙", "篳篥", "竜笛", "龍笛"]):
+                                genre = "雅楽"
+                                if "唐楽" in title_desc_text: subgenre = "唐楽"
+                                elif "高麗楽" in title_desc_text: subgenre = "高麗楽"
+                                elif "催馬楽" in title_desc_text: subgenre = "催馬楽"
+                                elif "朗詠" in title_desc_text: subgenre = "朗詠"
+                            # 能楽/謡曲
+                            elif any(k in title_desc_text for k in ["能楽", "謡曲", "謡本", "観世", "宝生", "金剛", "喜多", "狂言"]):
+                                genre = "能楽/謡曲"
+                                if "狂言" in title_desc_text: subgenre = "狂言"
+                                elif "謡" in title_desc_text: subgenre = "謡曲"
+                                else: subgenre = "能"
+                            # 三味線音楽
+                            elif any(k in title_desc_text for k in ["三味線", "長唄", "義太夫", "常磐津", "清元", "新内", "地歌", "地唄", "端唄", "俗曲", "小唄"]):
+                                genre = "三味線音楽"
+                                if "地歌" in title_desc_text or "地唄" in title_desc_text: subgenre = "地歌"
+                                elif "長唄" in title_desc_text: subgenre = "長唄"
+                                elif "義太夫" in title_desc_text: subgenre = "義太夫節"
+                                elif "常磐津" in title_desc_text: subgenre = "常磐津節"
+                                elif "清元" in title_desc_text: subgenre = "清元節"
+                                elif "新内" in title_desc_text: subgenre = "新内節"
+                                else: subgenre = "端唄/俗曲"
+                            # 琵琶楽
+                            elif any(k in title_desc_text for k in ["琵琶", "平曲", "平家琵琶", "薩摩琵琶", "筑前琵琶"]):
+                                genre = "琵琶楽"
+                                if "平曲" in title_desc_text or "平家" in title_desc_text: subgenre = "平曲（平家琵琶）"
+                                elif "薩摩" in title_desc_text: subgenre = "薩摩琵琶"
+                                elif "筑前" in title_desc_text: subgenre = "筑前琵琶"
+                            # 尺八楽
+                            elif any(k in title_desc_text for k in ["尺八", "琴古", "都山"]):
+                                genre = "尺八楽"
+                                if "本曲" in title_desc_text: subgenre = "本曲"
+                                else: subgenre = "外曲（琴古流・都山流等）"
+                            # 声明
+                            elif any(k in title_desc_text for k in ["声明", "伽陀", "法会", "引声", "魚山"]):
+                                genre = "声明/仏教音楽"
+                            # 洋楽
+                            elif any(k in title_desc_text for k in ["洋楽", "五線譜", "ピアノ", "バイオリン", "唱歌", "西洋"]):
+                                genre = "近現代邦楽/洋楽"
+
+                        if not instruments:
+                            # 楽器のフォールバック
+                            inst_candidates = {
+                                "唄/声": ["唄", "歌", "謡", "声", "唱"],
+                                "箏/琴": ["箏", "琴", "こと", "十三絃", "十七絃"],
+                                "三味線": ["三味線", "三線"],
+                                "尺八": ["尺八"],
+                                "琵琶": ["琵琶"],
+                                "笙": ["笙"],
+                                "篳篥": ["篳篥"],
+                                "龍笛/高麗笛/神楽笛": ["龍笛", "竜笛", "高麗笛", "神楽笛"],
+                                "篠笛/能管": ["篠笛", "能管", "横笛"],
+                                "鼓/太鼓": ["鼓", "小鼓", "大鼓", "太鼓"]
+                            }
+                            for inst, keywords in inst_candidates.items():
+                                if any(kw in title_desc_text for kw in keywords):
+                                    instruments.append(inst)
+
+                        records.append({
+                            "id": data.get('@id', data.get('id', '')),
+                            "title": title,
+                            "description": desc,
+                            "image": image,
+                            "url": url,
+                            "provider": provider,
+                            "genre": genre,
+                            "subgenre": subgenre,
+                            "instruments": instruments
+                        })
+                    except Exception as e:
+                        continue
+
+            # JSON書き出し
+            out_json_path = f"{export_dir}/scores_data.json"
+            os.makedirs(os.path.dirname(out_json_path), exist_ok=True)
+            with open(out_json_path, 'w', encoding='utf-8') as jf:
+                json.dump(records, jf, ensure_ascii=False, indent=2)
+
+        with st.spinner("静的HTML/CSS/JSテンプレートを書き出し中..."):
+            # 静的アセットの書き出し (直接ファイルを作成)
+            from modules.importer import copy_static_search_assets
+            try:
+                copy_static_search_assets(export_dir)
+                st.success(
+                    f"エクスポートが成功しました！\n\n"
+                    f"・出力ディレクトリ: `{export_dir}/`\n"
+                    f"・資料登録件数: {len(records)} 件\n\n"
+                    f"ローカルでテストするには、以下のコマンドを実行してください:\n"
+                    f"`python3 -m http.server --directory {export_dir} 8000`"
+                )
+            except Exception as e:
+                st.error(f"静的ファイルの書き出しに失敗しました: {e}")
+
