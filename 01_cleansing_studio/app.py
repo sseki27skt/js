@@ -37,14 +37,21 @@ try:
 except Exception:
     hotkeys = None
 
-st.set_page_config(layout="wide", page_title="MetaClean Studio")
+st.set_page_config(layout="wide", page_title="MetaClean Studio", page_icon="✨")
 
-# 画面グレーアウト・リロード時フェードを無効化するCSS
+# 全体デザイン拡張 ＆ 画面安定化CSS
 st.markdown("""
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+
+html, body, [class*="css"]  {
+    font-family: 'Plus Jakarta Sans', 'Noto Sans JP', -apple-system, sans-serif;
+}
+
 div[data-testid="stAppViewBlockContainer"] {
     opacity: 1 !important;
     transition: none !important;
+    padding-top: 1.2rem;
 }
 .element-container, .stButton, div[data-st-mode="running"] {
     opacity: 1 !important;
@@ -52,6 +59,50 @@ div[data-testid="stAppViewBlockContainer"] {
 }
 [data-testid="stStatusWidget"] {
     visibility: hidden !important;
+}
+
+/* メトリックカード */
+div[data-testid="stMetric"] {
+    background: linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+    border: 1px solid rgba(128, 128, 128, 0.18);
+    border-radius: 12px;
+    padding: 14px 18px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+/* サイドバータイトル */
+[data-testid="stSidebar"] {
+    border-right: 1px solid rgba(128, 128, 128, 0.15);
+}
+
+/* ヒーローカードバナー */
+.hero-card {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #0f172a 100%);
+    color: #ffffff;
+    border-radius: 16px;
+    padding: 24px 30px;
+    margin-bottom: 24px;
+    box-shadow: 0 10px 25px -5px rgba(30, 27, 75, 0.3);
+}
+.hero-card h1 {
+    color: #ffffff !important;
+    font-size: 26px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+}
+.hero-card p {
+    color: #c7d2fe;
+    font-size: 14px;
+    margin: 0;
+    line-height: 1.6;
+}
+
+.sub-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(128, 128, 128, 0.15);
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin-bottom: 16px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -117,34 +168,44 @@ def make_google_link(word):
 
 # Dashboard
 if choice == "Dashboard":
-    st.title("パイプライン全体ダッシュボード")
-    st.markdown("データ自動収集から多層ルールフィルタ、LLMセマンティック分類、人間査読の全進捗サマリーです。")
+    st.markdown("""
+    <div class="hero-card">
+        <h1>✨ MetaClean Studio</h1>
+        <p>文化資源メタデータの自動抽出・多層ルールフィルタリング・LLMセマンティック分類・人間査読を統合した高性能クレンジングポータルです。</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.subheader("📊 パイプライン全体進捗ダッシュボード")
 
     cols = st.columns(4)
     with cols[0]:
-        st.info("Phase 1: データ収集")
+        st.info("🌐 Phase 1: データ収集")
         st.metric("収集Rawメタデータ", f"{count_lines(PATH_RAW_METADATA):,} 件")
 
     with cols[1]:
-        st.warning("Phase 2: ルールベース")
+        st.warning("⚡ Phase 2: ルールベース")
         st.metric("About フィルタ通過", f"{count_lines(PATH_ABOUT_FILTERED):,} 件")
         st.metric("N-Gram フィルタ通過", f"{count_lines(PATH_NGRAM_FILTERED):,} 件")
 
     with cols[2]:
-        st.success("Phase 3: LLM & 査読")
+        st.success("🤖 Phase 3: LLM & 査読")
         st.metric("LLM判定データ", f"{count_lines(PATH_LLM_JUDGMENTS):,} 件")
         st.metric("人間査読・確定データ", f"{count_lines(PATH_VERIFIED_JSONL):,} 件")
 
     with cols[3]:
-        st.error("Phase 4: 成果物")
+        st.error("🚀 Phase 4: 成果物")
         st.metric("ポータル出力データ", f"{count_lines(PATH_EXPORT_JSON):,} 件")
+
+    st.write("---")
+    st.subheader("💡 ワークフロークイックアクセス")
+    st.markdown("サイドバーのメニューから、目的のパイプライン工程を選択して直接作業を開始できます。")
 
 # Step 1: LLMクエリ拡張 & 自動取得
 elif choice == "Step 1: LLMクエリ拡張 ＆ Japan Search自動取得":
     st.title("Step 1: LLMクエリ拡張 ＆ Japan Searchデータ自動取得")
-    st.markdown("LLMを活用して、探したいテーマ・ドメインの関連キーワードやNDC分類を自動拡張し、Japan Searchから全自動でメタデータを取得します。")
+    st.caption("自然言語テーマからNDC分類・キーワード・SPARQLパターンをLLMで自動展開し、Japan Searchから深層メタデータを構築します。")
 
-    theme_input = st.text_input("構築したいテーマ・領域を入力してください:", value="日本の古典籍における楽譜資料")
+    theme_input = st.text_input("🎯 構築したいテーマ・領域を入力してください:", value="日本の古典籍における楽譜資料", help="例: 日本の古典籍における楽譜資料、江戸時代の古地図、能楽演目文献 など")
 
     st.subheader("🤖 LLMプロバイダー設定")
     provider_choice = st.selectbox(
@@ -192,7 +253,7 @@ elif choice == "Step 1: LLMクエリ拡張 ＆ Japan Search自動取得":
         "model": model_input
     }
 
-    if st.button("LLMで検索キーワード・クエリを生成する", type="primary"):
+    if st.button("✨ LLMで検索キーワード・クエリを自動生成する", type="primary", use_container_width=True):
         with st.spinner("LLMがテーマを分析し、検索パラメータを拡張中..."):
             expansion_res = expand_query_with_llm(
                 theme_prompt=theme_input,
@@ -202,7 +263,7 @@ elif choice == "Step 1: LLMクエリ拡張 ＆ Japan Search自動取得":
                 model=model_input
             )
             st.session_state["expansion_res"] = expansion_res
-            st.success("LLMによる検索キーワード拡張処理が完了しました！")
+            st.success("🎉 LLMによる検索キーワード・分類コードの拡張処理が完了しました！")
 
     if "expansion_res" in st.session_state:
         exp = st.session_state["expansion_res"]
@@ -211,23 +272,36 @@ elif choice == "Step 1: LLMクエリ拡張 ＆ Japan Search自動取得":
             st.warning(
                 "⚠️ **【通知】LLMへの接続ができなかったため、フォールバック（ルールベース生成）を適用しました。**\n\n"
                 f"・理由: `{exp.get('fallback_reason')}`\n\n"
-                "💡 **アドバイス**: Gemini API Key を入力するか、ローカルLLM（LM Studio等）を起動すると、"
-                "より高度な分類コード（NDC）の自動推定や旧字体・異体字の自動拡張機能が有効になります。"
+                "💡 **ヒント**: Gemini API Key を設定するか、ローカルLLM（LM Studio等）を起動すると、"
+                "より高度なNDC自動分類や異体字・旧字体の自動拡張機能が有効になります。"
             )
         else:
-            st.success(f"✨ **{provider_choice} による検索キーワード・分類パラメータの高度拡張が正常に適用されました！**")
+            st.success(f"✨ **{provider_choice} による検索キーワード・分類パラメータの高度拡張が適用されています。**")
 
-        st.subheader("検索パラメータ提案")
-        st.json(exp)
+        with st.expander("📋 生成された検索パラメータ設定 (JSON)", expanded=True):
+            st.json(exp)
 
         queries = generate_sparql_queries(exp)
-        st.subheader(f"生成されたSPARQLクエリ ({len(queries)} パターン)")
+        st.subheader(f"🔍 生成されたSPARQLクエリパターン ({len(queries)} パターン)")
 
-        limit_val = st.number_input("1バッチあたりの取得上限 (LIMIT):", min_value=50, max_value=1000, value=200)
+        limit_val = st.number_input("1バッチあたりの取得上限 (LIMIT):", min_value=50, max_value=1000, value=200, step=50)
 
-        if st.button("Japan Search からメタデータを全自動取得・構築する", type="primary"):
+        if st.button("🚀 Japan Search からメタデータを全自動取得・深層構築する", type="primary", use_container_width=True):
             status_box = st.empty()
             progress_bar = st.progress(0)
+            
+            all_collected_uris = set()
+            for idx, (name, func) in enumerate(queries):
+                status_box.markdown(f"⏳ パターン `[{name}]` をJapan Searchから取得中...")
+                uris = fetch_uris_with_query_func(func, pattern_name=name, limit=limit_val)
+                all_collected_uris.update(uris)
+                progress_bar.progress((idx + 1) / len(queries))
+
+            st.success(f"🎉 URI収集完了: 重複のない {len(all_collected_uris):,} 件のURIを取得しました！")
+            
+            with st.spinner("詳細書誌メタデータ（ブランクノード深層グラフ含む）を構築中..."):
+                count = build_metadata_for_uris(list(all_collected_uris), PATH_RAW_METADATA, batch_size=50)
+                st.success(f"🎉 メタデータ構築完了！ 全 {count:,} 件を `{PATH_RAW_METADATA}` に保存しました。")
             
             all_collected_uris = set()
             for idx, (name, func) in enumerate(queries):
@@ -1169,41 +1243,51 @@ elif choice == "Step 2-B: タイトル N-Gram (部分文字列 N=2〜9) 分析�
 # Step 2-C: LLMセマンティック自動判定
 elif choice == "Step 2-C: LLMセマンティック自動判定 (グレーゾーン分類)":
     st.title("Step 2-C: LLMセマンティック自動判定 (グレーゾーン分類)")
-    st.markdown("ルールベースで判定しきれなかったデータに対し、Gemini API / LLM がタイトル・詳細記述から**理由付きで自動判定**を行います。")
+    st.caption("ルールベースで判定しきれなかったグレーゾーン資料に対し、LLMがタイトル・詳細記述から「判定理由付き」で適合判定を行います。")
 
     input_path = PATH_NGRAM_FILTERED if os.path.exists(PATH_NGRAM_FILTERED) else (PATH_ABOUT_FILTERED if os.path.exists(PATH_ABOUT_FILTERED) else PATH_RAW_METADATA)
     if not os.path.exists(input_path):
-        st.warning("対象データが存在しません。前のステップを実行してください。")
+        st.warning("⚠️ 対象データが存在しません。Step 1 または Step 2 を先に実行してください。")
         st.stop()
 
     cfg = st.session_state.get("llm_config", {})
-    st.info(f"使用プロバイダー: **{cfg.get('provider', 'gemini')}** | モデル: **{cfg.get('model', 'gemini-3.6-flash')}**")
-
+    provider_name = cfg.get('provider', 'gemini')
+    model_name = cfg.get('model', 'gemini-3.6-flash')
     domain_def = st.session_state.get("expansion_res", {}).get("domain_definition", "日本の古典籍における楽譜・音楽資料")
-    limit_val = st.number_input("判定処理件数の上限 (テスト実行用):", min_value=5, max_value=5000, value=30, step=10)
 
-    if st.button("🤖 LLMセマンティック自動判定を開始する", type="primary"):
+    with st.expander("⚙️ セマンティック判定パラメータ ＆ LLM接続設定", expanded=True):
+        c_cfg1, c_cfg2 = st.columns(2)
+        with c_cfg1:
+            st.markdown(f"- **LLMプロバイダー**: `{provider_name}`")
+            st.markdown(f"- **使用モデル**: `{model_name}`")
+            st.markdown(f"- **対象ドメイン定義**: `{domain_def}`")
+        with c_cfg2:
+            limit_val = st.number_input("判定処理件数の上限 (テスト実行用):", min_value=5, max_value=5000, value=30, step=10, help="全件一括実行する場合は大きな値を指定してください")
+            workers_val = st.slider("並列スレッド数 (ThreadPool):", min_value=1, max_value=8, value=4, help="Gemini API利用時は3〜5並列が最速です (ローカルLLMは1推奨)")
+
+    if st.button("🤖 LLMセマンティック自動判定を開始する", type="primary", use_container_width=True):
         progress_bar = st.progress(0)
         status_text = st.empty()
 
         def on_progress(current, total, title, is_target, reason):
             progress_bar.progress(current / total)
-            badge = "✅ 適合" if is_target is True else ("🚫 非適合" if is_target is False else "❓ 不明")
-            status_text.markdown(f"[{current}/{total}] {badge} **{title[:30]}** - *{reason}*")
+            badge = "✅ [適合]" if is_target is True else ("🚫 [非適合]" if is_target is False else "❓ [不明]")
+            status_text.markdown(f"進捗: **{current}/{total}** 件 | {badge} **{title[:35]}** ➔ *{reason}*")
 
         acc, rej, unk = run_llm_semantic_classification(
             input_jsonl_path=input_path,
             output_judgments_path=PATH_LLM_JUDGMENTS,
             domain_definition=domain_def,
-            provider=cfg.get("provider", "gemini"),
+            provider=provider_name,
             api_base=cfg.get("api_base", "http://localhost:1234/v1"),
             api_key=cfg.get("api_key", ""),
-            model=cfg.get("model", "gemini-3.6-flash"),
+            model=model_name,
             limit=limit_val,
+            max_workers=workers_val,
             progress_callback=on_progress
         )
 
-        st.success(f"LLM自動判定完了！ 適合: {acc} 件 / 非適合: {rej} 件 / 不明: {unk} 件 (判定ログ: `{PATH_LLM_JUDGMENTS}`)")
+        st.success(f"🎉 LLM自動判定完了！ 適合: {acc} 件 / 非適合: {rej} 件 / 不明: {unk} 件 (判定結果ログ: `{PATH_LLM_JUDGMENTS}`)")
 
 # Step 2-D: 人間による最終査読・手動オーバーライド
 elif choice == "Step 2-D: 人間による最終査読・手動オーバーライド":
