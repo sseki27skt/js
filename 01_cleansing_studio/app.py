@@ -20,13 +20,41 @@ from modules.rule_filter import (
     run_about_filter, 
     suggest_ng_keywords_with_llm,
     suggest_related_keywords_by_base,
-    extract_about_keywords_from_jsonl
+    extract_about_keywords_from_jsonl,
+    extract_about_values
 )
-from modules.ngram_filter import extract_ngrams_from_jsonl, run_ngram_filter
+from modules.ngram_filter import extract_ngrams_from_jsonl, run_ngram_filter, clean_title_text
 from modules.llm_classifier import run_llm_semantic_classification
 from modules.review_portal import load_merged_review_data, save_human_verified_data
 
+try:
+    import streamlit_hotkeys as hotkeys
+    hotkeys.activate([
+        hotkeys.hk("mode_ng", "q"),
+        hotkeys.hk("mode_ok", "w"),
+        hotkeys.hk("mode_reset", "e"),
+    ])
+except Exception:
+    hotkeys = None
+
 st.set_page_config(layout="wide", page_title="MetaClean Studio")
+
+# 画面グレーアウト・リロード時フェードを無効化するCSS
+st.markdown("""
+<style>
+div[data-testid="stAppViewBlockContainer"] {
+    opacity: 1 !important;
+    transition: none !important;
+}
+.element-container, .stButton, div[data-st-mode="running"] {
+    opacity: 1 !important;
+    transition: none !important;
+}
+[data-testid="stStatusWidget"] {
+    visibility: hidden !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 STUDIO_DIR = "01_cleansing_studio"
 DATA_DIR = "data"
@@ -48,17 +76,25 @@ PATH_EXPORT_JSON = f"{VIEWER_DIR}/scores_data.json"
 st.sidebar.title("MetaClean Studio")
 st.sidebar.caption("ドメインメタデータ抽出 ＆ クレンジングポータル")
 
+step1_st = "🟢" if os.path.exists(PATH_RAW_METADATA) and os.path.getsize(PATH_RAW_METADATA) > 0 else "⚪"
+step2a_st = "🟢" if os.path.exists(PATH_ABOUT_FILTERED) and os.path.getsize(PATH_ABOUT_FILTERED) > 0 else "⚪"
+step2b_st = "🟢" if os.path.exists(PATH_NGRAM_FILTERED) and os.path.getsize(PATH_NGRAM_FILTERED) > 0 else "⚪"
+step2c_st = "🟢" if os.path.exists(PATH_LLM_JUDGMENTS) and os.path.getsize(PATH_LLM_JUDGMENTS) > 0 else "⚪"
+step2d_st = "🟢" if os.path.exists(PATH_VERIFIED_JSONL) and os.path.getsize(PATH_VERIFIED_JSONL) > 0 else "⚪"
+step3_st = "🟢" if os.path.exists(PATH_EXPORT_JSON) and os.path.getsize(PATH_EXPORT_JSON) > 0 else "⚪"
+
 menu_options = [
     "Dashboard",
-    "Step 1: LLMクエリ拡張 ＆ Japan Search自動取得",
-    "Step 2-A: Aboutキーワード仕分け",
-    "Step 2-B: タイトル N-Gram (部分文字列 N=2〜9) 分析・仕分け",
-    "Step 2-C: LLMセマンティック自動判定 (グレーゾーン分類)",
-    "Step 2-D: 人間による最終査読・手動オーバーライド",
-    "Step 3: データエクスポート (検索ポータル出力)"
+    f"{step1_st} Step 1: LLMクエリ拡張 ＆ Japan Search自動取得",
+    f"{step2a_st} Step 2-A: Aboutキーワード仕分け",
+    f"{step2b_st} Step 2-B: タイトル N-Gram (部分文字列 N=2〜9) 分析・仕分け",
+    f"{step2c_st} Step 2-C: LLMセマンティック自動判定 (グレーゾーン分類)",
+    f"{step2d_st} Step 2-D: 人間による最終査読・手動オーバーライド",
+    f"{step3_st} Step 3: データエクスポート (検索ポータル出力)"
 ]
 
-choice = st.sidebar.radio("工程を選択:", menu_options)
+choice_raw = st.sidebar.radio("工程を選択:", menu_options)
+choice = re.sub(r'^[🟢⚪]\s*', '', choice_raw)
 
 def count_lines(path):
     if not os.path.exists(path):
@@ -229,13 +265,7 @@ elif choice == "Step 2-A: Aboutキーワード仕分け":
                     try:
                         item = json.loads(line)
                         about_list = item.get("schema:about", [])
-                        if isinstance(about_list, dict): about_list = [about_list]
-                        elif not isinstance(about_list, list): about_list = [about_list]
-                        
-                        kw_set = set()
-                        for ab in about_list:
-                            name_val = ab.get("schema:name", ab.get("@id", "")) if isinstance(ab, dict) else str(ab)
-                            kw_set.add(urllib.parse.unquote(str(name_val).split('/')[-1]))
+                        kw_set = set(extract_about_values(about_list))
 
                         label_val = item.get("rdfs:label", item.get("schema:name", ""))
                         title_str = str(label_val[0]) if isinstance(label_val, list) and label_val else str(label_val)
@@ -267,17 +297,15 @@ elif choice == "Step 2-A: Aboutキーワード仕分け":
     current_ng = st.session_state["edited_noise"]
     current_ok = st.session_state["edited_strong"]
 
-    # 重い集計のメモリキャッシュ化 (画面グレーアウト防止)
-    @st.cache_data(show_spinner=False)
-    def get_cached_about_keywords(path_mtime, path):
-        return extract_about_keywords_from_jsonl(path)
+    if "checked_words" not in st.session_state:
+        st.session_state["checked_words"] = set()
+    if "chk_view_ver" not in st.session_state:
+        st.session_state["chk_view_ver"] = 0
 
-    raw_mtime = os.path.getmtime(PATH_RAW_METADATA) if os.path.exists(PATH_RAW_METADATA) else 0
-    about_ranking = get_cached_about_keywords(raw_mtime, PATH_RAW_METADATA)
+    checked_words = st.session_state["checked_words"]
+    chk_ver = st.session_state["chk_view_ver"]
 
-    if not about_ranking:
-        st.info("データ内に schema:about キーワードが見つかりませんでした。")
-        st.stop()
+
 
     total_about_types = len(about_ranking)
     all_kw_set = set([k for k, c in about_ranking])
@@ -295,6 +323,59 @@ elif choice == "Step 2-A: Aboutキーワード仕分け":
         st.metric("✅ OK (保持) 分類数", f"{ok_classified_count:,} 種類", delta=f"{ok_classified_count/max(1,total_about_types):.1%}")
     with m_col4:
         st.metric("❓ 未判定キーワード数", f"{unclassified_count:,} 種類")
+
+    # --- 登録済み NG / OK リストの確認 ＆ 個別管理パネル ---
+    # --- 登録済み NG / OK リストの確認 ＆ ボタン反転選択・一括解除パネル ---
+    with st.expander(f"📋 現在の About NG / OK 登録リストを確認・管理する (🚫 NG: {len(current_ng)} 件 / ✅ OK: {len(current_ok)} 件)", expanded=False):
+        c_manage_ng, c_manage_ok = st.columns(2)
+        with c_manage_ng:
+            st.markdown(f"### 🚫 除外(NG) リスト ({len(current_ng)} 件)")
+            if current_ng:
+                ng_list_sorted = sorted(list(current_ng))
+                try:
+                    selected_ab_ng_pills = st.pills("反転選択して削除する単語をクリック:", options=ng_list_sorted, selection_mode="multi", key="pills_about_ng")
+                except AttributeError:
+                    # フォールバック (st.pills 未サポート時)
+                    selected_ab_ng_pills = st.multiselect("削除する単語を選択:", options=ng_list_sorted, key="ms_about_ng_fallback")
+
+                if st.button("🗑️ 選択した単語を NG リストから登録解除（削除）", key="btn_del_ab_ng_pills", type="primary", use_container_width=True):
+                    if selected_ab_ng_pills:
+                        current_ng.difference_update(selected_ab_ng_pills)
+                        st.session_state["chk_view_ver"] += 1
+                        st.success(f"🎉 {len(selected_ab_ng_pills)} 件の単語を NG リストから削除しました！")
+                        st.rerun()
+                    else:
+                        st.warning("解除する単語が選択されていません。上のボタンをクリックして反転選択してください。")
+            else:
+                st.info("NG リストは現在空です。")
+
+        with c_manage_ok:
+            st.markdown(f"### ✅ 保持(OK) リスト ({len(current_ok)} 件)")
+            if current_ok:
+                ok_list_sorted = sorted(list(current_ok))
+                try:
+                    selected_ab_ok_pills = st.pills("反転選択して削除する単語をクリック:", options=ok_list_sorted, selection_mode="multi", key="pills_about_ok")
+                except AttributeError:
+                    # フォールバック
+                    selected_ab_ok_pills = st.multiselect("削除する単語を選択:", options=ok_list_sorted, key="ms_about_ok_fallback")
+
+                if st.button("🗑️ 選択した単語を OK リストから登録解除（削除）", key="btn_del_ab_ok_pills", type="primary", use_container_width=True):
+                    if selected_ab_ok_pills:
+                        current_ok.difference_update(selected_ab_ok_pills)
+                        st.session_state["chk_view_ver"] += 1
+                        st.success(f"🎉 {len(selected_ab_ok_pills)} 件の単語を OK リストから削除しました！")
+                        st.rerun()
+                    else:
+                        st.warning("解除する単語が選択されていません。上のボタンをクリックして反転選択してください。")
+            else:
+                st.info("OK リストは現在空です。")
+
+    # 未判定タイトルの動的マイナス控除用データ生成
+    raw_titles = [r.get("title", "") for r in raw_records if r.get("title")]
+    active_records = [
+        r for r in raw_records 
+        if r.get("title") and not (r.get("about_set", set()) & current_ng)
+    ]
 
     st.write("---")
 
@@ -336,26 +417,80 @@ elif choice == "Step 2-A: Aboutキーワード仕分け":
                 st.session_state.pop("llm_about_suggs", None)
                 st.rerun()
 
-    # --- フィルター & 検索ツールバー ---
-    col_filter1, col_filter2, col_filter3 = st.columns([2, 2, 2])
-    with col_filter1:
-        search_query = st.text_input("🔍 キーワード絞り込み (マイナス区切りで除外):", placeholder="例: 演劇 -能")
-    with col_filter2:
-        hide_classified = st.checkbox("判定済みのキーワードを隠す", value=True)
-    with col_filter3:
-        max_items = st.number_input("表示件数の上限", min_value=30, max_value=1000, value=120, step=30)
+    # --- 表示オプション & 検索ツールバー ---
+    st.write("---")
+    st.subheader("🏷️ Aboutキーワード・ピル仕分けボード")
 
-    if "checked_words" not in st.session_state:
-        st.session_state["checked_words"] = set()
-    if "chk_view_ver" not in st.session_state:
-        st.session_state["chk_view_ver"] = 0
+    col_opt1, col_opt2 = st.columns([3, 2])
+    with col_opt1:
+        view_filter_mode = st.radio(
+            "👁️ 表示オプション:", 
+            options=["🌐 すべて表示", "❓ 未判定のみ", "🚫 NGのみ", "✅ OKのみ"], 
+            horizontal=True,
+            key="view_filter_about_mode"
+        )
+        hide_zero_about = st.checkbox(
+            "🙈 残存未判定件数が 0 件 (影響なし) のキーワードを非表示にする", 
+            value=True, 
+            key="chk_hide_zero_about",
+            help="他ルールで全資料が既に除外済み（現在の未判定件数が0件）の単語を非表示にしてUIをスッキリさせます。"
+        )
+    with col_opt2:
+        search_query = st.text_input("🔍 キーワード検索:", placeholder="例: 演劇 -能", key="q_about_pills")
+    # モード切り替え初期化
+    if "click_action_about_mode" not in st.session_state:
+        st.session_state["click_action_about_mode"] = "🚫 NGに判定"
 
-    checked_words = st.session_state["checked_words"]
-    chk_ver = st.session_state["chk_view_ver"]
+    st.caption("⚡ 判定モード切替 (キーボードショートカット: Q / W / E キー):")
+    c_m1, c_m2, c_m3 = st.columns(3)
+    
+    btn1_type = "primary" if st.session_state["click_action_about_mode"] == "🚫 NGに判定" else "secondary"
+    btn2_type = "primary" if st.session_state["click_action_about_mode"] == "✅ OKに判定" else "secondary"
+    btn3_type = "primary" if st.session_state["click_action_about_mode"] == "🔄 未判定に戻す" else "secondary"
 
+    b1 = c_m1.button("🔴 【 Q 】 🚫 NG判定モード", key="btn_shortcut_ab_q", type=btn1_type, use_container_width=True)
+    b2 = c_m2.button("🟢 【 W 】 ✅ OK判定モード", key="btn_shortcut_ab_w", type=btn2_type, use_container_width=True)
+    b3 = c_m3.button("🔵 【 E 】 🔄 未判定リセット", key="btn_shortcut_ab_e", type=btn3_type, use_container_width=True)
+
+    if hotkeys:
+        if hotkeys.pressed("mode_ng"):
+            st.session_state["click_action_about_mode"] = "🚫 NGに判定"
+            st.rerun()
+        elif hotkeys.pressed("mode_ok"):
+            st.session_state["click_action_about_mode"] = "✅ OKに判定"
+            st.rerun()
+        elif hotkeys.pressed("mode_reset"):
+            st.session_state["click_action_about_mode"] = "🔄 未判定に戻す"
+            st.rerun()
+
+    if b1:
+        st.session_state["click_action_about_mode"] = "🚫 NGに判定"
+        st.rerun()
+    if b2:
+        st.session_state["click_action_about_mode"] = "✅ OKに判定"
+        st.rerun()
+    if b3:
+        st.session_state["click_action_about_mode"] = "🔄 未判定に戻す"
+        st.rerun()
+
+    click_action_mode = st.session_state["click_action_about_mode"]
+
+    # 現在のアクティブ判定モードを巨大なカラーバナーで超分かりやすく強調
+    if click_action_mode == "🚫 NGに判定":
+        st.error("🎯 **【現在のモード: 🚫 NG (除外) 登録モード】** (キーボード: `Q` キー) ➔ ピルボタンをクリックすると **NGリスト** に設定されます。")
+    elif click_action_mode == "✅ OKに判定":
+        st.success("🎯 **【現在のモード: ✅ OK (保持) 登録モード】** (キーボード: `W` キー) ➔ ピルボタンをクリックすると **OKリスト** に設定されます。")
+    elif click_action_mode == "🔄 未判定に戻す":
+        st.info("🎯 **【現在のモード: 🔄 未判定リセットモード】** (キーボード: `E` キー) ➔ ピルボタンをクリックすると **未判定** に戻ります。")
+
+    # 表示フィルターの適用
     filtered_ranking = about_ranking
-    if hide_classified:
+    if view_filter_mode == "❓ 未判定のみ":
         filtered_ranking = [(k, c) for k, c in filtered_ranking if k not in current_ng and k not in current_ok]
+    elif view_filter_mode == "🚫 NGのみ":
+        filtered_ranking = [(k, c) for k, c in filtered_ranking if k in current_ng]
+    elif view_filter_mode == "✅ OKのみ":
+        filtered_ranking = [(k, c) for k, c in filtered_ranking if k in current_ok]
 
     if search_query:
         parts = [p.strip() for p in re.split(r'\s+', search_query.replace('　', ' ')) if p.strip()]
@@ -369,23 +504,128 @@ elif choice == "Step 2-A: Aboutキーワード仕分け":
                 res_list.append((kw, cnt))
         filtered_ranking = res_list
 
-    display_items = filtered_ranking[:max_items]
-    match_keywords = [k for k, c in filtered_ranking]
-    selected_matches = [k for k in match_keywords if k in checked_words]
-
-    st.markdown(f"⚡ **選択＆一括操作ツールバー** (現在絞り込まれている検索結果: **{len(filtered_ranking)} 件** | 一時チェック選択中: **{len(selected_matches)} 件**)")
+    # 爆速化: 表示対象キーワードの未判定タイトルサンプルを事前一括インデックス化 (O(1)参照)
+    target_kws = [k for k, c in filtered_ranking]
+    target_kws_set = set(target_kws)
+    active_samples_map = defaultdict(list)
     
-    col_chk1, col_chk2 = st.columns([1, 1])
-    with col_chk1:
-        if st.button(f"☑ 検索結果 {len(match_keywords)} 件すべてにチェックを入れる", use_container_width=True):
-            checked_words.update(match_keywords)
-            st.session_state["chk_view_ver"] += 1
-            st.rerun()
-    with col_chk2:
-        if st.button(f"🔳 検索結果 {len(match_keywords)} 件のチェックを外す", use_container_width=True):
-            checked_words.difference_update(match_keywords)
-            st.session_state["chk_view_ver"] += 1
-            st.rerun()
+    # 高速走査 (schema:about に含まれるアクティブ資料を集計)
+    for r in active_records:
+        r_title = r.get("title", "")
+        r_about = r.get("about_set", set())
+        for kw in target_kws_set:
+            if kw in r_about:
+                active_samples_map[kw].append(r_title)
+
+    # 残存未判定数 0件 (影響なし) の非表示フィルター
+    if hide_zero_about:
+        filtered_ranking = [
+            (kw, cnt) for kw, cnt in filtered_ranking 
+            if len(active_samples_map.get(kw, [])) > 0 or kw in current_ng or kw in current_ok
+        ]
+
+    # 仮選択セッション管理
+    if "draft_about_changes" not in st.session_state:
+        st.session_state["draft_about_changes"] = {}
+    draft_ab = st.session_state["draft_about_changes"]
+
+    # ツールバー & 一括確定アクションエリア
+    c_hdr1, c_hdr2 = st.columns([3, 2])
+    with c_hdr1:
+        st.markdown(f"判定対象キーワード (該当: **{len(filtered_ranking)}** 件 | **クリックで仮選択 ➔『一括確定』ボタンで確定**)")
+    with c_hdr2:
+        draft_count = len(draft_ab)
+        btn_apply_label = f"🚀 仮判定 ({draft_count} 件) を一括確定して適用" if draft_count > 0 else "🚀 判定を一括確定して適用"
+        if st.button(btn_apply_label, type="primary" if draft_count > 0 else "secondary", use_container_width=True):
+            if draft_ab:
+                for kw, status in draft_ab.items():
+                    if status == "NG":
+                        current_ng.add(kw)
+                        current_ok.discard(kw)
+                    elif status == "OK":
+                        current_ok.add(kw)
+                        current_ng.discard(kw)
+                    elif status == "RESET":
+                        current_ng.discard(kw)
+                        current_ok.discard(kw)
+                draft_ab.clear()
+                st.session_state["chk_view_ver"] += 1
+                st.cache_data.clear()
+                st.success("🎉 仮判定をルールへ一括適用し、件数計算を更新しました！")
+                st.rerun()
+            else:
+                st.info("現在仮選択中のキーワードはありません。下のピルボタンをクリックして仮選択を行ってください。")
+
+    # 4カラム・グリッドによる全件即時反応型ピル仕分けボード (出現例・マイナス件数控除付き)
+    @st.fragment
+    def render_about_pill_board():
+        board_container = st.container(height=560)
+        with board_container:
+            grid_cols = st.columns(3)
+            for idx, (kw, cnt) in enumerate(filtered_ranking):
+                col = grid_cols[idx % 3]
+                
+                # 高速O(1)辞書参照
+                active_samples = active_samples_map.get(kw, [])
+                eff_cnt = len(active_samples)
+                
+                if eff_cnt == cnt:
+                    cnt_str = f"({cnt}件)"
+                else:
+                    cnt_str = f"(未判定 {eff_cnt}件 / 全{cnt}件)"
+
+                # ツールチップ用出現例タイトルの組み立て (先頭10件制限)
+                display_samples = active_samples[:10]
+                sample_lines = [f"• {t}" for t in display_samples]
+                sample_header = f"【『{kw}』の未判定資料サンプル (未判定 {eff_cnt}例中 {len(display_samples)}件表示)】:\n" if display_samples else f"【『{kw}』の件数: {cnt_str}】\n"
+                tooltip_txt = sample_header + "\n".join(sample_lines)
+
+                # 仮選択状態も含めたステータス判定 (即時表示)
+                draft_status = draft_ab.get(kw)
+                if draft_status == "NG":
+                    is_ng, is_ok = True, False
+                    draft_tag = " [仮NG]"
+                elif draft_status == "OK":
+                    is_ng, is_ok = False, True
+                    draft_tag = " [仮OK]"
+                elif draft_status == "RESET":
+                    is_ng, is_ok = False, False
+                    draft_tag = " [仮未判定]"
+                else:
+                    is_ng = kw in current_ng
+                    is_ok = kw in current_ok
+                    draft_tag = ""
+
+                if is_ng:
+                    btn_label = f"🚫 {kw} {cnt_str}{draft_tag}"
+                elif is_ok:
+                    btn_label = f"✅ {kw} {cnt_str}{draft_tag}"
+                else:
+                    btn_label = f"❓ {kw} {cnt_str}{draft_tag}"
+
+                # ピルボタン ＋ Google検索＆出現例確認ポップオーバーの2カラム配置
+                c_btn, c_pop = col.columns([6, 1])
+                with c_btn:
+                    if st.button(btn_label, key=f"btn_pills_ab_{kw}_{idx}", help=tooltip_txt, use_container_width=True):
+                        if click_action_mode == "🚫 NGに判定":
+                            draft_ab[kw] = "NG"
+                        elif click_action_mode == "✅ OKに判定":
+                            draft_ab[kw] = "OK"
+                        elif click_action_mode == "🔄 未判定に戻す":
+                            draft_ab[kw] = "RESET"
+                        st.rerun(scope="fragment")
+
+                with c_pop:
+                    with st.popover("🔍", help=f"『{kw}』の検索・詳細"):
+                        st.markdown(f"### 🔍 『{kw}』")
+                        st.markdown(f"- **Google検索**: {make_google_link(kw)}")
+                        st.markdown(f"- **件数内訳**: 未判定 {eff_cnt} 件 / 全 {cnt} 件")
+                        st.write("---")
+                        st.caption("📄 **未判定の出現資料タイトル一覧 (最新10件)**:")
+                        for s_title in display_samples:
+                            st.markdown(f"- {s_title}")
+
+    render_about_pill_board()
 
     col_act1, col_act2, col_act3 = st.columns([3, 3, 2])
     with col_act1:
@@ -411,11 +651,12 @@ elif choice == "Step 2-A: Aboutキーワード仕分け":
                 st.session_state["chk_view_ver"] += 1
                 st.success(f"{len(to_add)} 件のキーワードを OK リストに追加しました。")
                 st.rerun()
-            else:
-                st.warning("チェックされているキーワードがありません。")
-
-    with col_act3:
-        if st.button("💾 rules.json に保存する", use_container_width=True):
+    st.write("---")
+    c_save1, c_save2, c_reset = st.columns([2, 1, 1])
+    with c_save1:
+        st.caption("仕分け結果は『rules.json に保存する』ボタンを押すと次回以降も永続保持されます。")
+    with c_save2:
+        if st.button("💾 About rules.json に保存する", type="primary", use_container_width=True):
             save_dict = {}
             for k in current_ng: save_dict[k] = "NG"
             for k in current_ok: save_dict[k] = "OK"
@@ -423,62 +664,20 @@ elif choice == "Step 2-A: Aboutキーワード仕分け":
                 json.dump(save_dict, f, ensure_ascii=False, indent=2)
             st.success("🎉 rules.json に保存しました！")
 
-    st.write("---")
-    st.subheader(f"判定対象キーワードカード (表示中: {len(display_items)} / 該当: {len(filtered_ranking)} 件)")
-
-    grid_cols = st.columns(3)
-    sample_kws_all = [k for k, c in about_ranking[:60]]
-
-    for idx, (kw, count) in enumerate(display_items):
-        col = grid_cols[idx % 3]
-        
-        is_ng = kw in current_ng
-        is_ok = kw in current_ok
-        is_checked = kw in checked_words
-        
-        status_badge = " [🚫 判定済: NG]" if is_ng else (" [✅ 判定済: OK]" if is_ok else "")
-        label_text = f"**{kw}** ({count}件) {make_google_link(kw)}{status_badge}"
-        
-        c_chk, c_pop = col.columns([6, 1])
-        with c_chk:
-            chk_val = st.checkbox(label_text, value=is_checked, key=f"chk_about_{kw}_v{chk_ver}")
-            if chk_val != is_checked:
-                if chk_val:
-                    checked_words.add(kw)
-                else:
-                    checked_words.discard(kw)
-
-        with c_pop:
-            with st.popover("⋮", help=f"『{kw}』のメニュー"):
-                st.caption(f"『{kw}』の関連提案")
-                cfg = st.session_state.get("llm_config", {})
-                if st.button("🚫 関連語をNG提案", key=f"btn_pop_ng_{kw}"):
-                    with st.spinner("検索中..."):
-                        suggs = suggest_related_keywords_by_base(
-                            base_keyword=kw, 
-                            mode="ng", 
-                            sample_keywords=sample_kws_all,
-                            provider=cfg.get("provider", "local"),
-                            api_base=cfg.get("api_base", "http://localhost:1234/v1"),
-                            api_key=cfg.get("api_key", ""),
-                            model=cfg.get("model", "local-model")
-                        )
-                        st.session_state["contextual_suggs"] = {"base": kw, "mode": "ng", "suggs": suggs}
-                        st.rerun()
-
-                if st.button("✅ 関連語をOK提案", key=f"btn_pop_ok_{kw}"):
-                    with st.spinner("検索中..."):
-                        suggs = suggest_related_keywords_by_base(
-                            base_keyword=kw, 
-                            mode="ok", 
-                            sample_keywords=sample_kws_all,
-                            provider=cfg.get("provider", "local"),
-                            api_base=cfg.get("api_base", "http://localhost:1234/v1"),
-                            api_key=cfg.get("api_key", ""),
-                            model=cfg.get("model", "local-model")
-                        )
-                        st.session_state["contextual_suggs"] = {"base": kw, "mode": "ok", "suggs": suggs}
-                        st.rerun()
+    with c_reset:
+        with st.popover("🗑️ ルール全リセット", help="Aboutルールを初期化クリア"):
+            st.warning("⚠️ 本当に About ルール (`about_rules.json`) を全リセットしますか？")
+            st.caption("登録済みの全 NG / OK パターンおよび仮判定データが完全に消去されます。")
+            if st.button("💥 確定して全リセットする", type="primary", use_container_width=True, key="btn_confirm_reset_about"):
+                st.session_state["edited_noise"] = set()
+                st.session_state["edited_strong"] = set()
+                st.session_state["draft_about_changes"] = {}
+                with open(PATH_ABOUT_RULES, 'w', encoding='utf-8') as f:
+                    json.dump({}, f, ensure_ascii=False, indent=2)
+                st.cache_data.clear()
+                st.session_state["chk_view_ver"] += 1
+                st.success("🎉 About ルール (about_rules.json) を完全にリセットしました！")
+                st.rerun()
 
     st.write("---")
     st.subheader("▶️ About フィルタの適用実行")
@@ -513,6 +712,9 @@ elif choice == "Step 2-B: タイトル N-Gram (部分文字列 N=2〜9) 分析�
         st.session_state["edited_ngram_ng"] = set([k for k, v in ngram_rules.items() if v == "NG"])
         st.session_state["edited_ngram_ok"] = set([k for k, v in ngram_rules.items() if v == "OK"])
 
+    if "ngram_view_ver" not in st.session_state:
+        st.session_state["ngram_view_ver"] = 0
+
     ngram_ng = st.session_state["edited_ngram_ng"]
     ngram_ok = st.session_state["edited_ngram_ok"]
 
@@ -536,14 +738,15 @@ elif choice == "Step 2-B: タイトル N-Gram (部分文字列 N=2〜9) 分析�
     input_mtime = os.path.getmtime(input_path) if os.path.exists(input_path) else 0
     input_titles = load_filtered_titles(input_path, input_mtime)
 
-    # About通過後の最新データからN-gramをマルチマイニング集計
+    # About通過後の最新データからN-gramをマルチマイニング集計 (軽量ファイル更新日時キー)
     @st.cache_data(show_spinner=False)
-    def get_cached_ngrams_from_titles(titles_tuple, min_n=2, max_n=9):
+    def get_cached_ngrams_from_titles_fast(file_path, file_mtime, min_n=2, max_n=9):
+        titles = load_filtered_titles(file_path, file_mtime)
         counts = {n: Counter() for n in range(min_n, max_n + 1)}
         samples = {n: defaultdict(list) for n in range(min_n, max_n + 1)}
 
-        for title in titles_tuple:
-            clean_title = re.sub(r'[\s　\(\)（）\[\]【】「」『』\.,\d\-_]', '', title)
+        for title in titles:
+            clean_title = clean_title_text(title)
             for n in range(min_n, max_n + 1):
                 if len(clean_title) >= n:
                     ngrams = [clean_title[i:i+n] for i in range(len(clean_title) - n + 1)]
@@ -561,15 +764,23 @@ elif choice == "Step 2-B: タイトル N-Gram (部分文字列 N=2〜9) 分析�
             result_dict[n] = ranking
         return result_dict
 
-    ngram_dict = get_cached_ngrams_from_titles(tuple(input_titles))
+    ngram_dict = get_cached_ngrams_from_titles_fast(input_path, input_mtime)
 
     total_input_records = len(input_titles)
-    ngram_discarded_records = 0
-    if ngram_ng:
-        for title in input_titles:
-            if any(pattern in title for pattern in ngram_ng):
-                ngram_discarded_records += 1
 
+    # 除外レコード件数カウントの高速化 (NGルールハッシュキー化)
+    @st.cache_data(show_spinner=False)
+    def count_ngram_discarded_records(file_path, file_mtime, ng_rules_tuple):
+        if not ng_rules_tuple:
+            return 0
+        titles = load_filtered_titles(file_path, file_mtime)
+        disc_cnt = 0
+        for title in titles:
+            if any(pattern in title for pattern in ng_rules_tuple):
+                disc_cnt += 1
+        return disc_cnt
+
+    ngram_discarded_records = count_ngram_discarded_records(input_path, input_mtime, tuple(sorted(list(ngram_ng))))
     ngram_remaining_records = total_input_records - ngram_discarded_records
     ngram_reduction_rate = (ngram_discarded_records / max(1, total_input_records))
 
@@ -584,31 +795,85 @@ elif choice == "Step 2-B: タイトル N-Gram (部分文字列 N=2〜9) 分析�
     with ng_c4:
         st.metric("📉 本工程での絞り込み率", f"{ngram_reduction_rate:.1%} 削減")
 
-    st.write("---")
+    # --- N-Gram 登録済み NG / OK リストの確認 ＆ 個別管理パネル ---
+    with st.expander(f"📋 現在の N-Gram NG / OK 登録ルールを確認・管理する (🚫 NG: {len(ngram_ng)} 件 / ✅ OK: {len(ngram_ok)} 件)", expanded=False):
+        cn_manage_ng, cn_manage_ok = st.columns(2)
+        with cn_manage_ng:
+            st.markdown(f"### 🚫 除外(NG) N-gram パターン ({len(ngram_ng)} 件)")
+            if ngram_ng:
+                n_ng_sorted = sorted(list(ngram_ng))
+                try:
+                    selected_n_ng_pills = st.pills("反転選択して削除するパターンをクリック:", options=n_ng_sorted, selection_mode="multi", key="pills_ngram_ng")
+                except AttributeError:
+                    selected_n_ng_pills = st.multiselect("削除するパターンを選択:", options=n_ng_sorted, key="ms_ngram_ng_fallback")
 
-    # 一時チェックセッション管理
-    if "checked_ngrams" not in st.session_state:
-        st.session_state["checked_ngrams"] = set()
-    if "ngram_view_ver" not in st.session_state:
-        st.session_state["ngram_view_ver"] = 0
+                if st.button("🗑️ 選択したパターンを NG ルールから登録解除（削除）", key="btn_del_n_ng_pills", type="primary", use_container_width=True):
+                    if selected_n_ng_pills:
+                        ngram_ng.difference_update(selected_n_ng_pills)
+                        st.session_state["ngram_view_ver"] += 1
+                        st.cache_data.clear()
+                        st.success(f"🎉 {len(selected_n_ng_pills)} 件のパターンを NG ルールから削除しました！")
+                        st.rerun()
+                    else:
+                        st.warning("解除するパターンが選択されていません。上のボタンをクリックして反転選択してください。")
+            else:
+                st.info("NG N-gram ルールは現在空です。")
 
-    checked_ngrams = st.session_state["checked_ngrams"]
-    ngram_ver = st.session_state["ngram_view_ver"]
+        with cn_manage_ok:
+            st.markdown(f"### ✅ 保持(OK) N-gram パターン ({len(ngram_ok)} 件)")
+            if ngram_ok:
+                n_ok_sorted = sorted(list(ngram_ok))
+                try:
+                    selected_n_ok_pills = st.pills("反転選択して削除するパターンをクリック:", options=n_ok_sorted, selection_mode="multi", key="pills_ngram_ok")
+                except AttributeError:
+                    selected_n_ok_pills = st.multiselect("削除するパターンを選択:", options=n_ok_sorted, key="ms_ngram_ok_fallback")
+
+                if st.button("🗑️ 選択したパターンを OK ルールから登録解除（削除）", key="btn_del_n_ok_pills", type="primary", use_container_width=True):
+                    if selected_n_ok_pills:
+                        ngram_ok.difference_update(selected_n_ok_pills)
+                        st.session_state["ngram_view_ver"] += 1
+                        st.cache_data.clear()
+                        st.success(f"🎉 {len(selected_n_ok_pills)} 件のパターンを OK ルールから削除しました！")
+                        st.rerun()
+                    else:
+                        st.warning("解除するパターンが選択されていません。上のボタンをクリックして反転選択してください。")
+            else:
+                st.info("OK N-gram ルールは現在空です。")
+
+    # N-gram判定における未判定タイトルの動的マイナス控除用データ生成 (NG/OKルール付きキャッシュ化)
+    @st.cache_data(show_spinner=False)
+    def get_cached_active_titles(file_path, file_mtime, ng_rules_tuple, ok_rules_tuple=None):
+        titles = load_filtered_titles(file_path, file_mtime)
+        res = []
+        for t in titles:
+            if not t:
+                continue
+            if ng_rules_tuple and any(ng in t for ng in ng_rules_tuple):
+                continue
+            if ok_rules_tuple and any(ok in t for ok in ok_rules_tuple):
+                continue
+            res.append(t)
+        return res
+
+    active_titles = get_cached_active_titles(
+        input_path, 
+        input_mtime, 
+        tuple(sorted(list(ngram_ng))),
+        tuple(sorted(list(ngram_ok)))
+    )
 
     # 短語(N=2等)のNG/OKパターンで判定が確定済みの親を探す関数
     def get_parent_rule(word: str, ng_set: set, ok_set: set) -> tuple:
-        # まずNGリストの短語親を探す
         for ng in sorted(list(ng_set), key=len):
             if len(ng) < len(word) and ng in word:
                 return "NG", ng
-        # 次にOKリストの短語親を探す
         for ok in sorted(list(ok_set), key=len):
             if len(ok) < len(word) and ok in word:
                 return "OK", ok
         return None, None
 
-    # --- N=2 〜 N=9 の 8個のタブ構成 ---
-    gram_tabs = st.tabs([
+    # N選択セグメントコントローラー (全タブ4,000件一括描画フリーズを防ぐオンデマンド爆速描画)
+    n_options = [
         "2文字 (Bi-gram)", 
         "3文字 (Tri-gram)", 
         "4文字 (Tetra-gram)", 
@@ -617,159 +882,238 @@ elif choice == "Step 2-B: タイトル N-Gram (部分文字列 N=2〜9) 分析�
         "7文字 (Hepta-gram)", 
         "8文字 (Octa-gram)", 
         "9文字 (Nona-gram)"
-    ])
+    ]
+    
+    selected_n_str = st.radio("🎯 分析対象の N-gram (文字数) を選択:", options=n_options, horizontal=True, key="selected_n_gram_radio")
+    n_val = int(selected_n_str.split("文字")[0])
 
-    for n_val, tab in zip(range(2, 10), gram_tabs):
-        with tab:
-            items_for_n = ngram_dict.get(n_val, [])
-            
-            # タブ内ツールバー
-            col_search, col_hide, col_limit = st.columns([2, 2, 2])
-            with col_search:
-                q_ngram = st.text_input(f"🔍 N={n_val} 絞り込み検索:", key=f"q_ngram_{n_val}")
-            with col_hide:
-                hide_classified_ngram = st.checkbox(
-                    "短語で判定確定済み・既知ルールを隠す", 
-                    value=True, 
-                    key=f"hide_ngram_{n_val}",
-                    help="N=2等でNG指定した単語（例:『家譜』）を内部に含むN=3〜9の単語（例:『苗木家譜』）を画面から自動非表示にします"
-                )
-            with col_limit:
-                limit_ngram = st.number_input("表示上限件数", min_value=30, max_value=2000, value=150, step=50, key=f"lim_ngram_{n_val}")
+    items_for_n = ngram_dict.get(n_val, [])
 
-            # 現在のNGルールおよびOKルールにより、まだ判定が確定していない「純粋な未判定タイトル集合」をオンメモリ生成
-            active_titles = [
-                t for t in input_titles 
-                if not any(ng in t for ng in ngram_ng) and not any(ok in t for ok in ngram_ok)
-            ]
+    # モード切り替え初期化
+    if "c_mode_ngram_shared" not in st.session_state:
+        st.session_state["c_mode_ngram_shared"] = "🚫 NGに判定"
 
-            # 各ワードの既知NG/OK控除後の未判定件数 (eff_count) を計算
-            active_concat_titles = "\n".join(active_titles)
-            
-            filtered_items = items_for_n
-            if hide_classified_ngram:
-                # 短語でNG/OK判定済み(親判定OK/NG含む)、または既に他NG/OKルールで未判定件数が0件になった長語を画面から自動隠蔽
-                filtered_items = [
-                    (w, c, s) for w, c, s in filtered_items 
-                    if w not in ngram_ng and w not in ngram_ok and get_parent_rule(w, ngram_ng, ngram_ok)[0] is None and w in active_concat_titles
-                ]
+    # タブ内ツールバー & 表示オプション
+    col_n_opt1, col_n_opt2 = st.columns([3, 2])
+    with col_n_opt1:
+        v_mode_n = st.radio(
+            "👁️ 表示オプション:", 
+            options=["🌐 すべて表示", "❓ 未判定のみ", "🚫 NGのみ", "✅ OKのみ"], 
+            horizontal=True,
+            key="v_mode_ngram_shared"
+        )
+        hide_zero_ngram = st.checkbox(
+            "🙈 残存未判定件数が 0 件 (影響なし) の N-Gram パターンを非表示にする", 
+            value=True, 
+            key="chk_hide_zero_ngram_shared",
+            help="他ルールで全資料が既に除外済み（現在の未判定件数が0件）のパターンを非表示にしてUIをスッキリさせます。"
+        )
+    with col_n_opt2:
+        q_ngram = st.text_input("🔍 N-Gram 検索:", key="q_ngram_shared")
 
-            if q_ngram:
-                parts = [p.strip() for p in re.split(r'\s+', q_ngram.replace('　', ' ')) if p.strip()]
-                inc_words = [p.lower() for p in parts if not p.startswith('-')]
-                exc_words = [p[1:].lower() for p in parts if p.startswith('-') and len(p) > 1]
+    st.caption("⚡ N-gram 判定モード切替 (キーボードショートカット: Q / W / E キー):")
+    cn_m1, cn_m2, cn_m3 = st.columns(3)
+    
+    n_btn1_t = "primary" if st.session_state["c_mode_ngram_shared"] == "🚫 NGに判定" else "secondary"
+    n_btn2_t = "primary" if st.session_state["c_mode_ngram_shared"] == "✅ OKに判定" else "secondary"
+    n_btn3_t = "primary" if st.session_state["c_mode_ngram_shared"] == "🔄 未判定に戻す" else "secondary"
+
+    bn1 = cn_m1.button("🔴 【 Q 】 🚫 NG判定モード", key="btn_mq_n_shared", use_container_width=True, type=n_btn1_t)
+    bn2 = cn_m2.button("🟢 【 W 】 ✅ OK判定モード", key="btn_mw_n_shared", use_container_width=True, type=n_btn2_t)
+    bn3 = cn_m3.button("🔵 【 E 】 🔄 未判定リセット", key="btn_me_n_shared", use_container_width=True, type=n_btn3_t)
+
+    if hotkeys:
+        if hotkeys.pressed("mode_ng"):
+            st.session_state["c_mode_ngram_shared"] = "🚫 NGに判定"
+            st.rerun()
+        elif hotkeys.pressed("mode_ok"):
+            st.session_state["c_mode_ngram_shared"] = "✅ OKに判定"
+            st.rerun()
+        elif hotkeys.pressed("mode_reset"):
+            st.session_state["c_mode_ngram_shared"] = "🔄 未判定に戻す"
+            st.rerun()
+
+    if bn1:
+        st.session_state["c_mode_ngram_shared"] = "🚫 NGに判定"
+        st.rerun()
+    if bn2:
+        st.session_state["c_mode_ngram_shared"] = "✅ OKに判定"
+        st.rerun()
+    if bn3:
+        st.session_state["c_mode_ngram_shared"] = "🔄 未判定に戻す"
+        st.rerun()
+
+    c_mode_n = st.session_state["c_mode_ngram_shared"]
+
+    # アクティブ判定モードの強調バナー
+    if c_mode_n == "🚫 NGに判定":
+        st.error("🎯 **【現在のモード: 🚫 NG (除外) 登録モード】** ➔ N-gramピルをクリックすると **NGリスト** に登録されます。")
+    elif c_mode_n == "✅ OKに判定":
+        st.success("🎯 **【現在のモード: ✅ OK (保持) 登録モード】** ➔ N-gramピルをクリックすると **OKリスト** に登録されます。")
+    elif c_mode_n == "🔄 未判定に戻す":
+        st.info("🎯 **【現在のモード: 🔄 未判定リセットモード】** ➔ N-gramピルをクリックすると 判定がクリアされます。")
+
+    # 表示フィルター適用
+    filtered_items = items_for_n
+    if v_mode_n == "❓ 未判定のみ":
+        filtered_items = [
+            (w, c, s) for w, c, s in filtered_items 
+            if w not in ngram_ng and w not in ngram_ok and get_parent_rule(w, ngram_ng, ngram_ok)[0] is None
+        ]
+    elif v_mode_n == "🚫 NGのみ":
+        filtered_items = [
+            (w, c, s) for w, c, s in filtered_items 
+            if w in ngram_ng or get_parent_rule(w, ngram_ng, ngram_ok)[0] == "NG"
+        ]
+    elif v_mode_n == "✅ OKのみ":
+        filtered_items = [
+            (w, c, s) for w, c, s in filtered_items 
+            if w in ngram_ok or get_parent_rule(w, ngram_ng, ngram_ok)[0] == "OK"
+        ]
+
+    if q_ngram:
+        parts = [p.strip() for p in re.split(r'\s+', q_ngram.replace('　', ' ')) if p.strip()]
+        inc_words = [p.lower() for p in parts if not p.startswith('-')]
+        exc_words = [p[1:].lower() for p in parts if p.startswith('-') and len(p) > 1]
+        
+        res_l = []
+        for w, c, s in filtered_items:
+            w_l = w.lower()
+            if all(i in w_l for i in inc_words) and not any(e in w_l for e in exc_words):
+                res_l.append((w, c, s))
+        filtered_items = res_l
+
+    # 爆速化: 表示対象N-gramパターンの未判定タイトルサンプルを事前一括インデックス化 (キャッシュ関数)
+    @st.cache_data(show_spinner=False)
+    def get_cached_n_samples_map(active_titles_tuple, target_words_tuple):
+        target_words_set = set(target_words_tuple)
+        samples_map = defaultdict(list)
+        for t in active_titles_tuple:
+            clean_t = clean_title_text(t)
+            for w in target_words_set:
+                if w in clean_t:
+                    samples_map[w].append(t)
+        return samples_map
+
+    target_words_tuple = tuple(w for w, c, s in filtered_items)
+    active_n_samples_map = get_cached_n_samples_map(tuple(active_titles), target_words_tuple)
+
+    # 残存未判定数 0件 (影響なし) の非表示フィルター
+    if hide_zero_ngram:
+        filtered_items = [
+            (w, c, s) for w, c, s in filtered_items 
+            if len(active_n_samples_map.get(w, [])) > 0 or w in ngram_ng or w in ngram_ok
+        ]
+
+    # 仮選択セッション管理
+    if f"draft_n_{n_val}_changes" not in st.session_state:
+        st.session_state[f"draft_n_{n_val}_changes"] = {}
+    draft_n = st.session_state[f"draft_n_{n_val}_changes"]
+
+    # ツールバー & 一括確定エリア
+    cn_hdr1, cn_hdr2 = st.columns([3, 2])
+    with cn_hdr1:
+        st.markdown(f"N={n_val} パターン一覧 (該当: **{len(filtered_items)}** 件 | **クリックで仮選択 ➔『一括確定』で確定**)")
+    with cn_hdr2:
+        draft_n_cnt = len(draft_n)
+        btn_n_apply_label = f"🚀 N={n_val} 仮判定 ({draft_n_cnt} 件) を一括確定して適用" if draft_n_cnt > 0 else f"🚀 N={n_val} 判定を一括確定して適用"
+        if st.button(btn_n_apply_label, key=f"btn_apply_n_{n_val}", type="primary" if draft_n_cnt > 0 else "secondary", use_container_width=True):
+            if draft_n:
+                for w, status in draft_n.items():
+                    if status == "NG":
+                        ngram_ng.add(w)
+                        ngram_ok.discard(w)
+                    elif status == "OK":
+                        ngram_ok.add(w)
+                        ngram_ng.discard(w)
+                    elif status == "RESET":
+                        ngram_ng.discard(w)
+                        ngram_ok.discard(w)
+                draft_n.clear()
+                st.session_state["ngram_view_ver"] += 1
+                st.cache_data.clear()
+                st.success(f"🎉 N={n_val} の仮判定をルールへ一括適用し、件数計算を更新しました！")
+                st.rerun()
+            else:
+                st.info("現在仮選択中のパターンはありません。下のピルボタンをクリックして仮選択を行ってください。")
+
+    # 全件スクロール表示対応ピルボードコンテナ (出現例・マイナス件数控除付き)
+    @st.fragment
+    def render_ngram_pill_board():
+        n_board_container = st.container(height=560)
+        with n_board_container:
+            cols_n = st.columns(3)
+            for idx, (w, c, s) in enumerate(filtered_items):
+                col = cols_n[idx % 3]
+                parent_type, parent_word = get_parent_rule(w, ngram_ng, ngram_ok)
                 
-                res_l = []
-                for w, c, s in filtered_items:
-                    w_l = w.lower()
-                    if all(i in w_l for i in inc_words) and not any(e in w_l for e in exc_words):
-                        res_l.append((w, c, s))
-                filtered_items = res_l
+                # 高速O(1)辞書参照
+                active_samples = active_n_samples_map.get(w, [])
+                eff_c = len(active_samples)
+                
+                if eff_c == c:
+                    c_text = f"({c}件)"
+                else:
+                    c_text = f"(未判定 {eff_c}件 / 全{c}件)"
 
-            display_ngrams = filtered_items[:limit_ngram]
-            tab_keywords = [w for w, c, s in filtered_items]
-            selected_tab_matches = [w for w in tab_keywords if w in checked_ngrams]
+                # ツールチップ用出現例タイトルの組み立て (先頭10件制限)
+                display_samples = active_samples[:10] if active_samples else s[:10]
+                sample_lines = [f"• {t}" for t in display_samples]
+                sample_header = f"【『{w}』の未判定資料サンプル (未判定 {eff_c}例中 {len(display_samples)}件表示)】:\n" if display_samples else f"【『{w}』の件数: {c_text}】\n"
+                n_tooltip = sample_header + "\n".join(sample_lines)
 
-            # ツールバー
-            st.markdown(f"⚡ **N={n_val} 一括操作** (検索該当: **{len(filtered_items)} 件** | 一時チェック中: **{len(selected_tab_matches)} 件**)")
-            
-            c_btn1, c_btn2, c_btn3, c_btn4 = st.columns([3, 3, 3, 3])
-            with c_btn1:
-                if st.button(f"☑ N={n_val} 全 {len(tab_keywords)} 件にチェック", key=f"btn_chk_all_{n_val}", use_container_width=True):
-                    checked_ngrams.update(tab_keywords)
-                    st.session_state["ngram_view_ver"] += 1
-                    st.rerun()
+                # 仮選択状態も含めたステータス判定 (即時表示)
+                draft_n_status = draft_n.get(w)
+                if draft_n_status == "NG":
+                    is_n_ng, is_n_ok = True, False
+                    d_tag = " [仮NG]"
+                elif draft_n_status == "OK":
+                    is_n_ng, is_n_ok = False, True
+                    d_tag = " [仮OK]"
+                elif draft_n_status == "RESET":
+                    is_n_ng, is_n_ok = False, False
+                    d_tag = " [仮未判定]"
+                else:
+                    is_n_ng = w in ngram_ng
+                    is_n_ok = w in ngram_ok
+                    d_tag = ""
 
-            with c_btn2:
-                if st.button(f"🔳 N={n_val} 全件のチェック解除", key=f"btn_chk_none_{n_val}", use_container_width=True):
-                    checked_ngrams.difference_update(tab_keywords)
-                    st.session_state["ngram_view_ver"] += 1
-                    st.rerun()
+                if is_n_ng:
+                    btn_txt = f"🚫 {w} {c_text}{d_tag}"
+                elif is_n_ok:
+                    btn_txt = f"✅ {w} {c_text}{d_tag}"
+                elif parent_type == "NG":
+                    btn_txt = f"🚫 {w} [親:{parent_word}] {c_text}{d_tag}"
+                elif parent_type == "OK":
+                    btn_txt = f"✅ {w} [親:{parent_word}] {c_text}{d_tag}"
+                else:
+                    btn_txt = f"❓ {w} {c_text}{d_tag}"
 
-            # --- カード一覧と一括アクションを st.form で包み、チェック操作時の画面再描画を100%完全停止 ---
-            with st.form(key=f"form_ngram_tab_{n_val}"):
-                # ツールバー一括ボタン
-                c_form1, c_form2 = st.columns(2)
-                with c_form1:
-                    submit_ng = st.form_submit_button(f"🚫 チェックを入れた候補を NG リストに追加", type="primary", use_container_width=True)
-                with c_form2:
-                    submit_ok = st.form_submit_button(f"✅ チェックを入れた候補を OK リストに追加", use_container_width=True)
+                c_btn_n, c_pop_n = col.columns([6, 1])
+                with c_btn_n:
+                    if st.button(btn_txt, key=f"btn_pills_n_{n_val}_{w}_{idx}", help=n_tooltip, use_container_width=True):
+                        if c_mode_n == "🚫 NGに判定":
+                            draft_n[w] = "NG"
+                        elif c_mode_n == "✅ OKに判定":
+                            draft_n[w] = "OK"
+                        elif c_mode_n == "🔄 未判定に戻す":
+                            draft_n[w] = "RESET"
+                        st.rerun(scope="fragment")
 
-                st.write("---")
+                with c_pop_n:
+                    with st.popover("🔍", help=f"『{w}』の検索・詳細"):
+                        st.markdown(f"### 🔍 『{w}』")
+                        st.markdown(f"- **Google検索**: {make_google_link(w)}")
+                        st.markdown(f"- **件数内訳**: 未判定 {eff_c} 件 / 全 {c} 件")
+                        if parent_type:
+                            st.info(f"親ルール継承: **{parent_type}** (親パターン: 『{parent_word}』)")
+                        st.write("---")
+                        st.caption("📄 **未判定の出現資料タイトル一覧 (最新10件)**:")
+                        for s_title in display_samples:
+                            st.markdown(f"- {s_title}")
 
-                # 3カラムカード表示
-                form_checkbox_values = {}
-                grid_cols = st.columns(3)
-                for idx, (word, count, sample_titles) in enumerate(display_ngrams):
-                    col = grid_cols[idx % 3]
-                    is_ng = word in ngram_ng
-                    is_ok = word in ngram_ok
-                    is_chk = word in checked_ngrams
+    render_ngram_pill_board()
 
-                    parent_type, parent_word = get_parent_rule(word, ngram_ng, ngram_ok)
-
-                    if is_ng:
-                        status_badge = " [🚫 直接NG]"
-                    elif is_ok:
-                        status_badge = " [✅ 直接OK]"
-                    elif parent_type == "NG":
-                        status_badge = f" [🚫 NG判定済 (親: {parent_word})]"
-                    elif parent_type == "OK":
-                        status_badge = f" [✅ OK判定済 (親: {parent_word})]"
-                    else:
-                        status_badge = ""
-
-                    # 既知のNG/OKルールにヒットしていない「未判定の残存資料」から出現例タイトルをリアルタイム動的抽出
-                    active_samples = [t for t in active_titles if word in t]
-                    display_samples = active_samples[:25] if active_samples else sample_titles[:25]
-                    
-                    sample_lines = [f"• {t}" for t in display_samples]
-                    sample_header = f"未判定の出現例タイトル (未判定 {len(active_samples)}例中 {len(display_samples)}件表示):\n" if active_samples else f"出現例タイトル (既判定含む全{len(sample_titles)}例):\n"
-                    sample_tooltip = sample_header + "\n".join(sample_lines)
-
-                    # 件数表示の動的マイナス控除表記 (例: 未判定 420件 / 全686件)
-                    eff_count = len(active_samples)
-                    if eff_count == count:
-                        count_text = f"({count}件)"
-                    else:
-                        count_text = f"(未判定 {eff_count}件 / 全{count}件)"
-                    
-                    label_text = f"「**{word}**」 {count_text} {make_google_link(word)}{status_badge}"
-
-                    # フォーム内のチェックボックス (クリックしても全走査・再描画が100%起きない)
-                    form_checkbox_values[word] = col.checkbox(
-                        label_text, 
-                        value=is_chk, 
-                        key=f"form_chk_{n_val}_{word}_v{ngram_ver}", 
-                        help=sample_tooltip
-                    )
-
-                # フォーム送信（一括追加処理）
-                if submit_ng:
-                    selected_in_form = [w for w, v in form_checkbox_values.items() if v]
-                    if selected_in_form:
-                        ngram_ng.update(selected_in_form)
-                        for w in selected_in_form: ngram_ok.discard(w)
-                        checked_ngrams.clear()
-                        st.session_state["ngram_view_ver"] += 1
-                        st.cache_data.clear()
-                        st.success(f"🎉 {len(selected_in_form)} 件を NG リストに追加しました！")
-                        st.rerun()
-                    else:
-                        st.warning("チェックされている候補がありません。")
-
-                if submit_ok:
-                    selected_in_form = [w for w, v in form_checkbox_values.items() if v]
-                    if selected_in_form:
-                        ngram_ok.update(selected_in_form)
-                        for w in selected_in_form: ngram_ng.discard(w)
-                        checked_ngrams.clear()
-                        st.session_state["ngram_view_ver"] += 1
-                        st.cache_data.clear()
-                        st.success(f"🎉 {len(selected_in_form)} 件を OK リストに追加しました！")
-                        st.rerun()
-                    else:
-                        st.warning("チェックされている候補がありません。")
 
     # 親単語の指定 (謡本=OK, 家譜=NG など) を全N-gramパターンの長語へ自動継承補完するヘルパー
     def build_expanded_ngram_rules(ng_set, ok_set, all_ngram_dict):
@@ -788,7 +1132,7 @@ elif choice == "Step 2-B: タイトル N-Gram (部分文字列 N=2〜9) 分析�
         return final_dict
 
     st.write("---")
-    col_n1, col_n2 = st.columns(2)
+    col_n1, col_n2, col_n3 = st.columns([2, 2, 1])
     with col_n1:
         if st.button("💾 N-Gram ルールを保存する", type="primary", use_container_width=True):
             save_dict = build_expanded_ngram_rules(ngram_ng, ngram_ok, ngram_dict)
@@ -804,6 +1148,23 @@ elif choice == "Step 2-B: タイトル N-Gram (部分文字列 N=2〜9) 分析�
 
             passed, disc = run_ngram_filter(input_path, PATH_NGRAM_RULES, PATH_NGRAM_FILTERED, f"{DATA_DIR}/discarded_ngram.csv")
             st.success(f"N-Gram フィルタ完了: 通過 {passed} 件 / 除外 {disc} 件 (除外ログ: {DATA_DIR}/discarded_ngram.csv)")
+
+    with col_n3:
+        with st.popover("🗑️ ルール全リセット", help="N-Gramルールを初期化クリア"):
+            st.warning("⚠️ 本当に N-Gram ルール (`ngram_rules.json`) を全リセットしますか？")
+            st.caption("登録済みの全 N-gram NG / OK パターンおよび仮判定データが完全に消去されます。")
+            if st.button("💥 確定して全リセットする", type="primary", use_container_width=True, key="btn_confirm_reset_ngram"):
+                st.session_state["edited_ngram_ng"] = set()
+                st.session_state["edited_ngram_ok"] = set()
+                for key in list(st.session_state.keys()):
+                    if key.startswith("draft_n_"):
+                        st.session_state[key] = {}
+                with open(PATH_NGRAM_RULES, 'w', encoding='utf-8') as f:
+                    json.dump({}, f, ensure_ascii=False, indent=2)
+                st.cache_data.clear()
+                st.session_state["ngram_view_ver"] += 1
+                st.success("🎉 N-Gram ルール (ngram_rules.json) を完全にリセットしました！")
+                st.rerun()
 
 # Step 2-C: LLMセマンティック自動判定
 elif choice == "Step 2-C: LLMセマンティック自動判定 (グレーゾーン分類)":
@@ -867,7 +1228,12 @@ elif choice == "Step 2-D: 人間による最終査読・手動オーバーライ
 
     human_decisions = st.session_state["human_decisions"]
 
-    filter_rev = st.radio("表示フィルタ:", ["すべて", "合格のみ", "除外のみ"], horizontal=True)
+    c_f1, c_f2 = st.columns([2, 3])
+    with c_f1:
+        filter_rev = st.radio("表示フィルタ:", ["すべて", "合格のみ", "除外のみ"], horizontal=True, key="filter_rev_portal")
+    with c_f2:
+        search_rev = st.text_input("🔍 タイトル / URI / 理由で検索:", placeholder="例: 楽譜 または LLM判定除外", key="search_rev_portal")
+
     if filter_rev == "合格のみ":
         show_records = [r for r in review_records if human_decisions.get(r["id"], r["status"]) == "合格"]
     elif filter_rev == "除外のみ":
@@ -875,9 +1241,36 @@ elif choice == "Step 2-D: 人間による最終査読・手動オーバーライ
     else:
         show_records = review_records
 
-    st.subheader(f"📑 査読対象データカード (全 {len(show_records)} / {len(review_records)} 件)")
+    if search_rev.strip():
+        s_query = search_rev.strip().lower()
+        show_records = [
+            r for r in show_records
+            if s_query in r["title"].lower() or s_query in r["id"].lower() or s_query in r["reasons"].lower() or s_query in r.get("llm_reason", "").lower()
+        ]
 
-    for idx, r in enumerate(show_records[:50]):
+    total_show = len(show_records)
+    page_size = 50
+    total_pages = max(1, (total_show + page_size - 1) // page_size)
+
+    if "rev_page" not in st.session_state:
+        st.session_state["rev_page"] = 1
+
+    c_p1, c_p2 = st.columns([3, 2])
+    with c_p1:
+        st.subheader(f"📑 査読対象データカード (該当: {total_show:,} / 全 {len(review_records):,} 件)")
+    with c_p2:
+        if total_pages > 1:
+            current_page = st.number_input(f"ページ移動 (1〜{total_pages}):", min_value=1, max_value=total_pages, value=min(st.session_state["rev_page"], total_pages), step=1, key="num_input_rev_page")
+        else:
+            current_page = 1
+
+    start_idx = (current_page - 1) * page_size
+    end_idx = min(start_idx + page_size, total_show)
+    page_records = show_records[start_idx:end_idx]
+
+    st.caption(f"表示中: {start_idx + 1:,} 〜 {end_idx:,} 件目 (全 {total_pages} ページ)")
+
+    for idx, r in enumerate(page_records):
         rid = r["id"]
         cur_status = human_decisions.get(rid, r["status"])
 
@@ -961,5 +1354,56 @@ elif choice == "Step 3: データエクスポート (検索ポータル出力)":
         with open(PATH_EXPORT_JSON, 'w', encoding='utf-8') as jf:
             json.dump(records, jf, ensure_ascii=False, indent=2)
 
-        st.success(f"🎉 エクスポート成功！ 全 {len(records):,} 件のデータを `{PATH_EXPORT_JSON}` に出力しました！")
+        # CSV 出力
+        path_export_csv = f"{DATA_DIR}/cleaned_metadata.csv"
+        df_export = pd.DataFrame(records)
+        df_export.to_csv(path_export_csv, index=False, encoding='utf-8-sig')
+
+        st.success(f"🎉 エクスポート成功！ 全 {len(records):,} 件のデータを `{PATH_EXPORT_JSON}` および `{path_export_csv}` に出力しました！")
         st.info("`02_search_viewer/index.html` をブラウザで開いて洗練されたモダンUIで検索・閲覧を行ってください。")
+
+    st.write("---")
+    st.subheader("📥 成果物データのブラウザ直接ダウンロード")
+    st.markdown("生成されたクレンジング結果ファイルをワンクリックでローカルPCへダウンロードできます。")
+
+    c_dl1, c_dl2, c_dl3 = st.columns(3)
+    path_export_csv = f"{DATA_DIR}/cleaned_metadata.csv"
+
+    with c_dl1:
+        if os.path.exists(PATH_EXPORT_JSON):
+            with open(PATH_EXPORT_JSON, 'rb') as f:
+                st.download_button(
+                    label="📥 scores_data.json をダウンロード",
+                    data=f,
+                    file_name="scores_data.json",
+                    mime="application/json",
+                    use_container_width=True
+                )
+        else:
+            st.button("📥 scores_data.json (未出力)", disabled=True, use_container_width=True)
+
+    with c_dl2:
+        if os.path.exists(path_export_csv):
+            with open(path_export_csv, 'rb') as f:
+                st.download_button(
+                    label="📥 cleaned_metadata.csv をダウンロード",
+                    data=f,
+                    file_name="cleaned_metadata.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+        else:
+            st.button("📥 cleaned_metadata.csv (未出力)", disabled=True, use_container_width=True)
+
+    with c_dl3:
+        if os.path.exists(PATH_VERIFIED_JSONL):
+            with open(PATH_VERIFIED_JSONL, 'rb') as f:
+                st.download_button(
+                    label="📥 human_verified_cleaned.jsonl をダウンロード",
+                    data=f,
+                    file_name="human_verified_cleaned.jsonl",
+                    mime="application/jsonlines",
+                    use_container_width=True
+                )
+        else:
+            st.button("📥 human_verified_cleaned.jsonl (未確定)", disabled=True, use_container_width=True)

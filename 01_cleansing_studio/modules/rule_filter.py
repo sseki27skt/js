@@ -14,6 +14,41 @@ DEFAULT_LLM_URL = os.environ.get("LLM_API_BASE", "http://localhost:1234/v1")
 DEFAULT_MODEL = os.environ.get("LLM_MODEL", "local-model")
 
 
+def extract_about_values(about_val) -> list:
+    """
+    schema:about の生表現（str, dict, list, またはそのネスト）から
+    キーワード名 / URL解読名の一覧をリストとして抽出します。
+    """
+    if not about_val:
+        return []
+    
+    raw_list = about_val if isinstance(about_val, list) else [about_val]
+    keywords = []
+    
+    for item in raw_list:
+        if not item:
+            continue
+        if isinstance(item, dict):
+            val = item.get("rdfs:label") or item.get("schema:name") or item.get("@id") or ""
+            if isinstance(val, list) and val:
+                val = val[0]
+            val_str = str(val).strip()
+        else:
+            val_str = str(item).strip()
+            
+        if not val_str:
+            continue
+            
+        if val_str.startswith("http"):
+            kw_name = urllib.parse.unquote(val_str.split("/")[-1])
+            if kw_name:
+                keywords.append(kw_name)
+        else:
+            keywords.append(val_str)
+            
+    return keywords
+
+
 def extract_about_keywords_from_jsonl(input_jsonl_path: str) -> list:
     """
     raw_metadata.jsonl から schema:about のキーワードを抽出・カウント集計し、
@@ -31,21 +66,8 @@ def extract_about_keywords_from_jsonl(input_jsonl_path: str) -> list:
             try:
                 item = json.loads(line)
                 about_val = item.get("schema:about", [])
-                if isinstance(about_val, str):
-                    about_val = [about_val]
-                elif isinstance(about_val, dict):
-                    about_val = [about_val.get("rdfs:label", "")]
-
-                for ab in about_val:
-                    ab_str = str(ab).strip()
-                    if not ab_str:
-                        continue
-                    if ab_str.startswith("http"):
-                        kw_name = urllib.parse.unquote(ab_str.split("/")[-1])
-                        if kw_name:
-                            counter[kw_name] += 1
-                    else:
-                        counter[ab_str] += 1
+                for kw in extract_about_values(about_val):
+                    counter[kw] += 1
             except Exception:
                 continue
 
@@ -342,19 +364,13 @@ def run_about_filter(input_jsonl_path: str, rules_json_path: str, output_filtere
             item = json.loads(line)
             
             about_val = item.get("schema:about", [])
-            if isinstance(about_val, str):
-                about_val = [about_val]
-            elif isinstance(about_val, dict):
-                about_val = [about_val.get("rdfs:label", "")]
+            extracted_kws = extract_about_values(about_val)
 
             has_ng = False
             matched_ng_cat = ""
-            for ab in about_val:
-                ab_str = str(ab).strip()
-                kw_name = urllib.parse.unquote(ab_str.split("/")[-1]) if ab_str.startswith("http") else ab_str
-
+            for kw in extracted_kws:
                 for ng_cat in ng_categories:
-                    if ng_cat in ab_str or ng_cat in kw_name:
+                    if ng_cat in kw:
                         has_ng = True
                         matched_ng_cat = ng_cat
                         break

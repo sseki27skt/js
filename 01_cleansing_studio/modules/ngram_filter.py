@@ -10,6 +10,15 @@ import pandas as pd
 from collections import Counter, defaultdict
 
 
+def clean_title_text(title: str) -> str:
+    """
+    タイトルから記号・数字・括弧類・約物を網羅的に除去して標準化テキストを返します。
+    """
+    if not title:
+        return ""
+    return re.sub(r'[\s　\(\)（）\[\]【】「」『』\.,:;!\?/\-_\d・―〜〈〉《》“”‘’\+=★☆◆◇▲△▼▽○●◎／〔〕]', '', title)
+
+
 def extract_ngrams_from_jsonl(input_jsonl_path: str, min_n: int = 2, max_n: int = 9, top_n_per_gram: int = 500) -> dict:
     """
     jsonl ファイル内の資料タイトルから N-gram (N=2〜9) を集計し、
@@ -42,8 +51,8 @@ def extract_ngrams_from_jsonl(input_jsonl_path: str, min_n: int = 2, max_n: int 
                 if not title:
                     continue
 
-                # 記号・数字・括弧類を除去
-                clean_title = re.sub(r'[\s　\(\)（）\[\]【】「」『』\.,\d\-_]', '', title)
+                # 記号・数字・括弧類・約物を網羅的に除去
+                clean_title = clean_title_text(title)
 
                 for n in range(min_n, max_n + 1):
                     if len(clean_title) >= n:

@@ -152,12 +152,16 @@ def fetch_deep_graph(uris: list) -> list:
     """
     
     params = {'query': query, 'format': 'json'}
-    try:
-        response = requests.get(ENDPOINT, params=params, timeout=60)
-        if response.status_code == 200:
-            return response.json()['results']['bindings']
-    except Exception as e:
-        print(f"[Error in fetch_deep_graph]: {e}")
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            response = requests.get(ENDPOINT, params=params, timeout=60)
+            if response.status_code == 200:
+                return response.json()['results']['bindings']
+            else:
+                print(f"[Warning fetch_deep_graph] Attempt {attempt}/{MAX_RETRIES} Status Code: {response.status_code}")
+        except Exception as e:
+            print(f"[Error in fetch_deep_graph attempt {attempt}/{MAX_RETRIES}]: {e}")
+        time.sleep(2 * attempt)
     return []
 
 

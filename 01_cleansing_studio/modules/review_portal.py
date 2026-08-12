@@ -24,7 +24,7 @@ def load_merged_review_data(
 
     # 各フェーズの合格ID集合を作成
     about_passed_ids = set()
-    if os.path.exists(about_filtered_path):
+    if about_filtered_path and os.path.exists(about_filtered_path):
         with open(about_filtered_path, 'r', encoding='utf-8') as f:
             for line in f:
                 if line.strip():
@@ -32,7 +32,7 @@ def load_merged_review_data(
                     about_passed_ids.add(item.get("@id", ""))
 
     suffix_passed_ids = set()
-    if os.path.exists(suffix_filtered_path):
+    if suffix_filtered_path and os.path.exists(suffix_filtered_path):
         with open(suffix_filtered_path, 'r', encoding='utf-8') as f:
             for line in f:
                 if line.strip():
@@ -40,7 +40,7 @@ def load_merged_review_data(
                     suffix_passed_ids.add(item.get("@id", ""))
 
     ngram_passed_ids = set()
-    if os.path.exists(ngram_filtered_path):
+    if ngram_filtered_path and os.path.exists(ngram_filtered_path):
         with open(ngram_filtered_path, 'r', encoding='utf-8') as f:
             for line in f:
                 if line.strip():
