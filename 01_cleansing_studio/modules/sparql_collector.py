@@ -105,6 +105,7 @@ def fetch_uris_with_query_func(query_func, pattern_name="Custom Query", limit=DE
             else:
                 print(f"[{pattern_name}] 応答遅延のためスキップし、他のクエリの収集結果で処理を継続します。")
 
+    time.sleep(1.0)  # 各 Part (クエリパターン) 完了ごとのウェイト
     return collected_uris
 
 
