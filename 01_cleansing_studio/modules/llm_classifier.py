@@ -231,7 +231,8 @@ def run_llm_semantic_classification(
     model: str = "gemini-3.6-flash",
     limit: int = None,
     max_workers: int = 4,
-    progress_callback=None
+    progress_callback=None,
+    should_stop=None
 ) -> tuple:
     """
     【DDG Web補強デフォルト化 ＆ 同一タイトル名寄せ一括判定 (Deduplication)】
@@ -408,6 +409,12 @@ def run_llm_semantic_classification(
                 for i, rep_entry in enumerate(targets_to_process)
             }
             for future in as_completed(future_to_rep):
+                if should_stop and should_stop():
+                    # 停止要求がある場合、未完了タスクをキャンセルしてループ中断
+                    for f in future_to_rep:
+                        f.cancel()
+                    break
+
                 rep_idx, title, is_target, reason, group_results = future.result()
                 completed_unique += 1
                 
@@ -424,6 +431,9 @@ def run_llm_semantic_classification(
                     progress_callback(completed_unique, len(targets_to_process), f"{title} (他{len(group_results)-1}件同タイトル)", is_target, reason)
     else:
         for i, rep_entry in enumerate(targets_to_process):
+            if should_stop and should_stop():
+                break
+
             rep_idx, title, is_target, reason, group_results = process_representative_title((i, rep_entry))
             completed_unique += 1
 
@@ -462,7 +472,8 @@ def run_stage2_llm_classification(
     api_key: str = "",
     model: str = "gemini-3.6-flash",
     max_workers: int = 2,
-    progress_callback=None
+    progress_callback=None,
+    should_stop=None
 ) -> tuple:
     """
     [Stage 2] Stage 1で判定不能 (is_target == null) になった項目に対し、
@@ -575,6 +586,11 @@ def run_stage2_llm_classification(
                 for i, record_idx in enumerate(unknown_indices)
             }
             for future in as_completed(future_to_idx):
+                if should_stop and should_stop():
+                    for f in future_to_idx:
+                        f.cancel()
+                    break
+
                 order, record_idx, updated_record = future.result()
                 all_records[record_idx] = updated_record
                 completed_counter += 1
@@ -596,6 +612,9 @@ def run_stage2_llm_classification(
                     )
     else:
         for i, record_idx in enumerate(unknown_indices):
+            if should_stop and should_stop():
+                break
+
             order, record_idx, updated_record = process_unknown_item((i, record_idx))
             all_records[record_idx] = updated_record
             completed_counter += 1

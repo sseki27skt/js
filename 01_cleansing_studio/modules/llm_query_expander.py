@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-LLMアシスト型 検索キーワード拡張 & ドメイン定義生成モジュール (Gemini API / OpenAI / Local対応)
+LLMアシスト型 網羅的検索キーワード拡張 & ドメイン定義生成モジュール (Gemini API / OpenAI / Local対応)
+網羅性（Recall 100%志向）重視バージョン
 """
 
 import json
@@ -20,24 +21,23 @@ def expand_query_with_llm(
     model: str = DEFAULT_MODEL
 ) -> dict:
     """
-    ユーザーが入力したテーマから、Japan Search検索用パラメータをLLMで自動抽出・生成します。
-    provider: "local" (LM Studio/Ollama), "gemini" (Google Gemini API), "openai" (OpenAI API)
+    ユーザーが入力したテーマから、Japan Searchからの網羅的取りこぼしゼロ収集用パラメータをLLMで超拡張・生成します。
+    ノイズの混入を恐れず、異体字・旧字体・関連ジャンル・派生用語を徹底的にリストアップします。
     """
     system_prompt = (
         "あなたは日本の文化資源・人文学データの専門ライブラリアンおよびデータアナリストです。\n"
-        "ユーザーが指定したテーマ・関心領域に基づき、Japan Search（日本文化資源メタデータ検索プラットフォーム）から"
-        "対象資料を漏れなく・かつ効率的に収集するための検索パラメータをJSON形式で提案してください。\n\n"
-        "【重要】検索キーワードは単一の長い文章ではなく、「楽譜」「譜」「音楽」「謡本」のように資料タイトルや説明文に直接含まれる個別の単語キーワードのリストとして出してください。\n\n"
+        "ユーザーが指定したテーマ・関心領域に基づき、Japan Searchから対象となり得る資料を【取りこぼしなく網羅的（Recall最大化）】に収集するための検索パラメータを生成してください。\n\n"
+        "【最重要方針】:\n"
+        "1. 後段のフィルタリング工程でノイズは除外するため、現段階ではノイズ（無関係な資料）の混入を全く気にする必要はありません。\n"
+        "2. 対象テーマが含まれる可能性が少しでもある全ての【旧字体・異体字、派生語、専門用語、流派・楽器・形態名、関連周辺単語】を20〜40個以上徹底的に出力してください。\n"
+        "3. キーワードは単一の長い文章ではなく、「譜」「楽譜」「樂譜」「音譜」「調子本」「謡本」「聲明譜」のように個別の単語リストとして出力してください。\n\n"
         "必ず以下の純粋で有効なJSONフォーマットのみを出力してください（コメントや説明文は不要です）：\n"
         "{\n"
         '  "theme": "テーマ名",\n'
         '  "domain_definition": "資料判定用ドメイン定義文",\n'
-        '  "target_type": "type:古書・古文書",\n'
-        '  "ndc_codes": ["76", "014.7", "186.5", "774.7"],\n'
-        '  "keywords": ["譜", "楽譜", "樂譜", "音楽", "音譜"],\n'
-        '  "title_regex": "譜|楽譜|樂譜|音楽",\n'
-        '  "desc_regex": "楽譜|樂譜|音楽",\n'
-        '  "expected_suffixes": ["譜", "帳", "録", "本"]\n'
+        '  "keywords": ["譜", "楽譜", "樂譜", "音譜", "譜面", "曲譜", "音律", "調子本", "謡本", "舞譜", "琴譜", "笛譜", "三味線譜", "聲明譜"],\n'
+        '  "title_regex": "譜|楽譜|樂譜|音譜|譜面|曲譜|音律|調子本|謡本|舞譜|琴譜|笛譜|三味線譜|聲明譜",\n'
+        '  "desc_regex": "譜|楽譜|樂譜|音譜|譜面|曲譜|音律|調子本|謡本|舞譜|琴譜|笛譜|三味線譜|聲明譜"\n'
         "}\n"
     )
 
@@ -49,7 +49,7 @@ def expand_query_with_llm(
         if not gemini_key:
             return _build_fallback_result(theme_prompt, "Gemini APIキーが設定されていません。")
 
-        target_model = model if model and model != "local-model" else "gemini-1.5-flash"
+        target_model = model if model and model != "local-model" else "gemini-3.6-flash"
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{target_model}:generateContent?key={gemini_key}"
         
         payload = {
@@ -60,7 +60,7 @@ def expand_query_with_llm(
                 }
             ],
             "generationConfig": {
-                "temperature": 0.2,
+                "temperature": 0.3,
                 "responseMimeType": "application/json"
             }
         }
@@ -91,7 +91,7 @@ def expand_query_with_llm(
                 {"role": "system", "content": f"/no_think\n思考は行わず直ちにJSONのみ出力してください。\n{system_prompt}"},
                 {"role": "user", "content": user_prompt}
             ],
-            "temperature": 0.0,
+            "temperature": 0.2,
             "max_tokens": 4000
         }
 
@@ -127,123 +127,86 @@ def expand_query_with_llm(
 def _build_fallback_result(theme_prompt: str, reason: str) -> dict:
     """フォールバックルールベース結果の構築"""
     print(f"[LLM Expander] フォールバック適用: {reason}")
-    if "楽譜" in theme_prompt or "音楽" in theme_prompt or "譜" in theme_prompt:
-        keywords = ["譜", "楽譜", "樂譜", "音楽", "音譜"]
-        title_regex = "譜|音楽"
-        desc_regex = "楽譜|樂譜|音楽"
-        ndc_codes = ["76", "014.7", "186.5", "774.7"]
+    if any(k in theme_prompt for k in ["楽譜", "音楽", "譜"]):
+        keywords = [
+            "譜", "楽譜", "樂譜", "音譜", "譜面", "曲譜", "音律", "調子", "調子本",
+            "謡本", "舞譜", "琴譜", "笛譜", "三味線譜", "聲明譜", "節用", "唱歌", "節付"
+        ]
+        title_regex = "|".join(keywords)
+        desc_regex = title_regex
     else:
         words = [w.strip() for w in re.split(r"[\s,・/／におけるについて]+", theme_prompt) if len(w.strip()) >= 2]
         keywords = words if words else [theme_prompt]
         title_regex = "|".join(keywords)
         desc_regex = title_regex
-        ndc_codes = []
 
     return {
         "theme": theme_prompt,
         "domain_definition": f"「{theme_prompt}」に関連する文化資源・文献・資料",
-        "target_type": "type:古書・古文書",
-        "ndc_codes": ndc_codes,
         "keywords": keywords,
         "title_regex": title_regex,
         "desc_regex": desc_regex,
-        "expected_suffixes": ["本", "録", "集", "帖", "図", "譜"],
         "is_fallback": True,
         "fallback_reason": reason
     }
 
 
-def generate_sparql_queries(expansion_result: dict, limit: int = 500) -> list:
-    """SPARQLクエリ一覧の生成"""
-    target_type = expansion_result.get("target_type", "type:古書・古文書")
-    type_clause = f"?s rdf:type {target_type} ." if target_type else ""
-
-    ndc_codes = expansion_result.get("ndc_codes", [])
+def generate_sparql_queries(expansion_result: dict) -> list:
+    """
+    SPARQLクエリ一覧の自動生成 (Recall 最大化仕様)
+    - rdf:type 絞り込みを排除し全RDFリソースを検索。
+    - rdfs:label, schema:name, schema:about, schema:keywords, dct:subject, schema:description を網羅化。
+    - NDC 検索は撤廃。
+    """
     title_regex = expansion_result.get("title_regex", "")
-    desc_regex = expansion_result.get("desc_regex", "")
+    desc_regex = expansion_result.get("desc_regex", title_regex)
     
     queries = []
     
-    # 1. NDC分類検索
-    if ndc_codes:
-        ndc_filters = []
-        for code in ndc_codes:
-            if "." in code or len(code) >= 4:
-                ndc_filters.append(f"?ndc = <http://jla.or.jp/data/ndc#{code}>")
-            else:
-                ndc_filters.append(f'STRSTARTS(STR(?ndc), "http://jla.or.jp/data/ndc#{code}")')
-        
-        filter_expr = " || ".join(ndc_filters)
-        
-        def q_ndc(lim, last_uri=None):
-            f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
-            return f"""
-            PREFIX schema: <http://schema.org/>
-            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-            PREFIX type: <https://jpsearch.go.jp/term/type/>
-            
-            SELECT ?s WHERE {{
-              {type_clause}
-              ?s schema:genre ?ndc .
-              FILTER ({filter_expr})
-              {f_clause}
-            }}
-            ORDER BY ?s
-            LIMIT {lim}
-            """
-        queries.append(("1. NDC分類検索", q_ndc))
-
-    # 2. タイトル (rdfs:label) 検索
+    # 1. タイトル・名称 (rdfs:label | schema:name) 検索
     if title_regex:
-        def q_label(lim, last_uri=None):
+        def q_title(lim, last_uri=None):
             f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
             return f"""
             PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-            PREFIX type: <https://jpsearch.go.jp/term/type/>
+            PREFIX schema: <http://schema.org/>
             
-            SELECT ?s WHERE {{
-              {type_clause}
-              ?s rdfs:label ?label .
-              FILTER (REGEX(?label, "{title_regex}", "i"))
+            SELECT DISTINCT ?s WHERE {{
+              ?s (rdfs:label|schema:name) ?title .
+              FILTER (REGEX(?title, "{title_regex}", "i"))
               {f_clause}
             }}
             ORDER BY ?s
             LIMIT {lim}
             """
-        queries.append(("2. タイトル(label)検索", q_label))
+        queries.append(("1. タイトル・名称 (label / name) 網羅検索", q_title))
 
-    # 3. 名称 (schema:name) 検索
+    # 2. 主題・件名・キーワード (schema:about | schema:keywords | dct:subject) 検索
     if title_regex:
-        def q_name(lim, last_uri=None):
+        def q_subject(lim, last_uri=None):
             f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
             return f"""
             PREFIX schema: <http://schema.org/>
-            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-            PREFIX type: <https://jpsearch.go.jp/term/type/>
+            PREFIX dct: <http://purl.org/dc/terms/>
             
-            SELECT ?s WHERE {{
-              {type_clause}
-              ?s schema:name ?name .
-              FILTER (REGEX(?name, "{title_regex}", "i"))
+            SELECT DISTINCT ?s WHERE {{
+              ?s (schema:about|schema:keywords|dct:subject) ?sub .
+              FILTER (REGEX(STR(?sub), "{title_regex}", "i"))
               {f_clause}
             }}
             ORDER BY ?s
             LIMIT {lim}
             """
-        queries.append(("3. 名称(name)検索", q_name))
+        queries.append(("2. 主題・件名・キーワード (about / keywords / subject) 網羅検索", q_subject))
 
-    # 4. 説明文 (schema:description) 検索
+    # 3. 説明文・内容記述 (schema:description) 検索
     if desc_regex:
         def q_desc(lim, last_uri=None):
             f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
             return f"""
             PREFIX schema: <http://schema.org/>
-            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-            PREFIX type: <https://jpsearch.go.jp/term/type/>
             
-            SELECT ?s WHERE {{
-              {type_clause}
+            SELECT DISTINCT ?s WHERE {{
               ?s schema:description ?desc .
               FILTER (REGEX(?desc, "{desc_regex}", "i"))
               {f_clause}
@@ -251,6 +214,6 @@ def generate_sparql_queries(expansion_result: dict, limit: int = 500) -> list:
             ORDER BY ?s
             LIMIT {lim}
             """
-        queries.append(("4. 説明文(description)検索", q_desc))
+        queries.append(("3. 説明文 (description) 網羅検索", q_desc))
 
     return queries

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - Step 1: LLMクエリ拡張 ＆ Japan Search自動取得ビュー
+MetaClean Studio - Step 1: LLMクエリ超拡張 ＆ Japan Search全網羅データ自動取得ビュー
 """
 import os
 import streamlit as st
@@ -9,8 +9,8 @@ from modules.sparql_collector import fetch_uris_with_query_func, build_metadata_
 
 def render_step1_view(paths: dict):
     """Step 1 画面の描画"""
-    st.title("Step 1: LLMクエリ拡張 ＆ Japan Searchデータ自動取得")
-    st.caption("自然言語テーマからNDC分類・キーワード・SPARQLパターンをLLMで自動展開し、Japan Searchから深層メタデータを構築します。")
+    st.title("Step 1: LLMクエリ超拡張 ＆ Japan Search全網羅データ自動取得")
+    st.caption("自然言語テーマから旧字体・異体字・関連専門語をLLMで超拡張し、RDFタイプ制約なしでJapan Searchから母データを漏れなく全網羅（Recall最大化）取得します。")
 
     theme_input = st.text_input(
         "🎯 構築したいテーマ・領域を入力してください:", 
@@ -64,8 +64,8 @@ def render_step1_view(paths: dict):
         "model": model_input
     }
 
-    if st.button("✨ LLMで検索キーワード・クエリを自動生成する", type="primary", use_container_width=True):
-        with st.spinner("LLMがテーマを分析し、検索パラメータを拡張中..."):
+    if st.button("✨ LLMで超拡張検索キーワード・クエリを自動生成する", type="primary", use_container_width=True):
+        with st.spinner("LLMがテーマを分析し、関連語・旧字体・表記揺れを超網羅的に拡張中..."):
             expansion_res = expand_query_with_llm(
                 theme_prompt=theme_input,
                 provider=provider_code,
@@ -74,7 +74,7 @@ def render_step1_view(paths: dict):
                 model=model_input
             )
             st.session_state["expansion_res"] = expansion_res
-            st.success("🎉 LLMによる検索キーワード・分類コードの拡張処理が完了しました！")
+            st.success("🎉 LLMによる超拡張検索キーワードの生成処理が完了しました！")
 
     if "expansion_res" in st.session_state:
         exp = st.session_state["expansion_res"]
@@ -84,10 +84,10 @@ def render_step1_view(paths: dict):
                 "⚠️ **【通知】LLMへの接続ができなかったため、フォールバック（ルールベース生成）を適用しました。**\n\n"
                 f"・理由: `{exp.get('fallback_reason')}`\n\n"
                 "💡 **ヒント**: Gemini API Key を設定するか、ローカルLLM（LM Studio等）を起動すると、"
-                "より高度なNDC自動分類や異体字・旧字体の自動拡張機能が有効になります。"
+                "より高度な表記揺れ・旧字体・専門派生語の全自動拡張機能が有効になります。"
             )
         else:
-            st.success(f"✨ **{provider_choice} による検索キーワード・分類パラメータの高度拡張が適用されています。**")
+            st.success(f"✨ **{provider_choice} による網羅的取りこぼしゼロ拡張パラメータが適用されています。**")
 
         with st.expander("📋 生成された検索パラメータ設定 (JSON)", expanded=True):
             st.json(exp)
@@ -97,7 +97,7 @@ def render_step1_view(paths: dict):
 
         limit_val = st.number_input("1バッチあたりの取得上限 (LIMIT):", min_value=50, max_value=1000, value=200, step=50)
 
-        if st.button("🚀 Japan Search からメタデータを全自動取得・深層構築する", type="primary", use_container_width=True):
+        if st.button("🚀 Japan Search から全網羅メタデータを全自動取得・深層構築する", type="primary", use_container_width=True):
             status_box = st.empty()
             progress_bar = st.progress(0)
             

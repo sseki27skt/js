@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - Step 2-C: LLMセマンティック自動判定ビュー
+MetaClean Studio - Step 2-C: LLMセマンティック自動判定ビュー (中途停止対応)
 """
 import json
 import os
@@ -72,11 +72,21 @@ def render_step2c_view(paths: dict):
             limit_val = st.number_input("LLM判定処理件数の上限 (テスト実行用):", min_value=5, max_value=5000, value=min(grey_cnt, 50) if grey_cnt > 0 else 30, step=10)
             workers_val = st.slider("並列スレッド数 (ThreadPool):", min_value=1, max_value=8, value=4)
 
-    c_btn1, c_btn2 = st.columns([3, 1])
+    # 停止フラグのセッション状態
+    if "stop_llm_flag" not in st.session_state:
+        st.session_state["stop_llm_flag"] = False
+
+    c_btn1, c_btn2, c_btn3 = st.columns([3, 1.5, 1])
     with c_btn1:
         start_llm_btn = st.button("🤖 🌐 DDG情報補強 ＆ 名寄せ一括 LLM自動判定を開始する", type="primary", use_container_width=True)
     with c_btn2:
+        stop_llm_btn = st.button("🛑 判定処理を途中で停止する", type="secondary", use_container_width=True, help="実行中のLLM判定を安全に打ち切り、それまでの判定結果を保存して終了します。")
+    with c_btn3:
         reset_llm_btn = st.button("🗑️ LLM判定リセット", use_container_width=True, help="これまでのLLM判定結果ログを消去します。")
+
+    if stop_llm_btn:
+        st.session_state["stop_llm_flag"] = True
+        st.warning("🛑 停止シグナルを送信しました。現在のアイテムの判定完了後に安全に中断します。")
 
     if reset_llm_btn:
         for p in [llm_judgments_path, f"{data_dir}/tmp_llm_grey_judgments.jsonl"]:
@@ -86,15 +96,20 @@ def render_step2c_view(paths: dict):
                 except Exception:
                     pass
         st.cache_data.clear()
+        st.session_state["stop_llm_flag"] = False
         st.success("🎉 LLM判定結果ログをリセットしました！最初から判定を再試行できます。")
         st.rerun()
 
     if start_llm_btn:
+        st.session_state["stop_llm_flag"] = False
         if grey_cnt == 0:
             st.info("ℹ️ LLM判定対象のグレーゾーン資料がありません（全件がルールで確定済みです）。")
         else:
             progress_bar = st.progress(0)
             status_text = st.empty()
+
+            def should_stop_check():
+                return st.session_state.get("stop_llm_flag", False)
 
             def on_progress(current, total, title, is_target, reason):
                 progress_bar.progress(current / total)
@@ -113,7 +128,8 @@ def render_step2c_view(paths: dict):
                 model=model_name,
                 limit=limit_val,
                 max_workers=workers_val,
-                progress_callback=on_progress
+                progress_callback=on_progress,
+                should_stop=should_stop_check
             )
 
             merged_judgments = []
@@ -139,7 +155,11 @@ def render_step2c_view(paths: dict):
                 for r in merged_judgments:
                     f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-            st.success(f"🎉 LLM自動判定完了！ (適合: {acc} 件 / 非適合: {rej} 件 / 不明: {unk} 件)")
+            if st.session_state.get("stop_llm_flag", False):
+                st.warning(f"🛑 LLM判定処理を途中で安全に停止しました。(ここまでの判定結果: 適合 {acc} 件 / 非適合 {rej} 件 / 不明 {unk} 件 を保存しました)")
+            else:
+                st.success(f"🎉 LLM自動判定完了！ (適合: {acc} 件 / 非適合: {rej} 件 / 不明: {unk} 件)")
+            time.sleep(1)
             st.rerun()
 
     if os.path.exists(llm_judgments_path) and os.path.getsize(llm_judgments_path) > 0:
@@ -167,9 +187,23 @@ def render_step2c_view(paths: dict):
             st.metric("現在判定不能 (UNKNOWN) の資料数", f"{unk_count} 件", delta=f"{unk_count} 件を再判定可能", delta_color="inverse")
 
         if unk_count > 0:
-            if st.button("🌐 Stage 2: 判定不能 (UNKNOWN) 資料の補強再判定を実行する", type="primary", use_container_width=True):
+            c_stg_btn1, c_stg_btn2 = st.columns([3, 1])
+            with c_stg_btn1:
+                start_st2_btn = st.button("🌐 Stage 2: 判定不能 (UNKNOWN) 資料の補強再判定を実行する", type="primary", use_container_width=True)
+            with c_stg_btn2:
+                stop_st2_btn = st.button("🛑 Stage 2 停止", type="secondary", use_container_width=True, key="btn_stop_st2")
+
+            if stop_st2_btn:
+                st.session_state["stop_llm_flag"] = True
+                st.warning("🛑 停止シグナルを送信しました。")
+
+            if start_st2_btn:
+                st.session_state["stop_llm_flag"] = False
                 st2_progress_bar = st.progress(0)
                 st2_status_text = st.empty()
+
+                def should_stop_check():
+                    return st.session_state.get("stop_llm_flag", False)
 
                 def on_st2_progress(current, total, title, is_target, reason):
                     st2_progress_bar.progress(current / total)
@@ -184,10 +218,14 @@ def render_step2c_view(paths: dict):
                     api_key=cfg.get("api_key", ""),
                     model=model_name,
                     max_workers=min(2, workers_val),
-                    progress_callback=on_st2_progress
+                    progress_callback=on_st2_progress,
+                    should_stop=should_stop_check
                 )
 
-                st.success(f"🎉 Stage 2 補強再判定完了！ 新規適合: {resolved_acc} 件 / 新規非適合: {resolved_rej} 件 / 残り判定不能: {rem_unk} 件")
+                if st.session_state.get("stop_llm_flag", False):
+                    st.warning(f"🛑 Stage 2 補強再判定を途中で停止しました。(ここまでの再判定: 新規適合 {resolved_acc} 件 / 新規非適合 {resolved_rej} 件)")
+                else:
+                    st.success(f"🎉 Stage 2 補強再判定完了！ 新規適合: {resolved_acc} 件 / 新規非適合: {resolved_rej} 件 / 残り判定不能: {rem_unk} 件")
                 time.sleep(1)
                 st.rerun()
         else:
