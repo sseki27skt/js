@@ -1,6 +1,7 @@
+
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - Step 2-C: LLMセマンティック自動判定ビュー (中途停止対応)
+MetaClean Studio - Step 2-C: LLMセマンティック適合判定ビュー
 """
 import json
 import os
@@ -13,8 +14,8 @@ from modules.llm_classifier import run_llm_semantic_classification, run_stage2_l
 
 def render_step2c_view(paths: dict):
     """Step 2-C 画面の描画"""
-    st.title("Step 2-C: LLMセマンティック自動判定 (グレーゾーン分類)")
-    st.caption("About/N-Gramルールで判定しきれなかったグレーゾーン資料のみを抽出し、LLMがタイトル・詳細記述から「判定理由付き」で適合判定を行います。")
+    st.title("Step 2-C: LLMセマンティック適合判定 (判定保留群の分類)")
+    st.caption("事前ルールフィルタで確定しなかった判定保留（グレーゾーン）データを抽出し、LLMによるテキスト解釈と根拠理由生成に基づくセマンティック適合判定を行います。")
 
     ngram_filtered_path = paths['PATH_NGRAM_FILTERED']
     about_filtered_path = paths['PATH_ABOUT_FILTERED']
@@ -31,7 +32,7 @@ def render_step2c_view(paths: dict):
         about_filtered_path if os.path.exists(about_filtered_path) else raw_metadata_path
     )
     if not os.path.exists(raw_input_path):
-        st.warning("⚠️ 対象データが存在しません。Step 1 または Step 2 を先に実行してください。")
+        st.warning("対象データが存在しません。Step 1 または Step 2 を先に実行してください。")
         st.stop()
 
     ok_rules_cnt, ng_rules_cnt, grey_cnt = split_dataset_by_rules(
@@ -43,26 +44,26 @@ def render_step2c_view(paths: dict):
         output_discarded_csv=discarded_rules_path
     )
 
-    st.markdown("### 📊 事前ルールフィルタによる仕分け状況")
+    st.markdown("### 事前ルールフィルタによる仕分け状況")
     c_flt1, c_flt2, c_flt3 = st.columns(3)
     with c_flt1:
-        st.metric("🟢 ルール適合 OK確定 (LLMパス)", f"{ok_rules_cnt} 件", help="About/N-GramルールでOK判定されたためLLM判定をスキップして合格")
+        st.metric("ルール適合 (LLMバイパス)", f"{ok_rules_cnt:,} 件", help="About/N-GramルールでOK判定されたためLLM判定をスキップ")
     with c_flt2:
-        st.metric("🔴 ルール除外 NG確定", f"{ng_rules_cnt} 件", help="About/N-GramルールでNG判定されたため事前除外")
+        st.metric("ルール除外 (事前除外)", f"{ng_rules_cnt:,} 件", help="About/N-GramルールでNG判定されたため事前除外")
     with c_flt3:
-        st.metric("❓ LLM判定対象 (グレーゾーン)", f"{grey_cnt} 件", delta=f"全件から大幅削減", help="判定保留の未判定資料。これらのみがLLMへ投入されます。")
+        st.metric("LLM判定対象 (判定保留群)", f"{grey_cnt:,} 件", help="判定保留のデータ。これらのみがLLMへ投入されます。")
 
     cfg = st.session_state.get("llm_config", {})
     provider_name = cfg.get('provider', 'gemini')
     model_name = cfg.get('model', 'gemini-3.6-flash')
     default_domain_def = st.session_state.get("expansion_res", {}).get("domain_definition", "日本の古典籍における楽譜・音楽資料")
 
-    with st.expander("⚙️ セマンティック判定パラメータ ＆ LLM接続設定", expanded=True):
+    with st.expander("セマンティック判定パラメータおよびLLM接続設定", expanded=True):
         domain_def = st.text_area(
-            "🎯 対象ドメイン定義 (LLM判定の基準):",
+            "対象ドメイン定義 (LLM判定基準):",
             value=default_domain_def,
             height=70,
-            help="LLMが『適合(true)か非適合(false)か』を判定するための基準テキストです。"
+            help="LLMが適合判定を行うためのドメイン評価基準テキスト"
         )
         c_cfg1, c_cfg2 = st.columns(2)
         with c_cfg1:
@@ -78,15 +79,15 @@ def render_step2c_view(paths: dict):
 
     c_btn1, c_btn2, c_btn3 = st.columns([3, 1.5, 1])
     with c_btn1:
-        start_llm_btn = st.button("🤖 🌐 DDG情報補強 ＆ 名寄せ一括 LLM自動判定を開始する", type="primary", use_container_width=True)
+        start_llm_btn = st.button("LLMによるセマンティック適合判定の実行", type="primary", use_container_width=True)
     with c_btn2:
-        stop_llm_btn = st.button("🛑 判定処理を途中で停止する", type="secondary", use_container_width=True, help="実行中のLLM判定を安全に打ち切り、それまでの判定結果を保存して終了します。")
+        stop_llm_btn = st.button("判定処理の中断", type="secondary", use_container_width=True, help="実行中のLLM判定処理を中断し、そこまでの判定結果を保存します。")
     with c_btn3:
-        reset_llm_btn = st.button("🗑️ LLM判定リセット", use_container_width=True, help="これまでのLLM判定結果ログを消去します。")
+        reset_llm_btn = st.button("LLM判定ログの初期化", use_container_width=True, help="これまでのLLM判定結果ログを消去します。")
 
     if stop_llm_btn:
         st.session_state["stop_llm_flag"] = True
-        st.warning("🛑 停止シグナルを送信しました。現在のアイテムの判定完了後に安全に中断します。")
+        st.warning("停止シグナルを送信しました。現在のデータ判定完了後に処理を中断します。")
 
     if reset_llm_btn:
         for p in [llm_judgments_path, f"{data_dir}/tmp_llm_grey_judgments.jsonl"]:
@@ -97,13 +98,13 @@ def render_step2c_view(paths: dict):
                     pass
         st.cache_data.clear()
         st.session_state["stop_llm_flag"] = False
-        st.success("🎉 LLM判定結果ログをリセットしました！最初から判定を再試行できます。")
+        st.success("LLM判定結果ログを初期化しました。")
         st.rerun()
 
     if start_llm_btn:
         st.session_state["stop_llm_flag"] = False
         if grey_cnt == 0:
-            st.info("ℹ️ LLM判定対象のグレーゾーン資料がありません（全件がルールで確定済みです）。")
+            st.info("LLM判定対象の判定保留データがありません（全件判定済み）。")
         else:
             progress_bar = st.progress(0)
             status_text = st.empty()
@@ -113,8 +114,8 @@ def render_step2c_view(paths: dict):
 
             def on_progress(current, total, title, is_target, reason):
                 progress_bar.progress(current / total)
-                badge = "✅ [適合]" if is_target is True else ("🚫 [非適合]" if is_target is False else "❓ [不明]")
-                status_text.markdown(f"進捗: ユニーク資料 **{current}/{total}** | {badge} **{title[:35]}** ➔ *{reason}*")
+                badge = "[適合]" if is_target is True else ("[非適合]" if is_target is False else "[不明]")
+                status_text.markdown(f"進捗: **{current}/{total}** | {badge} **{title[:35]}** ➔ *{reason}*")
 
             tmp_llm_out = f"{data_dir}/tmp_llm_grey_judgments.jsonl"
 
@@ -156,16 +157,16 @@ def render_step2c_view(paths: dict):
                     f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
             if st.session_state.get("stop_llm_flag", False):
-                st.warning(f"🛑 LLM判定処理を途中で安全に停止しました。(ここまでの判定結果: 適合 {acc} 件 / 非適合 {rej} 件 / 不明 {unk} 件 を保存しました)")
+                st.warning(f"LLM判定処理を途中で停止しました。(途中判定結果: 適合 {acc} 件 / 非適合 {rej} 件 / 不明 {unk} 件 を保存)")
             else:
-                st.success(f"🎉 LLM自動判定完了！ (適合: {acc} 件 / 非適合: {rej} 件 / 不明: {unk} 件)")
+                st.success(f"LLMセマンティック判定完了 (適合: {acc:,} 件 / 非適合: {rej:,} 件 / 判定不能: {unk:,} 件)")
             time.sleep(1)
             st.rerun()
 
     if os.path.exists(llm_judgments_path) and os.path.getsize(llm_judgments_path) > 0:
         st.markdown("---")
-        st.subheader("🌐 Stage 2: 判定不能 (UNKNOWN) 資料の外部リンク/Web補強再判定")
-        st.caption("Stage 1 で判定不能になったグレーゾーン資料に対し、Web情報を自動補強して再判定します。")
+        st.subheader("Stage 2: 判定不能 (UNKNOWN) データのWeb情報補強再判定")
+        st.caption("Stage 1 で判定不能となったデータに対し、外部Web情報を自動参照して再判定を行います。")
 
         unk_count = 0
         total_judged = 0
@@ -182,20 +183,20 @@ def render_step2c_view(paths: dict):
 
         c_stg1, c_stg2 = st.columns(2)
         with c_stg1:
-            st.metric("判定結果ログの全資料数", f"{total_judged} 件 (ルール適合 {ok_rules_cnt}件 含む)")
+            st.metric("判定対象データ総数", f"{total_judged:,} 件 (ルール適合 {ok_rules_cnt:,} 件含む)")
         with c_stg2:
-            st.metric("現在判定不能 (UNKNOWN) の資料数", f"{unk_count} 件", delta=f"{unk_count} 件を再判定可能", delta_color="inverse")
+            st.metric("判定不能 (UNKNOWN) データ数", f"{unk_count:,} 件", delta=f"{unk_count:,} 件の再判定が可能", delta_color="inverse")
 
         if unk_count > 0:
             c_stg_btn1, c_stg_btn2 = st.columns([3, 1])
             with c_stg_btn1:
-                start_st2_btn = st.button("🌐 Stage 2: 判定不能 (UNKNOWN) 資料の補強再判定を実行する", type="primary", use_container_width=True)
+                start_st2_btn = st.button("Stage 2: 判定不能 (UNKNOWN) データの情報補強再判定の実行", type="primary", use_container_width=True)
             with c_stg_btn2:
-                stop_st2_btn = st.button("🛑 Stage 2 停止", type="secondary", use_container_width=True, key="btn_stop_st2")
+                stop_st2_btn = st.button("Stage 2 中断", type="secondary", use_container_width=True, key="btn_stop_st2")
 
             if stop_st2_btn:
                 st.session_state["stop_llm_flag"] = True
-                st.warning("🛑 停止シグナルを送信しました。")
+                st.warning("停止シグナルを送信しました。")
 
             if start_st2_btn:
                 st.session_state["stop_llm_flag"] = False
@@ -207,7 +208,7 @@ def render_step2c_view(paths: dict):
 
                 def on_st2_progress(current, total, title, is_target, reason):
                     st2_progress_bar.progress(current / total)
-                    badge = "✅ [適合]" if is_target is True else ("🚫 [非適合]" if is_target is False else "❓ [不明]")
+                    badge = "[適合]" if is_target is True else ("[非適合]" if is_target is False else "[不明]")
                     st2_status_text.markdown(f"Stage 2 進捗: **{current}/{total}** 件 | {badge} **{title[:35]}** ➔ *{reason}*")
 
                 resolved_acc, resolved_rej, rem_unk = run_stage2_llm_classification(
@@ -223,16 +224,16 @@ def render_step2c_view(paths: dict):
                 )
 
                 if st.session_state.get("stop_llm_flag", False):
-                    st.warning(f"🛑 Stage 2 補強再判定を途中で停止しました。(ここまでの再判定: 新規適合 {resolved_acc} 件 / 新規非適合 {resolved_rej} 件)")
+                    st.warning(f"Stage 2 補強再判定を途中で停止しました。(途中結果: 新規適合 {resolved_acc} 件 / 新規非適合 {resolved_rej} 件)")
                 else:
-                    st.success(f"🎉 Stage 2 補強再判定完了！ 新規適合: {resolved_acc} 件 / 新規非適合: {resolved_rej} 件 / 残り判定不能: {rem_unk} 件")
+                    st.success(f"Stage 2 補強再判定完了 (新規適合: {resolved_acc} 件 / 新規非適合: {resolved_rej} 件 / 残り判定不能: {rem_unk} 件)")
                 time.sleep(1)
                 st.rerun()
         else:
-            st.info("ℹ️ 現在、判定不能 (UNKNOWN) の資料はありません。")
+            st.info("現在、判定不能 (UNKNOWN) のデータはありません。")
 
         st.markdown("---")
-        with st.expander("🔍 LLM判定結果 ＆ Web検索スニペット 確認ポータル", expanded=True):
+        with st.expander("LLM判定結果および参照Web情報の確認・検証", expanded=True):
             all_judgments = []
             with open(llm_judgments_path, 'r', encoding='utf-8', errors='ignore') as f:
                 for line in f:
@@ -245,9 +246,9 @@ def render_step2c_view(paths: dict):
             if all_judgments:
                 c_flt_t, c_flt_s, c_flt_q = st.columns(3)
                 with c_flt_t:
-                    filter_status = st.selectbox("判定結果で絞り込み:", ["すべて", "✅ 適合 (true)のみ", "🚫 非適合 (false)のみ", "❓ 判定不能 (null)のみ"])
+                    filter_status = st.selectbox("判定結果で絞り込み:", ["すべて", "適合 (true)のみ", "非適合 (false)のみ", "判定不能 (null)のみ"])
                 with c_flt_s:
-                    filter_source = st.selectbox("判定ソースで絞り込み:", ["すべて", "🤖 🌐 DDG/Web情報補強 LLM判定", "🟢 ルール適合パス (LLMバイパス)"])
+                    filter_source = st.selectbox("判定ソースで絞り込み:", ["すべて", "Web情報補強 LLM判定", "ルール適合パス (LLMバイパス)"])
                 with c_flt_q:
                     search_kw = st.text_input("タイトル検索:", placeholder="キーワードで絞り込み...")
 
@@ -257,16 +258,16 @@ def render_step2c_view(paths: dict):
                     reason = str(item.get("reason", ""))
                     title = str(item.get("title", ""))
 
-                    if filter_status == "✅ 適合 (true)のみ" and tgt is not True:
+                    if filter_status == "適合 (true)のみ" and tgt is not True:
                         continue
-                    if filter_status == "🚫 非適合 (false)のみ" and tgt is not False:
+                    if filter_status == "非適合 (false)のみ" and tgt is not False:
                         continue
-                    if filter_status == "❓ 判定不能 (null)のみ" and tgt is not None:
+                    if filter_status == "判定不能 (null)のみ" and tgt is not None:
                         continue
 
-                    if filter_source == "🤖 🌐 DDG/Web情報補強 LLM判定" and "[ルール合格]" in reason:
+                    if filter_source == "Web情報補強 LLM判定" and "[ルール合格]" in reason:
                         continue
-                    if filter_source == "🟢 ルール適合パス (LLMバイパス)" and "[ルール合格]" not in reason:
+                    if filter_source == "ルール適合パス (LLMバイパス)" and "[ルール合格]" not in reason:
                         continue
 
                     if search_kw and search_kw.lower() not in title.lower():
@@ -281,7 +282,7 @@ def render_step2c_view(paths: dict):
                     df_full_export = pd.DataFrame(filtered_judgments)
                     csv_data = df_full_export.to_csv(index=False, encoding='utf-8-sig')
                     st.download_button(
-                        label="📥 絞り込んだ判定ログを CSV ダウンロード",
+                        label="抽出判定ログの CSV 出力",
                         data=csv_data,
                         file_name="llm_judgments_extracted.csv",
                         mime="text/csv",
@@ -299,25 +300,25 @@ def render_step2c_view(paths: dict):
                 for item in page_items:
                     tgt = item.get("is_target")
                     if tgt is True:
-                        badge_label = "✅ 適合 (true)"
+                        badge_label = "適合 (true)"
                     elif tgt is False:
-                        badge_label = "🚫 非適合 (false)"
+                        badge_label = "非適合 (false)"
                     else:
-                        badge_label = "❓ 判定不能 (null)"
+                        badge_label = "判定不能 (null)"
 
                     with st.container(border=True):
                         c_hdr1, c_hdr2 = st.columns([3, 1])
                         with c_hdr1:
-                            st.markdown(f"### 📖 {item.get('title', '無題')}")
+                            st.markdown(f"### {item.get('title', '無題')}")
                         with c_hdr2:
                             st.markdown(f"### `{badge_label}`")
 
                         reason_text = item.get("reason", "理由記述なし")
-                        st.info(f"💡 **LLM判定理由**: {reason_text}")
+                        st.info(f"LLM判定理由: {reason_text}")
 
                         ext_info = item.get("external_info", "")
                         if ext_info and ext_info != "補足情報なし":
-                            st.markdown("🌐 **LLMへ提示された DDG / Web検索結果スニペット**:")
+                            st.markdown("参照外部Web情報スニペット:")
                             st.code(ext_info, language="text")
                         elif "[ルール合格]" in reason_text:
-                            st.caption("🟢 ※事前ルール適合のためWeb検索およびLLM呼び出しをスキップしました。")
+                            st.caption("※事前ルール適合のためWeb検索およびLLM呼び出しをスキップしました。")

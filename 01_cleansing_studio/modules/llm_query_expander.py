@@ -103,13 +103,13 @@ def expand_query_with_llm(
     model: str = DEFAULT_MODEL
 ) -> dict:
     """
-    ユーザーが入力したテーマから、Japan Searchからの網羅的取りこぼしゼロ収集用パラメータをLLMで超拡張・生成します。
-    ノイズの混入を恐れず、異体字・旧字体・関連ジャンル・派生用語を徹底的にリストアップします。
-    収集用検索キーワード一覧 (keywords) をベースに REGEX パターン (title_regex, desc_regex) を自動連動構築します。
+    ユーザーが指定したテーマに基づき、Japan Searchからの再現率（Recall）最大化を目的とした検索クエリ拡張パラメータをLLMを用いて自動生成します。
+    対象ドメインに関連する異体字・旧字体・専門用語・周辺概念を体系的に抽出します。
+    検索キーワード一覧 (keywords) を基盤に、正規表現パターン (title_regex, desc_regex) を自動生成します。
     """
     system_prompt = (
         "あなたは日本の文化資源・人文学データの専門ライブラリアンおよびデータアナリストです。\n"
-        "ユーザーが指定したテーマ・関心領域に基づき、Japan Searchから対象となり得る資料を【取りこぼしなく網羅的（Recall最大化）】に収集するための検索パラメータを生成してください。\n\n"
+        "ユーザーが指定したテーマ・関心領域に基づき、Japan Searchから対象となり得る資料を【漏れなく網羅的（Recall最大化）】に収集するための検索パラメータを生成してください。\n\n"
         "【最重要方針】:\n"
         "1. 後段のフィルタリング工程でノイズは除外するため、現段階ではノイズ（無関係な資料）の混入を全く気にする必要はありません。\n"
         "2. 対象テーマが含まれる可能性が少しでもある全ての【旧字体・異体字、派生語、専門用語、流派・楽器・形態名、関連周辺単語】を20〜40個以上徹底的に出力してください。\n"
@@ -242,6 +242,26 @@ def optimize_regex_str(regex_str: str) -> str:
     return "|".join(optimized)
 
 
+def chunk_regex_str(regex_str: str, chunk_size: int = 12) -> list[str]:
+    """
+    パイプ区切りの REGEX 文字列を受け取り、指定サイズ (デフォルト12語) ごとの安全な REGEX 文字列リストに分割する
+    Japan Search SPARQL サーバーでの 504 Gateway Timeout を物理的に回避します
+    """
+    if not regex_str or not isinstance(regex_str, str):
+        return []
+    cleaned_str = re.sub(r"[\(\)\[\]\{\}\"']", "", regex_str)
+    kws = [k.strip() for k in cleaned_str.split("|") if k.strip()]
+    opt_kws = optimize_keywords_for_regex(kws)
+    if not opt_kws:
+        return []
+
+    chunked = []
+    for i in range(0, len(opt_kws), chunk_size):
+        sub_group = opt_kws[i:i + chunk_size]
+        chunked.append("|".join(sub_group))
+    return chunked
+
+
 def _sanitize_and_sync_result(result: dict) -> dict:
     """keywords から title_regex および desc_regex を自動連動・確認・補正（包含関係の最適化含む）"""
     if "keywords" in result and isinstance(result["keywords"], list):
@@ -295,71 +315,88 @@ def _build_fallback_result(theme_prompt: str, reason: str) -> dict:
 
 def generate_sparql_queries(expansion_result: dict) -> list:
     """
-    SPARQLクエリ一覧の自動生成 (Recall 最大化仕様)
+    SPARQLクエリ一覧の自動生成 (Recall 最大化 ＆ 504 Timeout 回避チャンク分割仕様)
     - rdf:type 絞り込みを排除し全RDFリソースを検索。
     - rdfs:label, schema:name, schema:about, schema:keywords, dct:subject, schema:description を網羅化。
-    - schema:genre に対する NDC 二次区分（2桁コード）網羅検索クエリ。
+    - REGEXパターン長を12語ごとに自動分割し、Virtuosoサーバーの504 Timeoutを完全に回避。
     """
     raw_title_regex = expansion_result.get("title_regex", "")
     raw_desc_regex = expansion_result.get("desc_regex", raw_title_regex)
     
-    title_regex = optimize_regex_str(raw_title_regex)
-    desc_regex = optimize_regex_str(raw_desc_regex)
-    
     queries = []
     
-    # 1. タイトル・名称 (rdfs:label | schema:name) 検索
-    if title_regex:
-        def q_title(lim, last_uri=None):
-            f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
-            return f"""
-            PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-            PREFIX schema: <http://schema.org/>
-            
-            SELECT DISTINCT ?s WHERE {{
-              ?s (rdfs:label|schema:name) ?title .
-              FILTER (REGEX(?title, "{title_regex}", "i"))
-              {f_clause}
-            }}
-            ORDER BY ?s
-            LIMIT {lim}
-            """
-        queries.append(("1. タイトル・名称 (label / name) 網羅検索", q_title))
+    # 1. タイトル・名称 (rdfs:label / schema:name) 検索
+    title_chunks = chunk_regex_str(raw_title_regex, chunk_size=12)
+    for c_idx, t_pattern in enumerate(title_chunks):
+        p_name = f"1-{c_idx+1}. タイトル・名称 網羅検索 (Part {c_idx+1})" if len(title_chunks) > 1 else "1. タイトル・名称 (label / name) 網羅検索"
+        def make_q_title(pat):
+            def q_title(lim, last_uri=None):
+                f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
+                return f"""
+                PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+                PREFIX schema: <http://schema.org/>
+                
+                SELECT DISTINCT ?s WHERE {{
+                  {{
+                    ?s rdfs:label ?title .
+                    FILTER (REGEX(?title, "{pat}", "i"))
+                    {f_clause}
+                  }} UNION {{
+                    ?s schema:name ?title .
+                    FILTER (REGEX(?title, "{pat}", "i"))
+                    {f_clause}
+                  }}
+                }}
+                LIMIT {lim}
+                """
+            return q_title
+        queries.append((p_name, make_q_title(t_pattern)))
 
-    # 2. 主題・件名・キーワード (schema:about | schema:keywords | dct:subject) 検索
-    if title_regex:
-        def q_subject(lim, last_uri=None):
-            f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
-            return f"""
-            PREFIX schema: <http://schema.org/>
-            PREFIX dct: <http://purl.org/dc/terms/>
-            
-            SELECT DISTINCT ?s WHERE {{
-              ?s (schema:about|schema:keywords|dct:subject) ?sub .
-              FILTER (REGEX(STR(?sub), "{title_regex}", "i"))
-              {f_clause}
-            }}
-            ORDER BY ?s
-            LIMIT {lim}
-            """
-        queries.append(("2. 主題・件名・キーワード (about / keywords / subject) 網羅検索", q_subject))
+    # 2. 主題・件名・キーワード (schema:keywords / dct:subject) 検索
+    for c_idx, t_pattern in enumerate(title_chunks):
+        p_name = f"2-{c_idx+1}. 主題・件名・キーワード 網羅検索 (Part {c_idx+1})" if len(title_chunks) > 1 else "2. 主題・件名・キーワード (keywords / subject) 網羅検索"
+        def make_q_subject(pat):
+            def q_subject(lim, last_uri=None):
+                f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
+                return f"""
+                PREFIX schema: <http://schema.org/>
+                PREFIX dct: <http://purl.org/dc/terms/>
+                
+                SELECT DISTINCT ?s WHERE {{
+                  {{
+                    ?s schema:keywords ?kw .
+                    FILTER (REGEX(STR(?kw), "{pat}", "i"))
+                    {f_clause}
+                  }} UNION {{
+                    ?s dct:subject ?subj .
+                    FILTER (REGEX(STR(?subj), "{pat}", "i"))
+                    {f_clause}
+                  }}
+                }}
+                LIMIT {lim}
+                """
+            return q_subject
+        queries.append((p_name, make_q_subject(t_pattern)))
 
     # 3. 説明文・内容記述 (schema:description) 検索
-    if desc_regex:
-        def q_desc(lim, last_uri=None):
-            f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
-            return f"""
-            PREFIX schema: <http://schema.org/>
-            
-            SELECT DISTINCT ?s WHERE {{
-              ?s schema:description ?desc .
-              FILTER (REGEX(?desc, "{desc_regex}", "i"))
-              {f_clause}
-            }}
-            ORDER BY ?s
-            LIMIT {lim}
-            """
-        queries.append(("3. 説明文 (description) 網羅検索", q_desc))
+    desc_chunks = chunk_regex_str(raw_desc_regex, chunk_size=6)
+    for c_idx, d_pattern in enumerate(desc_chunks):
+        p_name = f"3-{c_idx+1}. 説明文 網羅検索 (Part {c_idx+1})" if len(desc_chunks) > 1 else "3. 説明文 (description) 網羅検索"
+        def make_q_desc(pat):
+            def q_desc(lim, last_uri=None):
+                f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
+                return f"""
+                PREFIX schema: <http://schema.org/>
+                
+                SELECT DISTINCT ?s WHERE {{
+                  ?s schema:description ?desc .
+                  FILTER (REGEX(?desc, "{pat}", "i"))
+                  {f_clause}
+                }}
+                LIMIT {lim}
+                """
+            return q_desc
+        queries.append((p_name, make_q_desc(d_pattern)))
 
     # 4. NDC 二次区分分類 (schema:genre) 網羅検索
     ndc_codes = expansion_result.get("ndc_codes", [])
@@ -391,7 +428,6 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                   )
                   {f_clause}
                 }}
-                ORDER BY ?s
                 LIMIT {lim}
                 """
             queries.append(("4. NDC分類 (schema:genre) 網羅検索", q_ndc))

@@ -9,32 +9,32 @@ def render_dashboard_view(paths: dict):
     """ダッシュボード画面を描画"""
     st.markdown("""
     <div class="hero-card">
-        <h1>✨ MetaClean Studio</h1>
-        <p>文化資源メタデータの自動抽出・多層ルールフィルタリング・LLMセマンティック分類・人間査読を統合した高性能クレンジングポータルです。</p>
+        <h1>MetaClean Studio</h1>
+        <p>人文学文化資源メタデータの網羅的抽出・多層ルールフィルタリング・LLMセマンティック適合判定・専門家査読を統合した精緻化システムです。</p>
     </div>
     """, unsafe_allow_html=True)
 
-    st.subheader("📊 パイプライン全体進捗ダッシュボード")
+    st.subheader("パイプライン全体進捗ダッシュボード")
 
     cols = st.columns(4)
     with cols[0]:
-        st.info("🌐 Phase 1: データ収集")
-        st.metric("収集Rawメタデータ", f"{count_lines(paths['PATH_RAW_METADATA']):,} 件")
+        st.info("Phase 1: メタデータ取得")
+        st.metric("母集団 Raw メタデータ", f"{count_lines(paths['PATH_RAW_METADATA']):,} 件")
 
     with cols[1]:
-        st.warning("⚡ Phase 2: ルールベース")
-        st.metric("About フィルタ通過", f"{count_lines(paths['PATH_ABOUT_FILTERED']):,} 件")
-        st.metric("N-Gram フィルタ通過", f"{count_lines(paths['PATH_NGRAM_FILTERED']):,} 件")
+        st.warning("Phase 2: 高速ルールフィルタ")
+        st.metric("Aboutキーワード判別通過", f"{count_lines(paths['PATH_ABOUT_FILTERED']):,} 件")
+        st.metric("N-Gramパターン除外通過", f"{count_lines(paths['PATH_NGRAM_FILTERED']):,} 件")
 
     with cols[2]:
-        st.success("🤖 Phase 3: LLM & 査読")
-        st.metric("LLM判定データ", f"{count_lines(paths['PATH_LLM_JUDGMENTS']):,} 件")
-        st.metric("人間査読・確定データ", f"{count_lines(paths['PATH_VERIFIED_JSONL']):,} 件")
+        st.success("Phase 3: LLM判定・専門家査読")
+        st.metric("LLMセマンティック判定数", f"{count_lines(paths['PATH_LLM_JUDGMENTS']):,} 件")
+        st.metric("専門家査読・最終確定数", f"{count_lines(paths['PATH_VERIFIED_JSONL']):,} 件")
 
     with cols[3]:
-        st.error("🚀 Phase 4: 成果物")
-        st.metric("ポータル出力データ", f"{count_lines(paths['PATH_EXPORT_JSON']):,} 件")
+        st.error("Phase 4: 出力データ構造化")
+        st.metric("統合検索用出力データ", f"{count_lines(paths['PATH_EXPORT_JSON']):,} 件")
 
     st.write("---")
-    st.subheader("💡 ワークフロークイックアクセス")
-    st.markdown("サイドバーのメニューから、目的のパイプライン工程を選択して直接作業を開始できます。")
+    st.subheader("ワークフロー概要")
+    st.markdown("左側のサイドバーメニューより各分析・精緻化工程を選択し、順次処理を実行してください。")

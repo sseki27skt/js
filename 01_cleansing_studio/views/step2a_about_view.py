@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - Step 2-A: Aboutキーワード仕分けビュー
+MetaClean Studio - Step 2-A: 主題 (schema:about) キーワード分析・判別ビュー
 """
 import json
 import math
@@ -115,8 +115,8 @@ def cluster_about_keywords(about_ranking):
 
 def render_step2a_view(paths: dict):
     """Step 2-A 画面の描画"""
-    st.title("Step 2-A: Schema:About キーワード仕分け ＆ LLMコンテキストサジェスト")
-    st.markdown("収集データ内の `schema:about` キーワード一覧から、**除外すべきノイズパターン (NG)** および **保持したいパターン (OK)** を仕分けします。")
+    st.title("Step 2-A: 主題 (schema:about) キーワード分析・判別")
+    st.markdown("取得データに含まれる `schema:about` キーワード一覧を解析し、対象ドメイン外の除外対象（NG）および保持対象（OK）のカテゴリ判別を行います。")
 
     raw_metadata_path = paths['PATH_RAW_METADATA']
     about_rules_path = paths['PATH_ABOUT_RULES']
@@ -188,56 +188,56 @@ def render_step2a_view(paths: dict):
     ok_classified_count = len(all_kw_set & current_ok)
     unclassified_count = total_about_types - ng_classified_count - ok_classified_count
 
-    st.subheader("📊 Aboutキーワード分類サマリー")
+    st.subheader("Aboutキーワード分類サマリー")
     m_col1, m_col2, m_col3, m_col4 = st.columns(4)
     with m_col1:
-        st.metric("トータル About種類数", f"{total_about_types:,} 種類")
+        st.metric("Aboutキーワード総数", f"{total_about_types:,} 種類")
     with m_col2:
-        st.metric("🚫 NG (除外) 分類数", f"{ng_classified_count:,} 種類", delta=f"{ng_classified_count/max(1,total_about_types):.1%}", delta_color="inverse")
+        st.metric("NG (除外) 設定数", f"{ng_classified_count:,} 種類", delta=f"{ng_classified_count/max(1,total_about_types):.1%}", delta_color="inverse")
     with m_col3:
-        st.metric("✅ OK (保持) 分類数", f"{ok_classified_count:,} 種類", delta=f"{ok_classified_count/max(1,total_about_types):.1%}")
+        st.metric("OK (保持) 設定数", f"{ok_classified_count:,} 種類", delta=f"{ok_classified_count/max(1,total_about_types):.1%}")
     with m_col4:
-        st.metric("❓ 未判定キーワード数", f"{unclassified_count:,} 種類")
+        st.metric("未判定キーワード数", f"{unclassified_count:,} 種類")
 
-    with st.expander(f"📋 現在の About NG / OK 登録リストを確認・管理する (🚫 NG: {len(current_ng)} 件 / ✅ OK: {len(current_ok)} 件)", expanded=False):
+    with st.expander(f"現在の About NG / OK 登録リスト (NG: {len(current_ng)} 件 / OK: {len(current_ok)} 件)", expanded=False):
         c_manage_ng, c_manage_ok = st.columns(2)
         with c_manage_ng:
-            st.markdown(f"### 🚫 除外(NG) リスト ({len(current_ng)} 件)")
+            st.markdown(f"### 除外(NG) リスト ({len(current_ng)} 件)")
             if current_ng:
                 ng_list_sorted = sorted(list(current_ng))
                 try:
-                    selected_ab_ng_pills = st.pills("反転選択して削除する単語をクリック:", options=ng_list_sorted, selection_mode="multi", key="pills_about_ng")
+                    selected_ab_ng_pills = st.pills("選択して削除する項目をクリック:", options=ng_list_sorted, selection_mode="multi", key="pills_about_ng")
                 except AttributeError:
-                    selected_ab_ng_pills = st.multiselect("削除する単語を選択:", options=ng_list_sorted, key="ms_about_ng_fallback")
+                    selected_ab_ng_pills = st.multiselect("削除する項目を選択:", options=ng_list_sorted, key="ms_about_ng_fallback")
 
-                if st.button("🗑️ 選択した単語を NG リストから登録解除（削除）", key="btn_del_ab_ng_pills", type="primary", use_container_width=True):
+                if st.button("選択項目の NG リストからの解除", key="btn_del_ab_ng_pills", type="primary", use_container_width=True):
                     if selected_ab_ng_pills:
                         current_ng.difference_update(selected_ab_ng_pills)
                         st.session_state["chk_view_ver"] += 1
-                        st.success(f"🎉 {len(selected_ab_ng_pills)} 件の単語を NG リストから削除しました！")
+                        st.success(f"{len(selected_ab_ng_pills)} 件の項目を NG リストから削除しました。")
                         st.rerun()
                     else:
-                        st.warning("解除する単語が選択されていません。")
+                        st.warning("解除する項目が選択されていません。")
             else:
                 st.info("NG リストは現在空です。")
 
         with c_manage_ok:
-            st.markdown(f"### ✅ 保持(OK) リスト ({len(current_ok)} 件)")
+            st.markdown(f"### 保持(OK) リスト ({len(current_ok)} 件)")
             if current_ok:
                 ok_list_sorted = sorted(list(current_ok))
                 try:
-                    selected_ab_ok_pills = st.pills("反転選択して削除する単語をクリック:", options=ok_list_sorted, selection_mode="multi", key="pills_about_ok")
+                    selected_ab_ok_pills = st.pills("選択して削除する項目をクリック:", options=ok_list_sorted, selection_mode="multi", key="pills_about_ok")
                 except AttributeError:
-                    selected_ab_ok_pills = st.multiselect("削除する単語を選択:", options=ok_list_sorted, key="ms_about_ok_fallback")
+                    selected_ab_ok_pills = st.multiselect("削除する項目を選択:", options=ok_list_sorted, key="ms_about_ok_fallback")
 
-                if st.button("🗑️ 選択した単語を OK リストから登録解除（削除）", key="btn_del_ab_ok_pills", type="primary", use_container_width=True):
+                if st.button("選択項目の OK リストからの解除", key="btn_del_ab_ok_pills", type="primary", use_container_width=True):
                     if selected_ab_ok_pills:
                         current_ok.difference_update(selected_ab_ok_pills)
                         st.session_state["chk_view_ver"] += 1
-                        st.success(f"🎉 {len(selected_ab_ok_pills)} 件の単語を OK リストから削除しました！")
+                        st.success(f"{len(selected_ab_ok_pills)} 件の項目を OK リストから削除しました。")
                         st.rerun()
                     else:
-                        st.warning("解除する単語が選択されていません。")
+                        st.warning("解除する項目が選択されていません。")
             else:
                 st.info("OK リストは現在空です。")
 
@@ -256,13 +256,13 @@ def render_step2a_view(paths: dict):
     about_clusters = get_cached_about_clusters(about_ranking)
 
     tab_cluster, tab_single, tab_llm = st.tabs([
-        "🧩 クラスタ一括仕分け (推奨)",
-        "🔤 単体キーワード仕分けボード",
-        "💡 LLM全体ノイズ提案"
+        "クラスタ一括判別 (推奨)",
+        "単体キーワード判別ボード",
+        "LLMによるノイズ候補提案"
     ])
 
     with tab_cluster:
-        st.markdown("機械的に類似性を抽出したキーワードグループごとに **仮選択 (OK/NG/未判定)** を行い、上部の **『🚀 一括確定』** ボタンでまとめて適用できます。")
+        st.markdown("類似性に基づいて抽出されたキーワード群に対し仮選択（OK/NG/未判定）を行い、一括確定を適用します。")
 
         if "draft_about_changes" not in st.session_state:
             st.session_state["draft_about_changes"] = {}
@@ -284,11 +284,11 @@ def render_step2a_view(paths: dict):
             with c_cl_hdr1:
                 draft_count = len(draft_ab)
                 if draft_count > 0:
-                    st.warning(f"⚡ **現在 {draft_count} 件のキーワードが仮選択中（未適用）です。**")
+                    st.warning(f"現在 {draft_count} 件のキーワードが仮選択中です（未適用）。")
                 else:
-                    st.caption("下部のクラスタで OK / NG を仮選択し、準備ができたら『一括確定』を押してください。")
+                    st.caption("各クラスタで OK / NG を仮選択し、「一括確定して適用」ボタンで更新してください。")
             with c_cl_hdr2:
-                btn_apply_label = f"🚀 仮判定 ({draft_count} 件) を一括確定して適用" if draft_count > 0 else "🚀 判定を一括確定して適用"
+                btn_apply_label = f"仮設定 ({draft_count} 件) の一括適用" if draft_count > 0 else "判定の一括適用"
                 if st.button(btn_apply_label, type="primary" if draft_count > 0 else "secondary", use_container_width=True, key="btn_apply_cluster_draft"):
                     if draft_ab:
                         for kw, status in draft_ab.items():
@@ -309,7 +309,7 @@ def render_step2a_view(paths: dict):
                         safe_save_json(save_dict, about_rules_path)
 
                         st.session_state["chk_view_ver"] += 1
-                        st.success("🎉 クラスタ仮判定を about_rules.json へ保存・適用しました！")
+                        st.success("クラスタ判別結果を about_rules.json へ保存・適用しました。")
                         st.rerun()
                     else:
                         st.info("現在仮選択中のキーワードはありません。")
@@ -318,11 +318,11 @@ def render_step2a_view(paths: dict):
 
             ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([3, 2, 2])
             with ctrl_col1:
-                hide_fully_classified = st.checkbox("全語句が判定済みのクラスタを非表示にする", value=False, key="chk_hide_classified_clusters")
+                hide_fully_classified = st.checkbox("判定済みのクラスタを非表示にする", value=False, key="chk_hide_classified_clusters")
             with ctrl_col2:
                 sort_cluster_by = st.selectbox("ソート順:", ["合計データ件数順", "所属キーワード数順"], key="sb_cluster_sort")
             with ctrl_col3:
-                clusters_per_page = st.number_input("1ページ表示数 (軽量化)", min_value=5, max_value=100, value=10, step=5, key="num_clusters_per_page")
+                clusters_per_page = st.number_input("1ページ表示数", min_value=5, max_value=100, value=10, step=5, key="num_clusters_per_page")
 
             display_clusters = []
             for c in about_clusters:
@@ -349,7 +349,7 @@ def render_step2a_view(paths: dict):
             total_display_clusters = len(display_clusters)
 
             if total_display_clusters == 0:
-                st.success("🎉 現在表示条件に一致する未判定のクラスタはありません！")
+                st.success("表示条件に一致する未判定のクラスタはありません。")
                 return
 
             safe_per_page = max(1, int(clusters_per_page))
@@ -386,47 +386,47 @@ def render_step2a_view(paths: dict):
                 ng_c = c["ng_count"]
 
                 if ng_c > 0 and ok_c == 0 and un_c == 0:
-                    status_badge = "🔴 全除外 (NG)"
+                    status_badge = "全除外 (NG)"
                 elif ok_c > 0 and ng_c == 0 and un_c == 0:
-                    status_badge = "🟢 全保持 (OK)"
+                    status_badge = "全保持 (OK)"
                 elif ok_c > 0 or ng_c > 0:
-                    status_badge = f"🌗 混合 (OK:{ok_c} / NG:{ng_c} / 未:{un_c})"
+                    status_badge = f"混合 (OK:{ok_c} / NG:{ng_c} / 未:{un_c})"
                 else:
-                    status_badge = f"❓ 未判定 (全{un_c}件)"
+                    status_badge = f"未判定 (全{un_c}件)"
 
                 kw_preview = ", ".join(kws[:5]) + ("..." if len(kws) > 5 else "")
-                expander_title = f"📦 {c['name']} ➔ [{status_badge}] （含む語句: {kw_preview} [{len(kws)}種類] / 合計データ: {c['total_count']:,} 件）"
+                expander_title = f"{c['name']} ➔ [{status_badge}] （対象語句: {kw_preview} [{len(kws)}種類] / 件数: {c['total_count']:,} 件）"
 
                 with st.expander(expander_title, expanded=(un_c > 0)):
                     b_col1, b_col2, b_col3 = st.columns(3)
                     with b_col1:
-                        if st.button(f"🟢 一括 OK (仮選択) [{len(kws)}件]", key=f"btn_cl_ok_{cid}", type="secondary", use_container_width=True):
+                        if st.button(f"一括 OK 仮設定 [{len(kws)}件]", key=f"btn_cl_ok_{cid}", type="secondary", use_container_width=True):
                             for k in kws:
                                 draft_ab[k] = "OK"
                             st.rerun(scope="fragment")
                     with b_col2:
-                        if st.button(f"🔴 一括 NG (仮選択) [{len(kws)}件]", key=f"btn_cl_ng_{cid}", type="primary", use_container_width=True):
+                        if st.button(f"一括 NG 仮設定 [{len(kws)}件]", key=f"btn_cl_ng_{cid}", type="primary", use_container_width=True):
                             for k in kws:
                                 draft_ab[k] = "NG"
                             st.rerun(scope="fragment")
                     with b_col3:
-                        if st.button(f"⚪ 一括 未判定リセット", key=f"btn_cl_reset_{cid}", use_container_width=True):
+                        if st.button(f"一括 未判定リセット", key=f"btn_cl_reset_{cid}", use_container_width=True):
                             for k in kws:
                                 draft_ab[k] = "RESET"
                             st.rerun(scope="fragment")
 
-                    st.caption("👇 個別トグル切替 (クリックすると 🟢 OK ⇄ 🔴 NG が即座にトグル反転します):")
+                    st.caption("個別切替 (クリックで OK / NG がトグル切替されます):")
                     cl_cols = st.columns(4)
                     for idx_k, kw in enumerate(kws):
                         col_k = cl_cols[idx_k % 4]
                         st_val = get_eff_status(kw)
                         
                         if st_val == "OK":
-                            lbl = f"🟢 [OK] {kw}"
+                            lbl = f"[OK] {kw}"
                         elif st_val == "NG":
-                            lbl = f"🔴 [NG] {kw}"
+                            lbl = f"[NG] {kw}"
                         else:
-                            lbl = f"⚪ [未判定] {kw}"
+                            lbl = f"[未判定] {kw}"
 
                         def make_toggle_func(target_kw, current_st):
                             def toggle_status():
@@ -449,71 +449,71 @@ def render_step2a_view(paths: dict):
         col_opt1, col_opt2 = st.columns([3, 2])
         with col_opt1:
             view_filter_mode = st.radio(
-                "👁️ 表示オプション:", 
-                options=["🌐 すべて表示", "❓ 未判定のみ", "🚫 NGのみ", "✅ OKのみ"], 
+                "表示オプション:", 
+                options=["すべて表示", "未判定のみ", "NGのみ", "OKのみ"], 
                 horizontal=True,
                 key="view_filter_about_mode"
             )
-            is_unclassified_mode = (view_filter_mode == "❓ 未判定のみ")
+            is_unclassified_mode = (view_filter_mode == "未判定のみ")
             hide_zero_about = st.checkbox(
-                "🙈 残存未判定件数が 0 件 (影響なし) のキーワードを非表示にする", 
+                "残存未判定件数が 0 件のキーワードを非表示にする", 
                 value=True, 
                 disabled=not is_unclassified_mode,
                 key="chk_hide_zero_about"
             )
         with col_opt2:
-            search_query = st.text_input("🔍 キーワード検索:", placeholder="例: 演劇 -能", key="q_about_pills")
+            search_query = st.text_input("キーワード検索:", placeholder="例: 演劇 -能", key="q_about_pills")
 
         if "click_action_about_mode" not in st.session_state:
-            st.session_state["click_action_about_mode"] = "🚫 NGに判定"
+            st.session_state["click_action_about_mode"] = "NGに設定"
 
-        st.caption("⚡ 判定モード切替 (キーボードショートカット: Q / W / E キー):")
+        st.caption("判定モード切替 (ショートカット: Q / W / E キー):")
         c_m1, c_m2, c_m3 = st.columns(3)
         
-        btn1_type = "primary" if st.session_state["click_action_about_mode"] == "🚫 NGに判定" else "secondary"
-        btn2_type = "primary" if st.session_state["click_action_about_mode"] == "✅ OKに判定" else "secondary"
-        btn3_type = "primary" if st.session_state["click_action_about_mode"] == "🔄 未判定に戻す" else "secondary"
+        btn1_type = "primary" if st.session_state["click_action_about_mode"] == "NGに設定" else "secondary"
+        btn2_type = "primary" if st.session_state["click_action_about_mode"] == "OKに設定" else "secondary"
+        btn3_type = "primary" if st.session_state["click_action_about_mode"] == "未判定に戻す" else "secondary"
 
-        b1 = c_m1.button("🔴 【 Q 】 🚫 NG判定モード", key="btn_shortcut_ab_q", type=btn1_type, use_container_width=True)
-        b2 = c_m2.button("🟢 【 W 】 ✅ OK判定モード", key="btn_shortcut_ab_w", type=btn2_type, use_container_width=True)
-        b3 = c_m3.button("🔵 【 E 】 🔄 未判定リセット", key="btn_shortcut_ab_e", type=btn3_type, use_container_width=True)
+        b1 = c_m1.button("【 Q 】 NG設定モード", key="btn_shortcut_ab_q", type=btn1_type, use_container_width=True)
+        b2 = c_m2.button("【 W 】 OK設定モード", key="btn_shortcut_ab_w", type=btn2_type, use_container_width=True)
+        b3 = c_m3.button("【 E 】 未判定リセット", key="btn_shortcut_ab_e", type=btn3_type, use_container_width=True)
 
         if hotkeys:
             if hotkeys.pressed("mode_ng"):
-                st.session_state["click_action_about_mode"] = "🚫 NGに判定"
+                st.session_state["click_action_about_mode"] = "NGに設定"
                 st.rerun()
             elif hotkeys.pressed("mode_ok"):
-                st.session_state["click_action_about_mode"] = "✅ OKに判定"
+                st.session_state["click_action_about_mode"] = "OKに設定"
                 st.rerun()
             elif hotkeys.pressed("mode_reset"):
-                st.session_state["click_action_about_mode"] = "🔄 未判定に戻す"
+                st.session_state["click_action_about_mode"] = "未判定に戻す"
                 st.rerun()
 
         if b1:
-            st.session_state["click_action_about_mode"] = "🚫 NGに判定"
+            st.session_state["click_action_about_mode"] = "NGに設定"
             st.rerun()
         if b2:
-            st.session_state["click_action_about_mode"] = "✅ OKに判定"
+            st.session_state["click_action_about_mode"] = "OKに設定"
             st.rerun()
         if b3:
-            st.session_state["click_action_about_mode"] = "🔄 未判定に戻す"
+            st.session_state["click_action_about_mode"] = "未判定に戻す"
             st.rerun()
 
         click_action_mode = st.session_state["click_action_about_mode"]
 
-        if click_action_mode == "🚫 NGに判定":
-            st.error("🎯 **【現在のモード: 🚫 NG (除外) 登録モード】** (キーボード: `Q` キー)")
-        elif click_action_mode == "✅ OKに判定":
-            st.success("🎯 **【現在のモード: ✅ OK (保持) 登録モード】** (キーボード: `W` キー)")
-        elif click_action_mode == "🔄 未判定に戻す":
-            st.info("🎯 **【現在のモード: 🔄 未判定リセットモード】** (キーボード: `E` キー)")
+        if click_action_mode == "NGに設定":
+            st.error("【現在の設定モード: NG (除外)】 (ショートカット: Q)")
+        elif click_action_mode == "OKに設定":
+            st.success("【現在の設定モード: OK (保持)】 (ショートカット: W)")
+        elif click_action_mode == "未判定に戻す":
+            st.info("【現在の設定モード: 未判定リセット】 (ショートカット: E)")
 
         filtered_ranking = about_ranking
-        if view_filter_mode == "❓ 未判定のみ":
+        if view_filter_mode == "未判定のみ":
             filtered_ranking = [(k, c) for k, c in filtered_ranking if k not in current_ng and k not in current_ok]
-        elif view_filter_mode == "🚫 NGのみ":
+        elif view_filter_mode == "NGのみ":
             filtered_ranking = [(k, c) for k, c in filtered_ranking if k in current_ng]
-        elif view_filter_mode == "✅ OKのみ":
+        elif view_filter_mode == "OKのみ":
             filtered_ranking = [(k, c) for k, c in filtered_ranking if k in current_ok]
 
         if search_query:
@@ -560,11 +560,11 @@ def render_step2a_view(paths: dict):
 
         c_hdr1, c_hdr2 = st.columns([3, 2])
         with c_hdr1:
-            st.markdown(f"判定対象キーワード (該当: **{len(filtered_ranking)}** 件 | **クリックで仮選択 ➔『一括確定』ボタンで確定**)")
+            st.markdown(f"判定対象キーワード (該当: **{len(filtered_ranking)}** 件)")
         with c_hdr2:
             draft_count = len(draft_ab)
-            btn_apply_label = f"🚀 仮判定 ({draft_count} 件) を一括確定して適用" if draft_count > 0 else "🚀 判定を一括確定して適用"
-            if st.button(btn_apply_label, type="primary" if draft_count > 0 else "secondary", use_container_width=True, key="btn_apply_single_draft"):
+            btn_apply_label = f"仮設定 ({draft_count} 件) の一括適用" if draft_count > 0 else "判定の一括適用"
+            if st.button(btn_apply_label, type="primary" if draft_count > 0 else "secondary", use_container_width=True, key="btn_single_draft_apply"):
                 if draft_ab:
                     for kw, status in draft_ab.items():
                         if status == "NG":
@@ -584,26 +584,26 @@ def render_step2a_view(paths: dict):
                     safe_save_json(save_dict, about_rules_path)
 
                     st.session_state["chk_view_ver"] += 1
-                    st.success("🎉 仮判定をルールへ一括適用し、件数計算を更新しました！")
+                    st.success("仮判定をルールへ一括適用しました。")
                     st.rerun()
                 else:
                     st.info("現在仮選択中のキーワードはありません。")
 
     with tab_llm:
-        st.markdown("🎯 **【全体ノイズ検知】**: 残したい目的キーワードを指定してデータセット全体から無関係な単語を自動検出します。")
+        st.markdown("【全域ノイズ判定アシスト】: 保持したいドメイン中心語を指定し、データセット全体から対象外キーワードの候補をLLMで自動抽出します。")
         default_targets = list(current_ok) if current_ok else st.session_state.get("expansion_res", {}).get("keywords", ["楽譜", "音楽", "音譜", "能楽", "三味線"])
-        target_input = st.text_input("残したい目的(ターゲット)キーワード (カンマ区切り):", value=", ".join(default_targets), key="txt_target_kws_tab")
+        target_input = st.text_input("保持対象 (ターゲット) キーワード (カンマ区切り):", value=", ".join(default_targets), key="txt_target_kws_tab")
 
         c_top1, c_top2 = st.columns([3, 1])
         with c_top1:
-            st.caption("AI提案結果からノイズ候補を一括選択してNG登録できます。")
+            st.caption("抽出されたノイズ候補を選択し、一括で NG リストへ登録できます。")
         with c_top2:
-            if st.button("🤖 全体から無関係単語をNG提案", type="primary", use_container_width=True, key="btn_suggest_llm_ng"):
+            if st.button("LLMによるノイズ候補の提案", type="primary", use_container_width=True, key="btn_suggest_llm_ng"):
                 sample_kws = [k for k, c in about_ranking[:60]]
                 domain_def = st.session_state.get("expansion_res", {}).get("domain_definition", "日本の文化資源・資料")
                 target_kws_list = [t.strip() for t in target_input.split(",") if t.strip()]
 
-                with st.spinner("LLMがデータセット全体からノイズ単語を分析中..."):
+                with st.spinner("LLMがデータセット全体から対象外キーワードを抽出中..."):
                     cfg = st.session_state.get("llm_config", {})
                     suggs = suggest_ng_keywords_with_llm(
                         current_ng_list=list(current_ng), 
@@ -619,18 +619,18 @@ def render_step2a_view(paths: dict):
 
         if "llm_about_suggs" in st.session_state:
             suggs = st.session_state["llm_about_suggs"]
-            st.warning(f"💡 **LLMが全体検知したノイズ候補 (全 {len(suggs)} 個)**")
-            selected_suggs = st.multiselect("一括登録するキーワードを選択:", options=suggs, default=suggs, key="ms_llm_suggs")
-            if st.button("✨ 選択したノイズ候補をNGリストに追加", type="primary", key="btn_add_llm_suggs_ng"):
+            st.warning(f"LLMが抽出したノイズ候補 (全 {len(suggs)} 件)")
+            selected_suggs = st.multiselect("一括登録するキーワードの選択:", options=suggs, default=suggs, key="ms_llm_suggs")
+            if st.button("選択したノイズ候補を NG リストに追加", type="primary", key="btn_add_llm_suggs_ng"):
                 if selected_suggs:
                     current_ng.update(selected_suggs)
-                    st.success(f"{len(selected_suggs)} 件をNGリストに追加しました！")
+                    st.success(f"{len(selected_suggs)} 件を NG リストに追加しました。")
                     st.session_state.pop("llm_about_suggs", None)
                     st.rerun()
 
     col_act1, col_act2, col_act3 = st.columns([3, 3, 2])
     with col_act1:
-        if st.button("🚫 チェック選択中のキーワードを NG リストに追加", type="primary", use_container_width=True):
+        if st.button("選択中のキーワードを NG リストに追加", type="primary", use_container_width=True):
             if checked_words:
                 to_add = list(checked_words)
                 current_ng.update(to_add)
@@ -640,10 +640,10 @@ def render_step2a_view(paths: dict):
                 st.success(f"{len(to_add)} 件のキーワードを NG リストに追加しました。")
                 st.rerun()
             else:
-                st.warning("チェックされているキーワードがありません。")
+                st.warning("選択されているキーワードがありません。")
 
     with col_act2:
-        if st.button("✅ チェック選択中のキーワードを OK リストに追加", use_container_width=True):
+        if st.button("選択中のキーワードを OK リストに追加", use_container_width=True):
             if checked_words:
                 to_add = list(checked_words)
                 current_ok.update(to_add)
@@ -656,20 +656,20 @@ def render_step2a_view(paths: dict):
     st.write("---")
     c_save1, c_save2, c_reset = st.columns([2, 1, 1])
     with c_save1:
-        st.caption("仕分け結果は『rules.json に保存する』ボタンを押すと次回以降も永続保持されます。")
+        st.caption("設定は「about_rules.json に保存する」ボタンを押すとファイルへ永続保存されます。")
     with c_save2:
-        if st.button("💾 About rules.json に保存する", type="primary", use_container_width=True):
+        if st.button("about_rules.json に保存する", type="primary", use_container_width=True):
             save_dict = {}
             for k in current_ng: save_dict[k] = "NG"
             for k in current_ok: save_dict[k] = "OK"
             safe_save_json(save_dict, about_rules_path)
-            st.success("🎉 rules.json に保存しました！")
+            st.success("about_rules.json に設定を保存しました。")
 
     with c_reset:
-        with st.popover("🗑️ ルール全リセット", help="Aboutルールを初期化クリア"):
-            st.warning("⚠️ 本当に About ルール (`about_rules.json`) を全リセットしますか？")
-            st.caption("登録済みの全 NG / OK パターンおよび仮判定データが完全に消去されます。")
-            if st.button("💥 確定して全リセットする", type="primary", use_container_width=True, key="btn_confirm_reset_about"):
+        with st.popover("ルール全初期化", help="Aboutルールを初期化"):
+            st.warning("About ルール設定 (about_rules.json) を全初期化しますか？")
+            st.caption("登録済みの NG / OK パターンがすべて初期化されます。")
+            if st.button("確定して初期化を実行", type="primary", use_container_width=True, key="btn_confirm_reset_about"):
                 st.session_state["edited_noise"] = set()
                 st.session_state["edited_strong"] = set()
                 st.session_state["draft_about_changes"] = {}
@@ -684,12 +684,12 @@ def render_step2a_view(paths: dict):
                             pass
                 st.cache_data.clear()
                 st.session_state["chk_view_ver"] += 1
-                st.success("🎉 About ルール (about_rules.json) およびフィルタ結果を完全にリセットしました！")
+                st.success("About ルールおよびフィルタ適用結果を初期化しました。")
                 st.rerun()
 
     st.write("---")
-    st.subheader("▶️ About フィルタの適用実行")
-    if st.button("About フィルタを実行してノイズデータを除外する", type="primary", use_container_width=True):
+    st.subheader("About ルールフィルタの適用実行")
+    if st.button("About ルールフィルタリングを実行してノイズを除外する", type="primary", use_container_width=True):
         save_dict = {}
         for k in current_ng: save_dict[k] = "NG"
         for k in current_ok: save_dict[k] = "OK"
@@ -698,4 +698,4 @@ def render_step2a_view(paths: dict):
         data_dir = os.path.dirname(about_filtered_path)
         passed, disc = run_about_filter(raw_metadata_path, about_rules_path, about_filtered_path, f"{data_dir}/discarded_about.csv")
         st.cache_data.clear()
-        st.success(f"🎉 About フィルタ適用完了: 通過 {passed} 件 / 除外 {disc} 件 (除外ログ: {data_dir}/discarded_about.csv)")
+        st.success(f"About ルールフィルタリング完了: 通過 {passed:,} 件 / 除外 {disc:,} 件 (除外ログ: {data_dir}/discarded_about.csv)")

@@ -8,6 +8,8 @@ import sys
 import time
 import json
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import pandas as pd
 from collections import defaultdict
 
@@ -27,6 +29,23 @@ PREFIX_MAP = {
 }
 
 
+def get_robust_session() -> requests.Session:
+    """
+    HTTPS 443 接続を効率的に使い回し (Keep-Alive)、接続切断・タイムアウトに強いセッションを生成
+    """
+    session = requests.Session()
+    retries = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[500, 502, 503, 504],
+        raise_on_status=False
+    )
+    adapter = HTTPAdapter(max_retries=retries, pool_connections=10, pool_maxsize=10)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
+
 def shorten_uri(uri: str) -> str:
     """
     長いURIをPrefix付きの短い文字列に変換する
@@ -40,87 +59,65 @@ def shorten_uri(uri: str) -> str:
 
 def fetch_uris_with_query_func(query_func, pattern_name="Custom Query", limit=DEFAULT_LIMIT, progress_callback=None) -> list:
     """
-    クエリ生成関数(limit, last_uri)を呼び出し、Japan SearchからURIを自動バッチ取得します。
-    エラー発生時は動的にLIMITを縮小して負荷を下げ、自動リトライします。
+    クエリ生成関数(limit)を呼び出し、Japan SearchからURIを一括高速取得します。
+    Keep-Alive対応セッションにより、Port 443の接続エラーを回避します。
     """
     collected_uris = []
-    last_uri = None
-    current_limit = limit
-    retry_count = 0
-
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    max_query_retries = 2
+    session = get_robust_session()
+    
     print(f"\n--- [開始] {pattern_name} ---")
 
-    while True:
-        query = query_func(current_limit, last_uri)
-        params = {'query': query, 'format': 'json'}
+    query = query_func(limit, None)
+    data = {'query': query, 'format': 'json'}
 
+    for attempt in range(1, max_query_retries + 1):
         try:
-            cursor_info = str(last_uri)[-20:] if last_uri else 'START'
-            print(f"[{pattern_name}] Fetching (limit={current_limit}) after: ...{cursor_info} ...", end=" ")
+            print(f"[{pattern_name}] Fetching (limit={limit}) ...", end=" ")
             start_time = time.time()
 
-            response = requests.get(ENDPOINT, params=params, timeout=60)
+            response = session.post(ENDPOINT, data=data, headers=headers, timeout=25)
 
             if response.status_code != 200:
                 print(f"\n[Error] Status Code: {response.status_code}")
-                retry_count += 1
-                if retry_count > MAX_RETRIES:
-                    print(f"!!! リトライ回数上限 ({MAX_RETRIES}) に達しました。このクエリを終了します。")
-                    break
-
-                current_limit = max(50, current_limit // 2)
-                wait_time = 5 * retry_count
-                print(f"-> 待機 {wait_time}秒... LIMITを {current_limit} に縮小して再試行します。")
-                time.sleep(wait_time)
+                time.sleep(2)
                 continue
 
-            data = response.json()
-            bindings = data['results']['bindings']
-
-            if retry_count > 0:
-                print(" [復帰成功] ", end="")
-                retry_count = 0
-                current_limit = limit
-
-            if not bindings:
-                print("Done (No more results).")
-                break
+            resp_data = response.json()
+            bindings = resp_data.get('results', {}).get('bindings', [])
 
             current_uris = [b['s']['value'] for b in bindings if 's' in b]
             collected_uris.extend(current_uris)
 
             elapsed = time.time() - start_time
-            print(f"Got {len(current_uris)} items. (Subtotal: {len(collected_uris)}) [{elapsed:.2f}s]")
+            print(f"Got {len(current_uris)} items. [{elapsed:.2f}s]")
 
             if progress_callback:
                 progress_callback(pattern_name, len(collected_uris))
-
-            last_uri = current_uris[-1]
-
-            if len(current_uris) < current_limit:
-                print(f"Last batch for {pattern_name}.")
-                break
-
-            time.sleep(0.5)
+            
+            break
 
         except Exception as e:
-            print(f"\n[Exception] {e}")
-            retry_count += 1
-            if retry_count > MAX_RETRIES:
-                print(f"!!! 例外によるリトライ上限 ({MAX_RETRIES}) に達しました。")
-                break
-            current_limit = max(50, current_limit // 2)
-            wait_time = 5 * retry_count
-            print(f"-> 待機 {wait_time}秒... LIMITを {current_limit} に縮小して再試行します。")
-            time.sleep(wait_time)
+            print(f"\n[Timeout / Exception attempt {attempt}/{max_query_retries}]: {e}")
+            if attempt < max_query_retries:
+                time.sleep(2)
+            else:
+                print(f"[{pattern_name}] 応答遅延のためスキップし、他のクエリの収集結果で処理を継続します。")
 
     return collected_uris
 
 
-def fetch_deep_graph(uris: list) -> list:
+def fetch_deep_graph(uris: list, session: requests.Session = None) -> list:
     """
     CONSTRUCTクエリで親・子・孫ノードを一括取得 (BuildMetadata.py 準拠)
     """
+    if not uris:
+        return []
+    
+    if session is None:
+        session = get_robust_session()
+
     uris_str = " ".join([f"<{u}>" for u in uris])
     
     query = f"""
@@ -151,17 +148,28 @@ def fetch_deep_graph(uris: list) -> list:
     }}
     """
     
-    params = {'query': query, 'format': 'json'}
+    data = {'query': query, 'format': 'json'}
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            response = requests.get(ENDPOINT, params=params, timeout=60)
+            response = session.post(ENDPOINT, data=data, headers=headers, timeout=45)
             if response.status_code == 200:
-                return response.json()['results']['bindings']
+                return response.json().get('results', {}).get('bindings', [])
             else:
                 print(f"[Warning fetch_deep_graph] Attempt {attempt}/{MAX_RETRIES} Status Code: {response.status_code}")
         except Exception as e:
             print(f"[Error in fetch_deep_graph attempt {attempt}/{MAX_RETRIES}]: {e}")
         time.sleep(2 * attempt)
+
+    # 失敗時、半分のチャンクに小分けにしてフォールバック再取得
+    if len(uris) > 5:
+        print(f"-> チャンク分割フォールバック再試行 (全 {len(uris)} 件を半分ずつ小分け取得)")
+        mid = len(uris) // 2
+        res1 = fetch_deep_graph(uris[:mid], session)
+        res2 = fetch_deep_graph(uris[mid:], session)
+        return res1 + res2
+
     return []
 
 
@@ -230,11 +238,12 @@ def build_metadata_for_uris(uri_list: list, output_jsonl_path: str, batch_size: 
     processed_count = 0
 
     print(f"\n--- [深層メタデータ一括構築開始 (BuildMetadata.py準拠)] 全 {total_count} 件 ---")
+    session = get_robust_session()
 
     with open(output_jsonl_path, 'w', encoding='utf-8') as out_f:
         for i in range(0, total_count, batch_size):
             chunk_uris = unique_uris[i:i + batch_size]
-            bindings = fetch_deep_graph(chunk_uris)
+            bindings = fetch_deep_graph(chunk_uris, session=session)
             items = parse_dynamic_graph(bindings, chunk_uris)
 
             for item in items:
@@ -245,7 +254,7 @@ def build_metadata_for_uris(uri_list: list, output_jsonl_path: str, batch_size: 
             if progress_callback:
                 progress_callback(processed_count, total_count)
 
-            time.sleep(0.5)
+            time.sleep(0.3)
 
     return processed_count
 

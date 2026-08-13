@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - Step 1: LLMクエリ超拡張 ＆ Japan Search全網羅データ自動取得ビュー (LLMメイン配置＆手動調整連動)
+MetaClean Studio - Step 1: LLMクエリ拡張 ＆ Japan Searchメタデータ一括取得ビュー
 """
 import os
 import re
@@ -39,7 +39,7 @@ def _on_rebuild_regex():
     exp["desc_regex"] = rebuilt_regex
     exp["domain_definition"] = domain_def_input.strip()
     st.session_state["expansion_res"] = exp
-    st.session_state["msg_success"] = "🎉 キーワード一覧から REGEX パターンを再構築・最適化しました！"
+    st.session_state["msg_success"] = "キーワード一覧に基づく正規表現パターンの再構築および最適化が完了しました。"
 
 
 def _on_apply_manual_params():
@@ -73,17 +73,17 @@ def _on_apply_manual_params():
     exp["desc_regex"] = final_desc_regex
     exp["domain_definition"] = domain_def_input.strip()
     st.session_state["expansion_res"] = exp
-    st.session_state["msg_success"] = "🎉 パラメータの手動調整結果を反映しました！"
+    st.session_state["msg_success"] = "設定パラメータの保存・適用が完了しました。"
 
 
 def render_step1_view(paths: dict):
     """Step 1 画面の描画"""
-    st.title("Step 1: LLMクエリ超拡張 ＆ Japan Search全網羅データ自動取得")
-    st.caption("自然言語テーマから旧字体・異体字・関連専門語をLLMで超拡張し、RDFタイプ制約なしでJapan Searchから母データを漏れなく全網羅（Recall最大化）取得します。")
+    st.title("Step 1: LLMクエリ拡張およびJapan Searchメタデータ取得")
+    st.caption("対象テーマに基づき、LLMを用いて異体字・旧字体・関連用語を拡張し、再現率（Recall）を最大化する検索クエリを生成してJapan Searchよりデータを一括取得します。")
 
     # --- 1. テーマ入力 ---
     theme_input = st.text_input(
-        "🎯 構築したいテーマ・領域を入力してください:", 
+        "対象テーマ・関心領域の指定:", 
         value="日本の古典籍における楽譜資料", 
         help="例: 日本の古典籍における楽譜資料、江戸時代の古地図、能楽演目文献 など"
     )
@@ -106,13 +106,13 @@ def render_step1_view(paths: dict):
             "fallback_reason": None
         }
 
-    # --- 2. LLMによる自動拡張セクション (メイン機能・上部配置) ---
+    # --- 2. LLMによる自動拡張セクション ---
     st.markdown("---")
-    st.subheader("🤖 LLMによるキーワード超拡張 ＆ 自動パラメータ生成")
-    st.caption("LLMを活用して、対象テーマの旧字体・異体字・関連専門用語・派生語・NDC分類コードを網羅的に自動拡張します。")
+    st.subheader("1. LLMによる検索キーワード・クエリ条件の自動拡張")
+    st.caption("大型言語モデル（LLM）を活用し、対象テーマに関連する異体字・旧字体・ドメイン専門用語・NDC分類コードを体系的に抽出します。")
 
     provider_choice = st.selectbox(
-        "使用するLLMプロバイダーを選択してください:",
+        "使用するLLMプロバイダーを選択:",
         ["Google Gemini API (推奨・高速)", "LM Studio (ローカル)", "OpenAI API", "その他カスタムAPI"],
         index=0
     )
@@ -125,7 +125,7 @@ def render_step1_view(paths: dict):
     if "Google Gemini" in provider_choice:
         provider_code = "gemini"
         env_gemini_key = os.environ.get("GEMINI_API_KEY", "")
-        api_key_input = st.text_input("Google Gemini API Key:", value=env_gemini_key, type="password", help="https://aistudio.google.com/ で無料取得可能")
+        api_key_input = st.text_input("Google Gemini API Key:", value=env_gemini_key, type="password", help="APIキーを入力してください")
         model_input = st.selectbox(
             "モデル選択:", 
             [
@@ -156,8 +156,8 @@ def render_step1_view(paths: dict):
         "model": model_input
     }
 
-    if st.button("✨ LLMで超拡張検索キーワード・クエリを自動生成する", type="primary", use_container_width=True):
-        with st.spinner("LLMがテーマを分析し、関連語・旧字体・表記揺れを超網羅的に拡張中..."):
+    if st.button("LLMによる検索キーワード・クエリ条件の自動拡張を実行", type="primary", use_container_width=True):
+        with st.spinner("LLMによるドメイン分析および検索キーワードの拡張処理を実行中..."):
             expansion_res = expand_query_with_llm(
                 theme_prompt=theme_input,
                 provider=provider_code,
@@ -175,7 +175,7 @@ def render_step1_view(paths: dict):
             st.session_state["input_desc_regex_manual"] = expansion_res.get("desc_regex", "")
             st.session_state["input_domain_def_manual"] = expansion_res.get("domain_definition", "")
 
-            st.success("🎉 LLMによる超拡張検索キーワードの生成処理が完了しました！")
+            st.success("LLMによる検索キーワードおよび検索条件の自動拡張処理が完了しました。")
             st.rerun()
 
     exp = st.session_state["expansion_res"]
@@ -200,45 +200,45 @@ def render_step1_view(paths: dict):
     # フォールバック通知表示
     if exp.get("is_fallback"):
         st.warning(
-            "⚠️ **【通知】LLMへの接続ができなかったため、フォールバック（ルールベース生成）を適用しました。**\n\n"
-            f"・理由: `{exp.get('fallback_reason')}`"
+            "⚠️ LLMへの接続ができなかったため、フォールバック（ルールベース生成）が適用されました。\n"
+            f"理由: `{exp.get('fallback_reason')}`"
         )
 
     # --- 3. 収集用検索キーワード・パラメータの手動調整セクション ---
     st.markdown("---")
-    st.subheader("✏️ 収集用検索キーワード・パラメータの確認 ＆ 手動調整")
-    st.caption("LLMが生成したパラメータをベースに、キーワードの追加・削除、NDC分類のリスト選択・微調整が行えます。")
+    st.subheader("2. 検索キーワードおよび抽出条件の手動検証・編集")
+    st.caption("LLMによって提案されたパラメータを検証し、キーワードの追加・除外、NDC分類の選択、正規表現の修正を自由に行えます。")
 
     c_edit1, c_edit2 = st.columns(2)
     with c_edit1:
         kw_input_text = st.text_area(
-            "📝 収集用検索キーワード一覧 (改行またはカンマ区切りで入力):",
+            "検索キーワード一覧 (改行またはカンマ区切り):",
             height=200,
             key="input_kw_manual"
         )
     with c_edit2:
         st.multiselect(
-            "🏷️ NDC (日本十進分類法) 分類選択リスト (ドロップダウン選択):",
+            "NDC (日本十進分類法) 二次区分選択リスト:",
             options=list(NDC_MASTER.values()),
-            help="LLM提案の分類コードに加え、リストから自由に分野を選択・追加・削除できます",
+            help="LLM提案の分類コードに加え、一覧から対象ドメインの分類を追加・削除できます",
             key="input_ndc_multiselect"
         )
         ndc_codes_input = st.text_input(
-            "🏷️ 適用中 NDC 分類コード (自動連動 / 手動コード入力):",
-            help="例: 76, 77, 18 (マルチセレクトと相互自動連動します)",
+            "適用中 NDC 分類コード:",
+            help="例: 76, 77, 18 (マルチセレクトと自動連動します)",
             key="input_ndc_codes_manual"
         )
         title_regex_input = st.text_input(
-            "🔍 タイトル・主題・キーワード用 REGEX パターン (`|` 区切り):",
+            "タイトル・主題用 正規表現 (REGEX) パターン (`|` 区切り):",
             key="input_title_regex_manual"
         )
         desc_regex_input = st.text_input(
-            "📄 説明文(description)用 REGEX パターン (`|` 区切り):",
+            "内容記述 (schema:description) 用 正規表現 (REGEX) パターン (`|` 区切り):",
             key="input_desc_regex_manual"
         )
 
     domain_def_input = st.text_area(
-        "📖 資料判定用ドメイン定義文 (Step 2-C LLM適合判定の基準):",
+        "ドメイン定義文 (Step 2-C セマンティック適合判定の評価基準):",
         height=70,
         key="input_domain_def_manual"
     )
@@ -246,14 +246,14 @@ def render_step1_view(paths: dict):
     c_sync1, c_sync2 = st.columns([2, 1])
     with c_sync1:
         st.button(
-            "🔄 キーワード一覧から REGEX パターンを自動再構築・最適化する", 
+            "キーワード一覧からの正規表現パターン自動再構築・最適化", 
             on_click=_on_rebuild_regex, 
             use_container_width=True
         )
 
     with c_sync2:
         st.button(
-            "💾 手動調整結果を反映・適用する", 
+            "設定パラメータの保存・適用", 
             type="primary", 
             on_click=_on_apply_manual_params, 
             use_container_width=True
@@ -266,28 +266,28 @@ def render_step1_view(paths: dict):
     st.markdown("---")
     exp = st.session_state["expansion_res"]
 
-    with st.expander("📋 現在適用中の全検索パラメータ (JSON)", expanded=False):
+    with st.expander("現在適用中の検索パラメータ (JSON)", expanded=False):
         st.json(exp)
 
     queries = generate_sparql_queries(exp)
-    st.subheader(f"🔍 実行対象のSPARQLクエリパターン ({len(queries)} パターン)")
-    st.caption("設定されたキーワード・分類コード・正規表現パターンに基づき、以下のSPARQLクエリを生成します。")
+    st.subheader(f"3. 実行対象SPARQLクエリパターン ({len(queries)} パターン)")
+    st.caption("定義されたキーワード、NDC分類コード、正規表現パターンに基づき生成されたSPARQLクエリ:")
 
     limit_val = st.number_input("1バッチあたりの取得上限 (LIMIT):", min_value=50, max_value=1000, value=200, step=50)
 
-    if st.button("🚀 Japan Search から全網羅メタデータを全自動取得・深層構築する", type="primary", use_container_width=True):
+    if st.button("Japan Searchからの関連メタデータ一括取得および構造化実行", type="primary", use_container_width=True):
         status_box = st.empty()
         progress_bar = st.progress(0)
         
         all_collected_uris = set()
         for idx, (name, func) in enumerate(queries):
-            status_box.markdown(f"⏳ パターン `[{name}]` をJapan Searchから取得中...")
+            status_box.markdown(f"クエリパターン `[{name}]` のメタデータを取得中...")
             uris = fetch_uris_with_query_func(func, pattern_name=name, limit=limit_val)
             all_collected_uris.update(uris)
             progress_bar.progress((idx + 1) / len(queries))
 
-        st.success(f"🎉 URI収集完了: 重複のない {len(all_collected_uris):,} 件のURIを取得しました！")
+        st.success(f"リソースURIの収集完了: 重複のない {len(all_collected_uris):,} 件の対象URIを取得しました。")
         
-        with st.spinner("詳細書誌メタデータ（ブランクノード深層グラフ含む）を構築中..."):
+        with st.spinner("詳細書誌メタデータ（グラフ構造含む）の構築処理を実行中..."):
             count = build_metadata_for_uris(list(all_collected_uris), paths['PATH_RAW_METADATA'], batch_size=50)
-            st.success(f"🎉 メタデータ構築完了！ 全 {count:,} 件を `{paths['PATH_RAW_METADATA']}` に保存しました。")
+            st.success(f"メタデータ構築完了: 全 {count:,} 件の構造化データを `{paths['PATH_RAW_METADATA']}` に保存しました。")

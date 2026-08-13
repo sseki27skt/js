@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - Step 2-B: N-Gram マイニング ＆ 仕分けビュー
+MetaClean Studio - Step 2-B: タイトル N-Gram (N=2〜9) パターン分析・除外ビュー
 """
 import json
 import math
@@ -21,8 +21,8 @@ except Exception:
 
 def render_step2b_view(paths: dict):
     """Step 2-B 画面の描画"""
-    st.title("Step 2-B: タイトル N-Gram (部分文字列 N=2〜9) マイニング ＆ 仕分け")
-    st.markdown("資料タイトルに含まれる N=2 〜 9 文字の頻出フレーズ（例: 〜日記, 〜家譜, 〜楽譜, 〜演劇 など）を集計・マイニングし、仕分けを行います。")
+    st.title("Step 2-B: タイトル N-Gram (N=2〜9) パターン分析・除外")
+    st.markdown("資料タイトルに含まれる N=2 〜 9 文字の頻出部分文字列（例: 〜日記, 〜家譜, 〜楽譜, 〜演劇 など）を集計・抽出し、除外パターンの選定を行います。")
 
     about_filtered_path = paths['PATH_ABOUT_FILTERED']
     raw_metadata_path = paths['PATH_RAW_METADATA']
@@ -112,34 +112,34 @@ def render_step2b_view(paths: dict):
     ngram_remaining_records = total_input_records - ngram_discarded_records
     ngram_reduction_rate = (ngram_discarded_records / max(1, total_input_records))
 
-    st.subheader("📊 N-Gramルールによる実レコード絞り込み進捗")
+    st.subheader("N-Gramルールによるレコード絞り込み進捗")
     ng_c1, ng_c2, ng_c3, ng_c4 = st.columns(4)
     with ng_c1:
-        st.metric("📦 About通過後レコード数", f"{total_input_records:,} 件")
+        st.metric("About通過後レコード数", f"{total_input_records:,} 件")
     with ng_c2:
-        st.metric("🚫 N-Gram除外対象数", f"{ngram_discarded_records:,} 件", delta=f"-{ngram_reduction_rate:.1%}", delta_color="inverse")
+        st.metric("N-Gram除外対象数", f"{ngram_discarded_records:,} 件", delta=f"-{ngram_reduction_rate:.1%}", delta_color="inverse")
     with ng_c3:
-        st.metric("✅ 本工程通過残存レコード", f"{ngram_remaining_records:,} 件", delta=f"{ngram_remaining_records/max(1,total_input_records):.1%}")
+        st.metric("本工程通過残存レコード", f"{ngram_remaining_records:,} 件", delta=f"{ngram_remaining_records/max(1,total_input_records):.1%}")
     with ng_c4:
-        st.metric("📉 本工程での絞り込み率", f"{ngram_reduction_rate:.1%} 削減")
+        st.metric("本工程での絞り込み率", f"{ngram_reduction_rate:.1%} 削減")
 
-    with st.expander(f"📋 現在の N-Gram NG / OK 登録ルールを確認・管理する (🚫 NG: {len(ngram_ng)} 件 / ✅ OK: {len(ngram_ok)} 件)", expanded=False):
+    with st.expander(f"現在の N-Gram NG / OK 登録ルール (NG: {len(ngram_ng)} 件 / OK: {len(ngram_ok)} 件)", expanded=False):
         cn_manage_ng, cn_manage_ok = st.columns(2)
         with cn_manage_ng:
-            st.markdown(f"### 🚫 除外(NG) N-gram パターン ({len(ngram_ng)} 件)")
+            st.markdown(f"### 除外(NG) N-gram パターン ({len(ngram_ng)} 件)")
             if ngram_ng:
                 n_ng_sorted = sorted(list(ngram_ng))
                 try:
-                    selected_n_ng_pills = st.pills("反転選択して削除するパターンをクリック:", options=n_ng_sorted, selection_mode="multi", key="pills_ngram_ng")
+                    selected_n_ng_pills = st.pills("選択して削除するパターンをクリック:", options=n_ng_sorted, selection_mode="multi", key="pills_ngram_ng")
                 except AttributeError:
                     selected_n_ng_pills = st.multiselect("削除するパターンを選択:", options=n_ng_sorted, key="ms_ngram_ng_fallback")
 
-                if st.button("🗑️ 選択したパターンを NG ルールから登録解除（削除）", key="btn_del_n_ng_pills", type="primary", use_container_width=True):
+                if st.button("選択パターンの NG ルールからの解除", key="btn_del_n_ng_pills", type="primary", use_container_width=True):
                     if selected_n_ng_pills:
                         ngram_ng.difference_update(selected_n_ng_pills)
                         st.session_state["ngram_view_ver"] += 1
                         st.cache_data.clear()
-                        st.success(f"🎉 {len(selected_n_ng_pills)} 件のパターンを NG ルールから削除しました！")
+                        st.success(f"{len(selected_n_ng_pills)} 件のパターンを NG ルールから削除しました。")
                         st.rerun()
                     else:
                         st.warning("解除するパターンが選択されていません。")
@@ -147,20 +147,20 @@ def render_step2b_view(paths: dict):
                 st.info("NG N-gram ルールは現在空です。")
 
         with cn_manage_ok:
-            st.markdown(f"### ✅ 保持(OK) N-gram パターン ({len(ngram_ok)} 件)")
+            st.markdown(f"### 保持(OK) N-gram パターン ({len(ngram_ok)} 件)")
             if ngram_ok:
                 n_ok_sorted = sorted(list(ngram_ok))
                 try:
-                    selected_n_ok_pills = st.pills("反転選択して削除するパターンをクリック:", options=n_ok_sorted, selection_mode="multi", key="pills_ngram_ok")
+                    selected_n_ok_pills = st.pills("選択して削除するパターンをクリック:", options=n_ok_sorted, selection_mode="multi", key="pills_ngram_ok")
                 except AttributeError:
                     selected_n_ok_pills = st.multiselect("削除するパターンを選択:", options=n_ok_sorted, key="ms_ngram_ok_fallback")
 
-                if st.button("🗑️ 選択したパターンを OK ルールから登録解除（削除）", key="btn_del_n_ok_pills", type="primary", use_container_width=True):
+                if st.button("選択パターンの OK ルールからの解除", key="btn_del_n_ok_pills", type="primary", use_container_width=True):
                     if selected_n_ok_pills:
                         ngram_ok.difference_update(selected_n_ok_pills)
                         st.session_state["ngram_view_ver"] += 1
                         st.cache_data.clear()
-                        st.success(f"🎉 {len(selected_n_ok_pills)} 件のパターンを OK ルールから削除しました！")
+                        st.success(f"{len(selected_n_ok_pills)} 件のパターンを OK ルールから削除しました。")
                         st.rerun()
                     else:
                         st.warning("解除するパターンが選択されていません。")
@@ -208,85 +208,85 @@ def render_step2b_view(paths: dict):
         "9文字 (Nona-gram)"
     ]
     
-    selected_n_str = st.radio("🎯 分析対象の N-gram (文字数) を選択:", options=n_options, horizontal=True, key="selected_n_gram_radio")
+    selected_n_str = st.radio("分析対象の N-gram (文字数) の選択:", options=n_options, horizontal=True, key="selected_n_gram_radio")
     n_val = int(selected_n_str.split("文字")[0])
 
     items_for_n = ngram_dict.get(n_val, [])
 
     if "c_mode_ngram_shared" not in st.session_state:
-        st.session_state["c_mode_ngram_shared"] = "🚫 NGに判定"
+        st.session_state["c_mode_ngram_shared"] = "NGに設定"
 
     col_n_opt1, col_n_opt2 = st.columns([3, 2])
     with col_n_opt1:
         v_mode_n = st.radio(
-            "👁️ 表示オプション:", 
-            options=["🌐 すべて表示", "❓ 未判定のみ", "🚫 NGのみ", "✅ OKのみ"], 
+            "表示オプション:", 
+            options=["すべて表示", "未判定のみ", "NGのみ", "OKのみ"], 
             horizontal=True,
             key="v_mode_ngram_shared"
         )
-        is_unclassified_n_mode = (v_mode_n == "❓ 未判定のみ")
+        is_unclassified_n_mode = (v_mode_n == "未判定のみ")
         hide_zero_ngram = st.checkbox(
-            "🙈 残存未判定件数が 0 件 (影響なし) の N-Gram パターンを非表示にする", 
+            "残存未判定件数が 0 件の N-Gram パターンを非表示にする", 
             value=True, 
             disabled=not is_unclassified_n_mode,
             key="chk_hide_zero_ngram_shared"
         )
     with col_n_opt2:
-        q_ngram = st.text_input("🔍 N-Gram 検索:", key="q_ngram_shared")
+        q_ngram = st.text_input("N-Gram 検索:", key="q_ngram_shared")
 
-    st.caption("⚡ N-gram 判定モード切替 (キーボードショートカット: Q / W / E キー):")
+    st.caption("N-gram 判定モード切替 (ショートカット: Q / W / E キー):")
     cn_m1, cn_m2, cn_m3 = st.columns(3)
     
-    n_btn1_t = "primary" if st.session_state["c_mode_ngram_shared"] == "🚫 NGに判定" else "secondary"
-    n_btn2_t = "primary" if st.session_state["c_mode_ngram_shared"] == "✅ OKに判定" else "secondary"
-    n_btn3_t = "primary" if st.session_state["c_mode_ngram_shared"] == "🔄 未判定に戻す" else "secondary"
+    n_btn1_t = "primary" if st.session_state["c_mode_ngram_shared"] == "NGに設定" else "secondary"
+    n_btn2_t = "primary" if st.session_state["c_mode_ngram_shared"] == "OKに設定" else "secondary"
+    n_btn3_t = "primary" if st.session_state["c_mode_ngram_shared"] == "未判定に戻す" else "secondary"
 
-    bn1 = cn_m1.button("🔴 【 Q 】 🚫 NG判定モード", key="btn_mq_n_shared", use_container_width=True, type=n_btn1_t)
-    bn2 = cn_m2.button("🟢 【 W 】 ✅ OK判定モード", key="btn_mw_n_shared", use_container_width=True, type=n_btn2_t)
-    bn3 = cn_m3.button("🔵 【 E 】 🔄 未判定リセット", key="btn_me_n_shared", use_container_width=True, type=n_btn3_t)
+    bn1 = cn_m1.button("【 Q 】 NG設定モード", key="btn_mq_n_shared", use_container_width=True, type=n_btn1_t)
+    bn2 = cn_m2.button("【 W 】 OK設定モード", key="btn_mw_n_shared", use_container_width=True, type=n_btn2_t)
+    bn3 = cn_m3.button("【 E 】 未判定リセット", key="btn_me_n_shared", use_container_width=True, type=n_btn3_t)
 
     if hotkeys:
         if hotkeys.pressed("mode_ng"):
-            st.session_state["c_mode_ngram_shared"] = "🚫 NGに判定"
+            st.session_state["c_mode_ngram_shared"] = "NGに設定"
             st.rerun()
         elif hotkeys.pressed("mode_ok"):
-            st.session_state["c_mode_ngram_shared"] = "✅ OKに判定"
+            st.session_state["c_mode_ngram_shared"] = "OKに設定"
             st.rerun()
         elif hotkeys.pressed("mode_reset"):
-            st.session_state["c_mode_ngram_shared"] = "🔄 未判定に戻す"
+            st.session_state["c_mode_ngram_shared"] = "未判定に戻す"
             st.rerun()
 
     if bn1:
-        st.session_state["c_mode_ngram_shared"] = "🚫 NGに判定"
+        st.session_state["c_mode_ngram_shared"] = "NGに設定"
         st.rerun()
     if bn2:
-        st.session_state["c_mode_ngram_shared"] = "✅ OKに判定"
+        st.session_state["c_mode_ngram_shared"] = "OKに設定"
         st.rerun()
     if bn3:
-        st.session_state["c_mode_ngram_shared"] = "🔄 未判定に戻す"
+        st.session_state["c_mode_ngram_shared"] = "未判定に戻す"
         st.rerun()
 
     c_mode_n = st.session_state["c_mode_ngram_shared"]
 
-    if c_mode_n == "🚫 NGに判定":
-        st.error("🎯 **【現在のモード: 🚫 NG (除外) 登録モード】**")
-    elif c_mode_n == "✅ OKに判定":
-        st.success("🎯 **【現在のモード: ✅ OK (保持) 登録モード】**")
-    elif c_mode_n == "🔄 未判定に戻す":
-        st.info("🎯 **【現在のモード: 🔄 未判定リセットモード】**")
+    if c_mode_n == "NGに設定":
+        st.error("【現在の設定モード: NG (除外)】 (ショートカット: Q)")
+    elif c_mode_n == "OKに設定":
+        st.success("【現在の設定モード: OK (保持)】 (ショートカット: W)")
+    elif c_mode_n == "未判定に戻す":
+        st.info("【現在の設定モード: 未判定リセット】 (ショートカット: E)")
 
     filtered_items = items_for_n
-    if v_mode_n == "❓ 未判定のみ":
+    if v_mode_n == "未判定のみ":
         filtered_items = [
             (w, c, s) for w, c, s in filtered_items 
             if w not in ngram_ng and w not in ngram_ok and get_parent_rule(w, ngram_ng, ngram_ok)[0] is None
         ]
-    elif v_mode_n == "🚫 NGのみ":
+    elif v_mode_n == "NGのみ":
         filtered_items = [
             (w, c, s) for w, c, s in filtered_items 
             if w in ngram_ng or get_parent_rule(w, ngram_ng, ngram_ok)[0] == "NG"
         ]
-    elif v_mode_n == "✅ OKのみ":
+    elif v_mode_n == "OKのみ":
         filtered_items = [
             (w, c, s) for w, c, s in filtered_items 
             if w in ngram_ok or get_parent_rule(w, ngram_ng, ngram_ok)[0] == "OK"
@@ -330,10 +330,10 @@ def render_step2b_view(paths: dict):
 
     cn_hdr1, cn_hdr2 = st.columns([3, 2])
     with cn_hdr1:
-        st.markdown(f"N={n_val} パターン一覧 (該当: **{len(filtered_items)}** 件 | **クリックで仮選択 ➔『一括確定』で確定**)")
+        st.markdown(f"N={n_val} パターン一覧 (該当: **{len(filtered_items)}** 件)")
     with cn_hdr2:
         draft_n_cnt = len(draft_n)
-        btn_n_apply_label = f"🚀 N={n_val} 仮判定 ({draft_n_cnt} 件) を一括確定して適用" if draft_n_cnt > 0 else f"🚀 N={n_val} 判定を一括確定して適用"
+        btn_n_apply_label = f"N={n_val} 仮設定 ({draft_n_cnt} 件) の一括適用" if draft_n_cnt > 0 else f"N={n_val} 判定の一括適用"
         if st.button(btn_n_apply_label, key=f"btn_apply_n_{n_val}", type="primary" if draft_n_cnt > 0 else "secondary", use_container_width=True):
             if draft_n:
                 for w, status in draft_n.items():
@@ -349,7 +349,7 @@ def render_step2b_view(paths: dict):
                 draft_n.clear()
                 st.session_state["ngram_view_ver"] += 1
                 st.cache_data.clear()
-                st.success(f"🎉 N={n_val} の仮判定をルールへ一括適用しました！")
+                st.success(f"N={n_val} の判別結果をルールへ適用しました。")
                 st.rerun()
             else:
                 st.info("現在仮選択中のパターンはありません。")
@@ -383,24 +383,24 @@ def render_step2b_view(paths: dict):
     st.write("---")
     col_n1, col_n2, col_n3 = st.columns([2, 2, 1])
     with col_n1:
-        if st.button("💾 N-Gram ルールを保存する", type="primary", use_container_width=True):
+        if st.button("N-Gram ルールを保存する", type="primary", use_container_width=True):
             save_dict = build_expanded_ngram_rules(ngram_ng, ngram_ok, ngram_dict)
             safe_save_json(save_dict, ngram_rules_path)
-            st.success(f"N-Gram ルールを保存しました！ (全 {len(save_dict):,} ルール)")
+            st.success(f"N-Gram ルールを保存しました (全 {len(save_dict):,} ルール)。")
 
     with col_n2:
-        if st.button("▶️ N-Gram フィルタを実行する", type="primary", use_container_width=True):
+        if st.button("N-Gram フィルタを実行する", type="primary", use_container_width=True):
             save_dict = build_expanded_ngram_rules(ngram_ng, ngram_ok, ngram_dict)
             safe_save_json(save_dict, ngram_rules_path)
 
             passed, disc = run_ngram_filter(input_path, ngram_rules_path, ngram_filtered_path, f"{data_dir}/discarded_ngram.csv")
-            st.success(f"N-Gram フィルタ完了: 通過 {passed} 件 / 除外 {disc} 件 (除外ログ: {data_dir}/discarded_ngram.csv)")
+            st.success(f"N-Gram フィルタリング完了: 通過 {passed:,} 件 / 除外 {disc:,} 件 (除外ログ: {data_dir}/discarded_ngram.csv)")
 
     with col_n3:
-        with st.popover("🗑️ ルール全リセット", help="N-Gramルールを初期化クリア"):
-            st.warning("⚠️ 本当に N-Gram ルール (`ngram_rules.json`) を全リセットしますか？")
-            st.caption("登録済みの全 N-gram NG / OK パターンおよび仮判定データが完全に消去されます。")
-            if st.button("💥 確定して全リセットする", type="primary", use_container_width=True, key="btn_confirm_reset_ngram"):
+        with st.popover("ルール全初期化", help="N-Gramルールを初期化"):
+            st.warning("N-Gram ルール (`ngram_rules.json`) を全初期化しますか？")
+            st.caption("登録済みの全 N-gram NG / OK パターンが消去されます。")
+            if st.button("確定して初期化を実行", type="primary", use_container_width=True, key="btn_confirm_reset_ngram"):
                 st.session_state["edited_ngram_ng"] = set()
                 st.session_state["edited_ngram_ok"] = set()
                 for key in list(st.session_state.keys()):
@@ -416,5 +416,5 @@ def render_step2b_view(paths: dict):
                             pass
                 st.cache_data.clear()
                 st.session_state["ngram_view_ver"] += 1
-                st.success("🎉 N-Gram ルールおよびフィルタ結果を完全にリセットしました！")
+                st.success("N-Gram ルールおよびフィルタ結果を初期化しました。")
                 st.rerun()

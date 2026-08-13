@@ -11,8 +11,8 @@ from components.file_utils import count_lines, safe_save_json
 
 def render_step3_view(paths: dict):
     """Step 3 画面の描画"""
-    st.title("Step 3: 検索ポータル用データエクスポート")
-    st.markdown("クレンジングされた最終データを `02_search_viewer` 用の静的JSONへ書き出し、モダン検索UIで即時検索可能にします。")
+    st.title("Step 3: 統合検索用データエクスポート")
+    st.markdown("精緻化された確定メタデータを検索ポータル（`02_search_viewer`）用JSON形式へ構造化出力し、一括利用可能な形式へ変換します。")
 
     verified_jsonl_path = paths['PATH_VERIFIED_JSONL']
     ngram_filtered_path = paths['PATH_NGRAM_FILTERED']
@@ -31,9 +31,9 @@ def render_step3_view(paths: dict):
         st.stop()
 
     source_line_count = count_lines(source_path)
-    st.info(f"📂 検出された最新データソース: `{source_path}` (全 {source_line_count:,} 件)")
+    st.info(f"検出されたデータソース: `{source_path}` (全 {source_line_count:,} 件)")
 
-    if st.button("検索ポータル用 `scores_data.json` をビルド・エクスポートする", type="primary", use_container_width=True):
+    if st.button("統合検索用 scores_data.json の生成・エクスポート実行", type="primary", use_container_width=True):
         records = []
         with open(source_path, 'r', encoding='utf-8') as f:
             for line in f:
@@ -75,12 +75,11 @@ def render_step3_view(paths: dict):
         df_export = pd.DataFrame(records)
         df_export.to_csv(path_export_csv, index=False, encoding='utf-8-sig')
 
-        st.success(f"🎉 エクスポート成功！ 全 {len(records):,} 件のデータを `{export_json_path}` および `{path_export_csv}` に出力しました！")
-        st.info("`02_search_viewer/index.html` をブラウザで開いて洗練されたモダンUIで検索・閲覧を行ってください。")
+        st.success(f"データエクスポート完了: 全 {len(records):,} 件のデータを `{export_json_path}` および `{path_export_csv}` に出力しました。")
 
     st.write("---")
-    st.subheader("📥 成果物データのブラウザ直接ダウンロード")
-    st.markdown("生成されたクレンジング結果ファイルをワンクリックでローカルPCへダウンロードできます。")
+    st.subheader("成果物データの直接ダウンロード")
+    st.markdown("生成された精緻化結果ファイルをローカル環境へ直接ダウンロードできます。")
 
     c_dl1, c_dl2, c_dl3 = st.columns(3)
     path_export_csv = f"{data_dir}/cleaned_metadata.csv"
@@ -89,37 +88,37 @@ def render_step3_view(paths: dict):
         if os.path.exists(export_json_path):
             with open(export_json_path, 'rb') as f:
                 st.download_button(
-                    label="📥 scores_data.json をダウンロード",
+                    label="scores_data.json のダウンロード",
                     data=f,
                     file_name="scores_data.json",
                     mime="application/json",
                     use_container_width=True
                 )
         else:
-            st.button("📥 scores_data.json (未出力)", disabled=True, use_container_width=True)
+            st.button("scores_data.json (未出力)", disabled=True, use_container_width=True)
 
     with c_dl2:
         if os.path.exists(path_export_csv):
             with open(path_export_csv, 'rb') as f:
                 st.download_button(
-                    label="📥 cleaned_metadata.csv をダウンロード",
+                    label="cleaned_metadata.csv のダウンロード",
                     data=f,
                     file_name="cleaned_metadata.csv",
                     mime="text/csv",
                     use_container_width=True
                 )
         else:
-            st.button("📥 cleaned_metadata.csv (未出力)", disabled=True, use_container_width=True)
+            st.button("cleaned_metadata.csv (未出力)", disabled=True, use_container_width=True)
 
     with c_dl3:
         if os.path.exists(verified_jsonl_path):
             with open(verified_jsonl_path, 'rb') as f:
                 st.download_button(
-                    label="📥 human_verified_cleaned.jsonl をダウンロード",
+                    label="human_verified_cleaned.jsonl のダウンロード",
                     data=f,
                     file_name="human_verified_cleaned.jsonl",
                     mime="application/jsonlines",
                     use_container_width=True
                 )
         else:
-            st.button("📥 human_verified_cleaned.jsonl (未確定)", disabled=True, use_container_width=True)
+            st.button("human_verified_cleaned.jsonl (未確定)", disabled=True, use_container_width=True)
