@@ -254,7 +254,7 @@ def build_metadata_for_uris(uri_list: list, output_jsonl_path: str, batch_size: 
             if progress_callback:
                 progress_callback(processed_count, total_count)
 
-            time.sleep(0.3)
+            time.sleep(1.5)
 
     return processed_count
 
