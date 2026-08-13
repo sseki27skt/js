@@ -76,6 +76,7 @@ def load_merged_review_data(
             llm_info = llm_map.get(item_id, {})
             llm_target = llm_info.get("is_target")
             llm_reason = llm_info.get("reason", "")
+            external_info = llm_info.get("external_info", "")
 
             # 総合初期判定
             final_status = "合格"
@@ -95,7 +96,12 @@ def load_merged_review_data(
                 final_status = "除外"
                 reasons.append(f"LLM判定除外: {llm_reason}")
             elif llm_target is True:
-                reasons.append(f"LLM判定適合: {llm_reason}")
+                if "[ルール合格]" in llm_reason:
+                    reasons.append(f"ルール判定適合 (LLMバイパス): {llm_reason}")
+                else:
+                    reasons.append(f"LLM判定適合: {llm_reason}")
+            elif llm_target is None and "LLM" in str(llm_info.get("source_stage", "")):
+                reasons.append(f"LLM判定不能 (null): {llm_reason}")
 
             if not reasons:
                 reasons.append("全ルール通過")
@@ -110,6 +116,7 @@ def load_merged_review_data(
                 "is_ngram_ok": is_ngram_ok,
                 "llm_target": llm_target,
                 "llm_reason": llm_reason,
+                "external_info": external_info,
                 "raw_item": item
             })
 

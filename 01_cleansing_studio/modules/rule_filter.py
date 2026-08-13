@@ -454,3 +454,153 @@ def run_suffix_filter(input_jsonl_path: str, rules_json_path: str, output_filter
         df_disc.to_csv(output_discarded_csv, index=False, encoding='utf-8-sig')
 
     return passed_count, len(discarded_records)
+
+
+def split_dataset_by_rules(
+    input_jsonl_path: str,
+    about_rules_path: str,
+    ngram_rules_path: str,
+    output_target_for_llm_jsonl: str,
+    output_confirmed_ok_jsonl: str,
+    output_discarded_csv: str
+) -> tuple:
+    """
+    AboutルールおよびN-Gramルールに基づいてデータを3分類します。
+    - OKルール判定: LLM判定をバイパスし合格確定 (is_target=True)
+    - NGルール判定: 事前除外 (is_target=False)
+    - 未判定: グレーゾーン (target_for_llm.jsonl へ保存してLLM判定へ投入)
+    """
+    if not os.path.exists(input_jsonl_path):
+        return 0, 0, 0
+
+    about_rules = {}
+    if os.path.exists(about_rules_path):
+        with open(about_rules_path, 'r', encoding='utf-8') as f:
+            try:
+                about_rules = json.load(f)
+            except Exception:
+                pass
+
+    ngram_rules = {}
+    if os.path.exists(ngram_rules_path):
+        with open(ngram_rules_path, 'r', encoding='utf-8') as f:
+            try:
+                ngram_rules = json.load(f)
+            except Exception:
+                pass
+
+    ng_about = set([cat for cat, status in about_rules.items() if status == "NG"])
+    ok_about = set([cat for cat, status in about_rules.items() if status == "OK"])
+
+    ng_ngram = set([pat for pat, status in ngram_rules.items() if status == "NG"])
+    ok_ngram = set([pat for pat, status in ngram_rules.items() if status == "OK"])
+
+    ok_count = 0
+    ng_count = 0
+    grey_count = 0
+
+    discarded_records = []
+    confirmed_ok_records = []
+
+    os.makedirs(os.path.dirname(output_target_for_llm_jsonl), exist_ok=True)
+    os.makedirs(os.path.dirname(output_confirmed_ok_jsonl), exist_ok=True)
+    os.makedirs(os.path.dirname(output_discarded_csv), exist_ok=True)
+
+    with open(input_jsonl_path, 'r', encoding='utf-8', errors='ignore') as in_f, \
+         open(output_target_for_llm_jsonl, 'w', encoding='utf-8') as grey_f:
+
+        for line in in_f:
+            if not line.strip():
+                continue
+            try:
+                item = json.loads(line)
+            except Exception:
+                continue
+
+            item_id = item.get("@id", item.get("id", ""))
+            label_val = item.get("rdfs:label", item.get("schema:name", ""))
+            if isinstance(label_val, list) and label_val:
+                title_str = str(label_val[0])
+            else:
+                title_str = str(label_val)
+
+            about_val = item.get("schema:about", [])
+            extracted_about_kws = extract_about_values(about_val)
+
+            # 1. NG判定
+            has_ng = False
+            matched_ng_reason = ""
+
+            for kw in extracted_about_kws:
+                for ng_cat in ng_about:
+                    if ng_cat in kw:
+                        has_ng = True
+                        matched_ng_reason = f"About NG: 「{ng_cat}」"
+                        break
+                if has_ng:
+                    break
+
+            if not has_ng:
+                for pat in ng_ngram:
+                    if pat in title_str:
+                        has_ng = True
+                        matched_ng_reason = f"N-Gram NG: 「{pat}」"
+                        break
+
+            if has_ng:
+                discarded_records.append({
+                    "id": item_id,
+                    "title": title_str,
+                    "reason": matched_ng_reason
+                })
+                ng_count += 1
+                continue
+
+            # 2. OK判定 (LLMバイパス合格)
+            has_ok = False
+            matched_ok_reason = ""
+
+            for kw in extracted_about_kws:
+                for ok_cat in ok_about:
+                    if ok_cat in kw:
+                        has_ok = True
+                        matched_ok_reason = f"About OK: 「{ok_cat}」"
+                        break
+                if has_ok:
+                    break
+
+            if not has_ok:
+                for pat in ok_ngram:
+                    if pat in title_str:
+                        has_ok = True
+                        matched_ok_reason = f"N-Gram OK: 「{pat}」"
+                        break
+
+            if has_ok:
+                confirmed_ok_records.append({
+                    "id": item_id,
+                    "title": title_str,
+                    "is_target": True,
+                    "reason": f"[ルール合格] {matched_ok_reason}",
+                    "raw_item": item
+                })
+                ok_count += 1
+                continue
+
+            # 3. グレーゾーン (LLM判定へ)
+            grey_f.write(json.dumps(item, ensure_ascii=False) + "\n")
+            grey_count += 1
+
+    # OK確定保存
+    with open(output_confirmed_ok_jsonl, 'w', encoding='utf-8') as ok_f:
+        for r in confirmed_ok_records:
+            ok_f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+    # NG除外CSV保存
+    if discarded_records:
+        import pandas as pd
+        df_disc = pd.DataFrame(discarded_records)
+        df_disc.to_csv(output_discarded_csv, index=False, encoding='utf-8-sig')
+
+    return ok_count, ng_count, grey_count
+
