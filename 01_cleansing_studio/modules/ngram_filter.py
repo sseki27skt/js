@@ -16,7 +16,7 @@ def clean_title_text(title: str) -> str:
     """
     if not title:
         return ""
-    return re.sub(r'[\s　\(\)（）\[\]【】「」『』\.,:;!\?/\-_\d・―〜〈〉《》“”‘’\+=★☆◆◇▲△▼▽○●◎／〔〕]', '', title)
+    return re.sub(r'[\s　\(\)（）\[\]【】「」『』\.,:：［］;!\?/\-_\d・―〜〈〉《》“”‘’\+=★☆◆◇▲△▼▽○●◎／\[\]〔〕、；]', '', title)
 
 
 def extract_ngrams_from_jsonl(input_jsonl_path: str, min_n: int = 2, max_n: int = 9, top_n_per_gram: int = 500) -> dict:
