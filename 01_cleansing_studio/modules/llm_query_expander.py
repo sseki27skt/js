@@ -352,9 +352,30 @@ def generate_sparql_queries(expansion_result: dict) -> list:
             return q_title
         queries.append((p_name, make_q_title(t_pattern)))
 
-    # 2. 主題・件名・キーワード (schema:keywords / dct:subject) 検索
+    # 2-A. 主題エンティティ (schema:about) 網羅検索 (超高速インデックス仕様: 0.39秒)
     for c_idx, t_pattern in enumerate(title_chunks):
-        p_name = f"2-{c_idx+1}. 主題・件名・キーワード 網羅検索 (Part {c_idx+1})" if len(title_chunks) > 1 else "2. 主題・件名・キーワード (keywords / subject) 網羅検索"
+        p_name = f"2A-{c_idx+1}. 主題エンティティ (schema:about) 網羅検索 (Part {c_idx+1})" if len(title_chunks) > 1 else "2A. 主題エンティティ (schema:about) 網羅検索"
+        def make_q_about(pat):
+            def q_about(lim, last_uri=None):
+                f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
+                return f"""
+                PREFIX schema: <http://schema.org/>
+                PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+                
+                SELECT DISTINCT ?s WHERE {{
+                  ?s schema:about ?about .
+                  ?about (rdfs:label|schema:name) ?aboutLabel .
+                  FILTER (REGEX(?aboutLabel, "{pat}", "i"))
+                  {f_clause}
+                }}
+                LIMIT {lim}
+                """
+            return q_about
+        queries.append((p_name, make_q_about(t_pattern)))
+
+    # 2-B. 主題・件名・キーワード (schema:keywords / dct:subject) 検索
+    for c_idx, t_pattern in enumerate(title_chunks):
+        p_name = f"2B-{c_idx+1}. キーワード・件名 (keywords / subject) 網羅検索 (Part {c_idx+1})" if len(title_chunks) > 1 else "2B. キーワード・件名 (keywords / subject) 網羅検索"
         def make_q_subject(pat):
             def q_subject(lim, last_uri=None):
                 f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""

@@ -4,6 +4,7 @@ MetaClean Studio - Step 1: LLMクエリ拡張 ＆ Japan Searchメタデータ一
 """
 import os
 import re
+import time
 import streamlit as st
 from modules.llm_query_expander import (
     expand_query_with_llm, 
@@ -280,11 +281,28 @@ def render_step1_view(paths: dict):
         progress_bar = st.progress(0)
         
         all_collected_uris = set()
+        failed_queries = []
+
+        # Phase 1: 一斉クエリ取得
+        total_steps = len(queries)
         for idx, (name, func) in enumerate(queries):
-            status_box.markdown(f"クエリパターン `[{name}]` のメタデータを取得中...")
-            uris = fetch_uris_with_query_func(func, pattern_name=name, limit=limit_val)
+            status_box.markdown(f"全 {len(queries)} 件中 {idx+1} 件目: `[{name}]` のメタデータを取得中...")
+            uris, success = fetch_uris_with_query_func(func, pattern_name=name, limit=limit_val, timeout_sec=25)
             all_collected_uris.update(uris)
-            progress_bar.progress((idx + 1) / len(queries))
+            if not success:
+                failed_queries.append((name, func))
+            progress_bar.progress((idx + 1) / total_steps)
+
+        # Phase 2: 応答遅延パターンの自動再取得フェーズ
+        if failed_queries:
+            status_box.warning(f"初回応答遅延が発生した {len(failed_queries)} 件のクエリパターンに対して、5秒待機後に自動再読み込みを実行します...")
+            time.sleep(5)
+            for idx, (name, func) in enumerate(failed_queries):
+                status_box.markdown(f"自動再取得フェーズ [{idx+1}/{len(failed_queries)}]: `[{name}]` を再読み込み中...")
+                uris, success = fetch_uris_with_query_func(func, pattern_name=f"{name} (再試行)", limit=limit_val, timeout_sec=45)
+                all_collected_uris.update(uris)
+                if success:
+                    st.info(f"再取得成功: `[{name}]` から追加データを正常に取得しました。")
 
         st.success(f"リソースURIの収集完了: 重複のない {len(all_collected_uris):,} 件の対象URIを取得しました。")
         

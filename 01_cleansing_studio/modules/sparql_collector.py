@@ -57,15 +57,16 @@ def shorten_uri(uri: str) -> str:
     return uri
 
 
-def fetch_uris_with_query_func(query_func, pattern_name="Custom Query", limit=DEFAULT_LIMIT, progress_callback=None) -> list:
+def fetch_uris_with_query_func(query_func, pattern_name="Custom Query", limit=DEFAULT_LIMIT, progress_callback=None, timeout_sec=25) -> tuple:
     """
     クエリ生成関数(limit)を呼び出し、Japan SearchからURIを一括高速取得します。
-    Keep-Alive対応セッションにより、Port 443の接続エラーを回避します。
+    戻り値: (収集されたURIリスト, 取得成功フラグ: bool)
     """
     collected_uris = []
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
     max_query_retries = 2
     session = get_robust_session()
+    is_success = False
     
     print(f"\n--- [開始] {pattern_name} ---")
 
@@ -74,10 +75,10 @@ def fetch_uris_with_query_func(query_func, pattern_name="Custom Query", limit=DE
 
     for attempt in range(1, max_query_retries + 1):
         try:
-            print(f"[{pattern_name}] Fetching (limit={limit}) ...", end=" ")
+            print(f"[{pattern_name}] Fetching (limit={limit}, timeout={timeout_sec}s) ...", end=" ")
             start_time = time.time()
 
-            response = session.post(ENDPOINT, data=data, headers=headers, timeout=25)
+            response = session.post(ENDPOINT, data=data, headers=headers, timeout=timeout_sec)
 
             if response.status_code != 200:
                 print(f"\n[Error] Status Code: {response.status_code}")
@@ -96,6 +97,7 @@ def fetch_uris_with_query_func(query_func, pattern_name="Custom Query", limit=DE
             if progress_callback:
                 progress_callback(pattern_name, len(collected_uris))
             
+            is_success = True
             break
 
         except Exception as e:
@@ -103,10 +105,10 @@ def fetch_uris_with_query_func(query_func, pattern_name="Custom Query", limit=DE
             if attempt < max_query_retries:
                 time.sleep(2)
             else:
-                print(f"[{pattern_name}] 応答遅延のためスキップし、他のクエリの収集結果で処理を継続します。")
+                print(f"[{pattern_name}] 一時的な応答遅延を検出。後ほど自動再取得フェーズで再トライします。")
 
     time.sleep(1.0)  # 各 Part (クエリパターン) 完了ごとのウェイト
-    return collected_uris
+    return collected_uris, is_success
 
 
 def fetch_deep_graph(uris: list, session: requests.Session = None) -> list:
@@ -255,7 +257,7 @@ def build_metadata_for_uris(uri_list: list, output_jsonl_path: str, batch_size: 
             if progress_callback:
                 progress_callback(processed_count, total_count)
 
-            time.sleep(1.5)
+            time.sleep(2)
 
     return processed_count
 
