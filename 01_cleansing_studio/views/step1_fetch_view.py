@@ -12,6 +12,7 @@ from modules.llm_query_expander import (
     optimize_keywords_for_regex, 
     optimize_regex_str,
     NDC_MASTER,
+    TYPE_MASTER,
     ndc_codes_to_labels,
     ndc_labels_to_codes
 )
@@ -50,6 +51,7 @@ def _on_apply_manual_params():
     title_regex_input = st.session_state.get("input_title_regex_manual", "")
     desc_regex_input = st.session_state.get("input_desc_regex_manual", "")
     domain_def_input = st.session_state.get("input_domain_def_manual", "")
+    selected_rdf_types = st.session_state.get("input_rdf_types_multiselect", [])
 
     parsed_kws = [w.strip() for w in re.split(r"[\n,・/／]+", kw_input_text) if w.strip()]
     
@@ -73,6 +75,7 @@ def _on_apply_manual_params():
     exp["title_regex"] = final_title_regex
     exp["desc_regex"] = final_desc_regex
     exp["domain_definition"] = domain_def_input.strip()
+    exp["rdf_types"] = [TYPE_MASTER[k] for k in selected_rdf_types if k in TYPE_MASTER]
     st.session_state["expansion_res"] = exp
     st.session_state["msg_success"] = "設定パラメータの保存・適用が完了しました。"
 
@@ -103,6 +106,7 @@ def render_step1_view(paths: dict):
             "ndc_codes": [],
             "title_regex": init_regex,
             "desc_regex": init_regex,
+            "rdf_types": [],
             "is_fallback": False,
             "fallback_reason": None
         }
@@ -197,6 +201,10 @@ def render_step1_view(paths: dict):
         st.session_state["input_desc_regex_manual"] = exp.get("desc_regex", "")
     if "input_domain_def_manual" not in st.session_state:
         st.session_state["input_domain_def_manual"] = exp.get("domain_definition", f"「{theme_input}」に関連する資料")
+    if "input_rdf_types_multiselect" not in st.session_state:
+        cur_types = exp.get("rdf_types", [])
+        inv_type_map = {v: k for k, v in TYPE_MASTER.items()}
+        st.session_state["input_rdf_types_multiselect"] = [inv_type_map[uri] for uri in cur_types if uri in inv_type_map]
 
     # フォールバック通知表示
     if exp.get("is_fallback"):
@@ -218,6 +226,12 @@ def render_step1_view(paths: dict):
             key="input_kw_manual"
         )
     with c_edit2:
+        st.multiselect(
+            "除外する rdf:type (資料種別):",
+            options=list(TYPE_MASTER.keys()),
+            help="指定したカテゴリを持つ資料を検索対象から除外します。明らかなノイズ（例：動物標本など）を弾くことで、網羅性を保ちながら検索速度を向上させます。",
+            key="input_rdf_types_multiselect"
+        )
         st.multiselect(
             "NDC (日本十進分類法) 二次区分選択リスト:",
             options=list(NDC_MASTER.values()),

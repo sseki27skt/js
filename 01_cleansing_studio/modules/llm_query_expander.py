@@ -36,6 +36,463 @@ NDC_MASTER = {
     "95": "95:フランス文学", "96": "96:スペイン文学", "97": "97:イタリア文学", "98": "98:ロシア文学", "99": "99:その他文学"
 }
 
+# Japan Search 主要 rdf:type マスター辞書 (件数上位抜粋)
+TYPE_MASTER = {
+    "アクセス情報": "https://jpsearch.go.jp/term/type/アクセス情報",
+    "ソース情報": "https://jpsearch.go.jp/term/type/ソース情報",
+    "図書": "https://jpsearch.go.jp/term/type/図書",
+    "Agent": "https://jpsearch.go.jp/term/type/Agent",
+    "行政文書": "https://jpsearch.go.jp/term/type/行政文書",
+    "動物標本": "https://jpsearch.go.jp/term/type/動物標本",
+    "植物標本": "https://jpsearch.go.jp/term/type/植物標本",
+    "雑誌": "https://jpsearch.go.jp/term/type/雑誌",
+    "Manifest": "http://iiif.io/api/presentation/2#Manifest",
+    "記事": "https://jpsearch.go.jp/term/type/記事",
+    "古書・古文書": "https://jpsearch.go.jp/term/type/古書・古文書",
+    "記事・論文": "https://jpsearch.go.jp/term/type/記事・論文",
+    "内閣文庫": "https://jpsearch.go.jp/term/type/内閣文庫",
+    "歴史資料": "https://jpsearch.go.jp/term/type/歴史資料",
+    "資料一般": "https://jpsearch.go.jp/term/type/資料一般",
+    "Keyword": "https://jpsearch.go.jp/term/type/Keyword",
+    "新聞": "https://jpsearch.go.jp/term/type/新聞",
+    "記録写真": "https://jpsearch.go.jp/term/type/記録写真",
+    "録音資料": "https://jpsearch.go.jp/term/type/録音資料",
+    "地図資料": "https://jpsearch.go.jp/term/type/地図資料",
+    "NIJL閲覧": "https://jpsearch.go.jp/term/nctype/OAR_arc#NIJL閲覧",
+    "IIIFmf": "https://jpsearch.go.jp/term/nctype/OAR_arc#IIIFmf",
+    "芸術・美術": "https://jpsearch.go.jp/term/type/芸術・美術",
+    "博物資料": "https://jpsearch.go.jp/term/type/博物資料",
+    "文章要素": "https://jpsearch.go.jp/term/type/文章要素",
+    "版画": "https://jpsearch.go.jp/term/type/版画",
+    "写真": "https://jpsearch.go.jp/term/type/写真",
+    "出版物": "https://jpsearch.go.jp/term/type/出版物",
+    "静止画資料": "https://jpsearch.go.jp/term/type/静止画資料",
+    "映像資料": "https://jpsearch.go.jp/term/type/映像資料",
+    "CreativeWork": "http://schema.org/CreativeWork",
+    "科学写真": "https://jpsearch.go.jp/term/type/科学写真",
+    "アニメーション": "https://jpsearch.go.jp/term/type/アニメーション",
+    "資料・情報": "https://jpsearch.go.jp/term/type/資料・情報",
+    "構成要素": "https://jpsearch.go.jp/term/type/構成要素",
+    "公演": "https://jpsearch.go.jp/term/type/公演",
+    "文書資料": "https://jpsearch.go.jp/term/type/文書資料",
+    "電子資料": "https://jpsearch.go.jp/term/type/電子資料",
+    "PDF": "https://jpsearch.go.jp/term/nctype/PDF",
+    "標本": "https://jpsearch.go.jp/term/type/標本",
+    "記述情報": "https://jpsearch.go.jp/term/type/記述情報",
+    "ORG閲覧": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORG閲覧",
+    "菌標本": "https://jpsearch.go.jp/term/type/菌標本",
+    "考古": "https://jpsearch.go.jp/term/type/考古",
+    "絵画": "https://jpsearch.go.jp/term/type/絵画",
+    "法人文書": "https://jpsearch.go.jp/term/type/法人文書",
+    "展覧会": "https://jpsearch.go.jp/term/type/展覧会",
+    "HTML": "https://jpsearch.go.jp/term/nctype/HTML",
+    "ゲーム": "https://jpsearch.go.jp/term/type/ゲーム",
+    "上演": "https://jpsearch.go.jp/term/type/上演",
+    "司法文書": "https://jpsearch.go.jp/term/type/司法文書",
+    "Ukiyo-e.org": "https://jpsearch.go.jp/term/nctype/OAR_arc#Ukiyo-e.org",
+    "絵葉書": "https://jpsearch.go.jp/term/type/絵葉書",
+    "和古書": "https://jpsearch.go.jp/term/type/和古書",
+    "ORG_Site": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORG_Site",
+    "ORG縮小": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORG縮小",
+    "書跡": "https://jpsearch.go.jp/term/type/書跡",
+    "収録作品": "https://jpsearch.go.jp/term/type/収録作品",
+    "絵画等": "https://jpsearch.go.jp/term/type/絵画等",
+    "硬貨": "https://jpsearch.go.jp/term/type/硬貨",
+    "Place": "https://jpsearch.go.jp/term/type/Place",
+    "寄贈寄託文書": "https://jpsearch.go.jp/term/type/寄贈寄託文書",
+    "Role": "https://jpsearch.go.jp/term/type/Role",
+    "Person": "https://jpsearch.go.jp/term/type/Person",
+    "建築": "https://jpsearch.go.jp/term/type/建築",
+    "金工": "https://jpsearch.go.jp/term/type/金工",
+    "MFA検索": "https://jpsearch.go.jp/term/nctype/OAR_arc#MFA検索",
+    "ORG_img": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORG_img",
+    "Excel": "https://jpsearch.go.jp/term/nctype/Excel",
+    "陶磁": "https://jpsearch.go.jp/term/type/陶磁",
+    "Time": "https://jpsearch.go.jp/term/type/Time",
+    "データセット": "https://jpsearch.go.jp/term/type/データセット",
+    "楽譜": "https://jpsearch.go.jp/term/type/楽譜",
+    "政府刊行物": "https://jpsearch.go.jp/term/type/政府刊行物",
+    "工芸": "https://jpsearch.go.jp/term/type/工芸",
+    "書写資料": "https://jpsearch.go.jp/term/type/書写資料",
+    "メディア芸術": "https://jpsearch.go.jp/term/type/メディア芸術",
+    "端物印刷物": "https://jpsearch.go.jp/term/type/端物印刷物",
+    "仮IIIFマニフェスト": "https://jpsearch.go.jp/term/nctype/仮IIIFマニフェスト",
+    "ORGsite": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORGsite",
+    "Movie": "http://schema.org/Movie",
+    "染織": "https://jpsearch.go.jp/term/type/染織",
+    "Concept": "http://www.w3.org/2004/02/skos/core#Concept",
+    "彫刻": "https://jpsearch.go.jp/term/type/彫刻",
+    "漆工": "https://jpsearch.go.jp/term/type/漆工",
+    "ORGimg": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORGimg",
+    "レーザーディスク": "https://jpsearch.go.jp/term/type/レーザーディスク",
+    "CSV": "https://jpsearch.go.jp/term/nctype/CSV",
+    "BM検索": "https://jpsearch.go.jp/term/nctype/OAR_arc#BM検索",
+    "映画": "https://jpsearch.go.jp/term/type/映画",
+    "民族資料": "https://jpsearch.go.jp/term/type/民族資料",
+    "装飾・工芸": "https://jpsearch.go.jp/term/type/装飾・工芸",
+    "個人・団体の文書資料": "https://jpsearch.go.jp/term/type/個人・団体の文書資料",
+    "ORG_IMG": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORG_IMG",
+    "書簡": "https://jpsearch.go.jp/term/type/書簡",
+    "AnimationTVRegularSeries": "https://mediaarts-db.artmuseums.go.jp/data/class#AnimationTVRegularSeries",
+    "刀剣": "https://jpsearch.go.jp/term/type/刀剣",
+    "ORG画像": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORG画像",
+    "MRAH.DB": "https://jpsearch.go.jp/term/nctype/OAR_arc#MRAH.DB",
+    "史跡": "https://jpsearch.go.jp/term/type/史跡",
+    "放送番組": "https://jpsearch.go.jp/term/type/放送番組",
+    "素描": "https://jpsearch.go.jp/term/type/素描",
+    "デザイン": "https://jpsearch.go.jp/term/type/デザイン",
+    "画像要素": "https://jpsearch.go.jp/term/type/画像要素",
+    "Collection": "http://schema.org/Collection",
+    "ORG検索": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORG検索",
+    "漢籍": "https://jpsearch.go.jp/term/type/漢籍",
+    "史跡名勝天然記念物等": "https://jpsearch.go.jp/term/type/史跡名勝天然記念物等",
+    "ORGsearch": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORGsearch",
+    "Report": "http://schema.org/Report",
+    "AnimationMovieSeries": "https://mediaarts-db.artmuseums.go.jp/data/class#AnimationMovieSeries",
+    "ポスター": "https://jpsearch.go.jp/term/type/ポスター",
+    "建造物・建築": "https://jpsearch.go.jp/term/type/建造物・建築",
+    "風俗・祭事": "https://jpsearch.go.jp/term/type/風俗・祭事",
+    "音楽": "https://jpsearch.go.jp/term/type/音楽",
+    "Image": "https://jpsearch.go.jp/term/nctype/Image",
+    "1": "https://jpsearch.go.jp/term/nctype/1",
+    "2": "https://jpsearch.go.jp/term/nctype/2",
+    "PDF": "file:///home/virtuoso/jps-jobrunner/PDF",
+    "水彩": "https://jpsearch.go.jp/term/type/水彩",
+    "zip": "https://jpsearch.go.jp/term/nctype/zip",
+    "3": "https://jpsearch.go.jp/term/nctype/3",
+    "Section": "http://jla.or.jp/vocab/ndcvocab#Section",
+    "AchieveAction": "http://schema.org/AchieveAction",
+    "OskiCat": "https://jpsearch.go.jp/term/nctype/OAR_arc#OskiCat",
+    "FamilyRank": "https://jpsearch.go.jp/term/nctype/FamilyRank",
+    "xml": "https://jpsearch.go.jp/term/nctype/xml",
+    "雑誌・新聞・継続資料": "https://jpsearch.go.jp/term/type/雑誌・新聞・継続資料",
+    "機関・施設情報": "https://jpsearch.go.jp/term/type/機関・施設情報",
+    "ARC近代書籍": "https://jpsearch.go.jp/term/nctype/OAR_arc#ARC近代書籍",
+    "GenusRank": "https://jpsearch.go.jp/term/nctype/GenusRank",
+    "ORG_Img": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORG_Img",
+    "番付DB": "https://jpsearch.go.jp/term/nctype/OAR_arc#番付DB",
+    "古文書": "https://jpsearch.go.jp/term/type/古文書",
+    "書跡・典籍": "https://jpsearch.go.jp/term/type/書跡・典籍",
+    "4": "https://jpsearch.go.jp/term/nctype/4",
+    "古典籍DB.": "https://jpsearch.go.jp/term/nctype/OAR_arc#古典籍DB.",
+    "Class": "http://www.w3.org/2000/01/rdf-schema#Class",
+    "視聴覚資料": "https://jpsearch.go.jp/term/type/視聴覚資料",
+    "国文研(IIIFmf)": "https://jpsearch.go.jp/term/nctype/OAR_arc#国文研(IIIFmf)",
+    "国文研(nijl)": "https://jpsearch.go.jp/term/nctype/OAR_arc#国文研(nijl)",
+    "YoutubePage": "https://jpsearch.go.jp/term/nctype/YoutubePage",
+    "石碑": "https://jpsearch.go.jp/term/type/石碑",
+    "Video": "https://jpsearch.go.jp/term/nctype/OAR_arc#Video",
+    "天然記念物": "https://jpsearch.go.jp/term/type/天然記念物",
+    "ORGdetail": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORGdetail",
+    "Variant": "http://jla.or.jp/vocab/ndcvocab#Variant",
+    "面": "https://jpsearch.go.jp/term/type/面",
+    "ARC近代DB": "https://jpsearch.go.jp/term/nctype/OAR_arc#ARC近代DB",
+    "視覚障害者向け資料": "https://jpsearch.go.jp/term/type/視覚障害者向け資料",
+    "考古資料": "https://jpsearch.go.jp/term/type/考古資料",
+    "稀覯書": "https://jpsearch.go.jp/term/type/稀覯書",
+    "CalendarEra": "https://jpsearch.go.jp/term/type/CalendarEra",
+    "板木閲覧": "https://jpsearch.go.jp/term/nctype/OAR_arc#板木閲覧",
+    "建築・芸術": "https://jpsearch.go.jp/term/type/建築・芸術",
+    "Property": "http://www.w3.org/1999/02/22-rdf-syntax-ns#Property",
+    "古典籍DB": "https://jpsearch.go.jp/term/nctype/OAR_arc#古典籍DB",
+    "金工・武器": "https://jpsearch.go.jp/term/type/金工・武器",
+    "Collection": "http://www.w3.org/2004/02/skos/core#Collection",
+    "詳細検索": "https://jpsearch.go.jp/term/nctype/OAR_arc#詳細検索",
+    "kmz": "https://jpsearch.go.jp/term/nctype/kmz",
+    "5": "https://jpsearch.go.jp/term/nctype/5",
+    "OrderRank": "https://jpsearch.go.jp/term/nctype/OrderRank",
+    "Alt._URL": "https://jpsearch.go.jp/term/nctype/OAR_arc#Alt._URL",
+    "浮世絵DB.": "https://jpsearch.go.jp/term/nctype/OAR_arc#浮世絵DB.",
+    "木工": "https://jpsearch.go.jp/term/type/木工",
+    "Flash画像有": "https://jpsearch.go.jp/term/nctype/OAR_arc#Flash画像有",
+    "DVD・CD": "https://jpsearch.go.jp/term/type/DVD・CD",
+    "ReferencePolicy": "http://purl.org/net/ns/policy#ReferencePolicy",
+    "AboutPage": "http://schema.org/AboutPage",
+    "町並み保存": "https://jpsearch.go.jp/term/type/町並み保存",
+    "Organization": "http://schema.org/Organization",
+    "国会DC": "https://jpsearch.go.jp/term/nctype/OAR_arc#国会DC",
+    "QuadMapFormat": "http://www.openlinksw.com/schemas/virtrdf#QuadMapFormat",
+    "ウェブサイト": "https://jpsearch.go.jp/term/type/ウェブサイト",
+    "3D資料": "https://jpsearch.go.jp/term/type/3D資料",
+    "解説": "https://jpsearch.go.jp/term/nctype/OAR_arc#解説",
+    "Country": "https://jpsearch.go.jp/term/type/Country",
+    "Periodical": "http://schema.org/Periodical",
+    "ビデオテープ": "https://jpsearch.go.jp/term/type/ビデオテープ",
+    "名勝": "https://jpsearch.go.jp/term/type/名勝",
+    "pptx": "https://jpsearch.go.jp/term/nctype/pptx",
+    "宝石": "https://jpsearch.go.jp/term/type/宝石",
+    "Division": "http://jla.or.jp/vocab/ndcvocab#Division",
+    "武器": "https://jpsearch.go.jp/term/type/武器",
+    "array-of-QuadMapFormat": "http://www.openlinksw.com/schemas/virtrdf#array-of-QuadMapFormat",
+    "浮世絵DB": "https://jpsearch.go.jp/term/nctype/OAR_arc#浮世絵DB",
+    "画帖閲覧": "https://jpsearch.go.jp/term/nctype/OAR_arc#画帖閲覧",
+    "epub": "https://jpsearch.go.jp/term/nctype/epub",
+    "JASS演奏": "https://jpsearch.go.jp/term/nctype/OAR_arc#JASS演奏",
+    "HistoricalEra": "https://jpsearch.go.jp/term/type/HistoricalEra",
+    "XLS": "https://jpsearch.go.jp/term/nctype/XLS",
+    "Audio": "https://jpsearch.go.jp/term/nctype/Audio",
+    "IndividualPolicyStatement": "http://purl.org/net/ns/policy#IndividualPolicyStatement",
+    "License": "http://creativecommons.org/ns#License",
+    "6": "https://jpsearch.go.jp/term/nctype/6",
+    "竹工芸": "https://jpsearch.go.jp/term/type/竹工芸",
+    "MOVIE": "https://jpsearch.go.jp/term/nctype/MOVIE",
+    "インスタレーション": "https://jpsearch.go.jp/term/type/インスタレーション",
+    "演博検索": "https://jpsearch.go.jp/term/nctype/OAR_arc#演博検索",
+    "PDF有": "https://jpsearch.go.jp/term/nctype/OAR_arc#PDF有",
+    "拓本": "https://jpsearch.go.jp/term/type/拓本",
+    "ORG詳細": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORG詳細",
+    "会議録": "https://jpsearch.go.jp/term/type/会議録",
+    "屏風": "https://jpsearch.go.jp/term/type/屏風",
+    "SOUND": "https://jpsearch.go.jp/term/nctype/SOUND",
+    "AnimationTVSpecialSeries": "https://mediaarts-db.artmuseums.go.jp/data/class#AnimationTVSpecialSeries",
+    "印仏": "https://jpsearch.go.jp/term/type/印仏",
+    "ClassRank": "https://jpsearch.go.jp/term/nctype/ClassRank",
+    "マイクロ資料": "https://jpsearch.go.jp/term/type/マイクロ資料",
+    "馬具": "https://jpsearch.go.jp/term/type/馬具",
+    "doc": "https://jpsearch.go.jp/term/nctype/doc",
+    "SubOrderRank": "https://jpsearch.go.jp/term/nctype/SubOrderRank",
+    "docx": "https://jpsearch.go.jp/term/nctype/docx",
+    "古典籍Page": "https://jpsearch.go.jp/term/nctype/OAR_arc#古典籍Page",
+    "3DView": "https://jpsearch.go.jp/term/nctype/3DView",
+    "ObjectProperty": "http://www.w3.org/2002/07/owl#ObjectProperty",
+    "オンライン資料": "https://jpsearch.go.jp/term/type/オンライン資料",
+    "Century": "https://jpsearch.go.jp/term/type/Century",
+    "板木DB": "https://jpsearch.go.jp/term/nctype/OAR_arc#板木DB",
+    "番付DB.": "https://jpsearch.go.jp/term/nctype/OAR_arc#番付DB.",
+    "7": "https://jpsearch.go.jp/term/nctype/7",
+    "CreativeWorkSeries": "http://schema.org/CreativeWorkSeries",
+    "asp": "https://jpsearch.go.jp/term/nctype/asp",
+    "楽器": "https://jpsearch.go.jp/term/type/楽器",
+    "画集・画本": "https://jpsearch.go.jp/term/type/画集・画本",
+    "txt": "https://jpsearch.go.jp/term/nctype/txt",
+    "WebPage": "http://schema.org/WebPage",
+    "絵本番付": "https://jpsearch.go.jp/term/nctype/OAR_arc#絵本番付",
+    "RightsStatement": "http://purl.org/dc/terms/RightsStatement",
+    "AnnotationProperty": "http://www.w3.org/2002/07/owl#AnnotationProperty",
+    "地図": "https://jpsearch.go.jp/term/type/地図",
+    "PhylumRank": "https://jpsearch.go.jp/term/nctype/PhylumRank",
+    "SuperOrderRank": "https://jpsearch.go.jp/term/nctype/SuperOrderRank",
+    "Org閲覧": "https://jpsearch.go.jp/term/nctype/OAR_arc#Org閲覧",
+    "Video": "https://jpsearch.go.jp/term/nctype/Video",
+    "Class": "http://www.w3.org/2002/07/owl#Class",
+    "解説頁": "https://jpsearch.go.jp/term/nctype/OAR_arc#解説頁",
+    "翻刻解題": "https://jpsearch.go.jp/term/nctype/OAR_arc#翻刻解題",
+    "SubFamilyRank": "https://jpsearch.go.jp/term/nctype/SubFamilyRank",
+    "8": "https://jpsearch.go.jp/term/nctype/8",
+    "DisambiguationEntity": "https://jpsearch.go.jp/term/type/DisambiguationEntity",
+    "php": "https://jpsearch.go.jp/term/nctype/php",
+    "コレクション": "https://jpsearch.go.jp/term/type/コレクション",
+    "MainClass": "http://jla.or.jp/vocab/ndcvocab#MainClass",
+    "動画資料": "https://jpsearch.go.jp/term/type/動画資料",
+    "完成形1": "https://jpsearch.go.jp/term/nctype/OAR_arc#完成形1",
+    "QuadMapColumn": "http://www.openlinksw.com/schemas/virtrdf#QuadMapColumn",
+    "全体閲覧": "https://jpsearch.go.jp/term/nctype/OAR_arc#全体閲覧",
+    "QuadMapValue": "http://www.openlinksw.com/schemas/virtrdf#QuadMapValue",
+    "array-of-QuadMapColumn": "http://www.openlinksw.com/schemas/virtrdf#array-of-QuadMapColumn",
+    "公文書": "https://jpsearch.go.jp/term/type/公文書",
+    "SuperFamilyRank": "https://jpsearch.go.jp/term/nctype/SuperFamilyRank",
+    "9": "https://jpsearch.go.jp/term/nctype/9",
+    "完成形2": "https://jpsearch.go.jp/term/nctype/OAR_arc#完成形2",
+    "be": "https://jpsearch.go.jp/term/nctype/be",
+    "InfraClassRank": "https://jpsearch.go.jp/term/nctype/InfraClassRank",
+    "Requirement": "http://creativecommons.org/ns#Requirement",
+    "演奏": "https://jpsearch.go.jp/term/type/演奏",
+    "翻刻縦書本文": "https://jpsearch.go.jp/term/nctype/OAR_arc#翻刻縦書本文",
+    "蛍光X線分析": "https://jpsearch.go.jp/term/nctype/OAR_arc#蛍光X線分析",
+    "kml": "https://jpsearch.go.jp/term/nctype/kml",
+    "Datatype": "http://www.w3.org/2000/01/rdf-schema#Datatype",
+    "jtd": "https://jpsearch.go.jp/term/nctype/jtd",
+    "パフォーマンス": "https://jpsearch.go.jp/term/type/パフォーマンス",
+    "同板表紙": "https://jpsearch.go.jp/term/nctype/OAR_arc#同板表紙",
+    "完成形": "https://jpsearch.go.jp/term/nctype/OAR_arc#完成形",
+    "工芸品": "https://jpsearch.go.jp/term/type/工芸品",
+    "翻刻": "https://jpsearch.go.jp/term/nctype/OAR_arc#翻刻",
+    "解説2": "https://jpsearch.go.jp/term/nctype/OAR_arc#解説2",
+    "OntologyProperty": "http://www.w3.org/2002/07/owl#OntologyProperty",
+    "SubClassRank": "https://jpsearch.go.jp/term/nctype/SubClassRank",
+    "同板表示": "https://jpsearch.go.jp/term/nctype/OAR_arc#同板表示",
+    "SymmetricProperty": "http://www.w3.org/2002/07/owl#SymmetricProperty",
+    "Ontology": "http://www.w3.org/2002/07/owl#Ontology",
+    "Permission": "http://creativecommons.org/ns#Permission",
+    "解説1": "https://jpsearch.go.jp/term/nctype/OAR_arc#解説1",
+    "役割番付": "https://jpsearch.go.jp/term/nctype/OAR_arc#役割番付",
+    "QuadMapFText": "http://www.openlinksw.com/schemas/virtrdf#QuadMapFText",
+    "巻子閲覧": "https://jpsearch.go.jp/term/nctype/OAR_arc#巻子閲覧",
+    "PolicyCategory": "http://purl.org/net/ns/policy#PolicyCategory",
+    "巻子画像": "https://jpsearch.go.jp/term/nctype/OAR_arc#巻子画像",
+    "QuadStorage": "http://www.openlinksw.com/schemas/virtrdf#QuadStorage",
+    "完成形4": "https://jpsearch.go.jp/term/nctype/OAR_arc#完成形4",
+    "do": "https://jpsearch.go.jp/term/nctype/do",
+    "巻全体": "https://jpsearch.go.jp/term/nctype/OAR_arc#巻全体",
+    "10": "https://jpsearch.go.jp/term/nctype/10",
+    "DivisionRank": "https://jpsearch.go.jp/term/nctype/DivisionRank",
+    "完成形3": "https://jpsearch.go.jp/term/nctype/OAR_arc#完成形3",
+    "関連資料": "https://jpsearch.go.jp/term/nctype/OAR_arc#関連資料",
+    "array-of-QuadMap": "http://www.openlinksw.com/schemas/virtrdf#array-of-QuadMap",
+    "ORG": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORG",
+    "完成図": "https://jpsearch.go.jp/term/nctype/OAR_arc#完成図",
+    "絵画DB": "https://jpsearch.go.jp/term/nctype/OAR_arc#絵画DB",
+    "TransitiveProperty": "http://www.w3.org/2002/07/owl#TransitiveProperty",
+    "ORGimage": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORGimage",
+    "官公庁刊行物": "https://jpsearch.go.jp/term/type/官公庁刊行物",
+    "QuadMap": "http://www.openlinksw.com/schemas/virtrdf#QuadMap",
+    "掛軸画像": "https://jpsearch.go.jp/term/nctype/OAR_arc#掛軸画像",
+    "KingdomRank": "https://jpsearch.go.jp/term/nctype/KingdomRank",
+    "lzh": "https://jpsearch.go.jp/term/nctype/lzh",
+    "ORG_site": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORG_site",
+    "ORG書誌": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORG書誌",
+    "Org縮小": "https://jpsearch.go.jp/term/nctype/OAR_arc#Org縮小",
+    "array-of-QuadMapATable": "http://www.openlinksw.com/schemas/virtrdf#array-of-QuadMapATable",
+    "DatatypeProperty": "http://www.w3.org/2002/07/owl#DatatypeProperty",
+    "書籍装丁DB": "https://jpsearch.go.jp/term/nctype/OAR_arc#書籍装丁DB",
+    "建物": "https://jpsearch.go.jp/term/type/建物",
+    "接続画像": "https://jpsearch.go.jp/term/nctype/OAR_arc#接続画像",
+    "SubDivisionRank": "https://jpsearch.go.jp/term/nctype/SubDivisionRank",
+    "SubPhylumRank": "https://jpsearch.go.jp/term/nctype/SubPhylumRank",
+    "Prohibition": "http://creativecommons.org/ns#Prohibition",
+    "SuperClassRank": "https://jpsearch.go.jp/term/nctype/SuperClassRank",
+    "絵本和漢誉": "https://jpsearch.go.jp/term/nctype/OAR_arc#絵本和漢誉",
+    "銅板表示": "https://jpsearch.go.jp/term/nctype/OAR_arc#銅板表示",
+    "書籍DB閲覧": "https://jpsearch.go.jp/term/nctype/OAR_arc#書籍DB閲覧",
+    "全文翻刻": "https://jpsearch.go.jp/term/nctype/OAR_arc#全文翻刻",
+    "Wikipedia": "https://jpsearch.go.jp/term/nctype/OAR_arc#Wikipedia",
+    "書籍DB.": "https://jpsearch.go.jp/term/nctype/OAR_arc#書籍DB.",
+    "浮世絵Portal": "https://jpsearch.go.jp/term/nctype/OAR_arc#浮世絵Portal",
+    "絵本番付1": "https://jpsearch.go.jp/term/nctype/OAR_arc#絵本番付1",
+    "北斎漫画3": "https://jpsearch.go.jp/term/nctype/OAR_arc#北斎漫画3",
+    "狂言本挿絵": "https://jpsearch.go.jp/term/nctype/OAR_arc#狂言本挿絵",
+    "板本表示": "https://jpsearch.go.jp/term/nctype/OAR_arc#板本表示",
+    "movie": "https://jpsearch.go.jp/term/nctype/OAR_arc#movie",
+    "array-of-string": "http://www.openlinksw.com/schemas/virtrdf#array-of-string",
+    "掲載頁閲覧": "https://jpsearch.go.jp/term/nctype/OAR_arc#掲載頁閲覧",
+    "11": "https://jpsearch.go.jp/term/nctype/11",
+    "QuadMapATable": "http://www.openlinksw.com/schemas/virtrdf#QuadMapATable",
+    "日経記事": "https://jpsearch.go.jp/term/nctype/OAR_arc#日経記事",
+    "RSK_DB": "https://jpsearch.go.jp/term/nctype/OAR_arc#RSK_DB",
+    "本間美術館": "https://jpsearch.go.jp/term/nctype/OAR_arc#本間美術館",
+    "日本山海名産図会": "https://jpsearch.go.jp/term/nctype/OAR_arc#日本山海名産図会",
+    "UCB_LS": "https://jpsearch.go.jp/term/nctype/OAR_arc#UCB_LS",
+    "zoomify": "https://jpsearch.go.jp/term/nctype/OAR_arc#zoomify",
+    "個別閲覧": "https://jpsearch.go.jp/term/nctype/OAR_arc#個別閲覧",
+    "16": "https://jpsearch.go.jp/term/nctype/16",
+    "jp": "https://jpsearch.go.jp/term/nctype/jp",
+    "解説411-2": "https://jpsearch.go.jp/term/nctype/OAR_arc#解説411-2",
+    "絵本漢楚軍談3": "https://jpsearch.go.jp/term/nctype/OAR_arc#絵本漢楚軍談3",
+    "釈迦御一代記": "https://jpsearch.go.jp/term/nctype/OAR_arc#釈迦御一代記",
+    "参照画像": "https://jpsearch.go.jp/term/nctype/OAR_arc#参照画像",
+    "日文研検索": "https://jpsearch.go.jp/term/nctype/OAR_arc#日文研検索",
+    "頁閲覧へ": "https://jpsearch.go.jp/term/nctype/OAR_arc#頁閲覧へ",
+    "頁毎詳細": "https://jpsearch.go.jp/term/nctype/OAR_arc#頁毎詳細",
+    "国文研書誌": "https://jpsearch.go.jp/term/nctype/OAR_arc#国文研書誌",
+    "紹介": "https://jpsearch.go.jp/term/nctype/OAR_arc#紹介",
+    "_番付DB.": "https://jpsearch.go.jp/term/nctype/OAR_arc#_番付DB.",
+    "DVD": "https://jpsearch.go.jp/term/type/DVD",
+    "List": "http://www.w3.org/1999/02/22-rdf-syntax-ns#List",
+    "ConceptScheme": "http://www.w3.org/2004/02/skos/core#ConceptScheme",
+    "ZIP": "https://jpsearch.go.jp/term/nctype/ZIP",
+    "国土地理院本": "https://jpsearch.go.jp/term/nctype/OAR_arc#国土地理院本",
+    "Z0188-032(03)": "https://jpsearch.go.jp/term/nctype/OAR_arc#Z0188-032(03)",
+    "ORG検索Site": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORG検索Site",
+    "BM解説": "https://jpsearch.go.jp/term/nctype/OAR_arc#BM解説",
+    "新画像": "https://jpsearch.go.jp/term/nctype/OAR_arc#新画像",
+    "同伴表紙": "https://jpsearch.go.jp/term/nctype/OAR_arc#同伴表紙",
+    "漫画十二NMS": "https://jpsearch.go.jp/term/nctype/OAR_arc#漫画十二NMS",
+    "稿本": "https://jpsearch.go.jp/term/nctype/OAR_arc#稿本",
+    "奈文研": "https://jpsearch.go.jp/term/nctype/OAR_arc#奈文研",
+    "FunctionalProperty": "http://www.w3.org/2002/07/owl#FunctionalProperty",
+    "辻番付1": "https://jpsearch.go.jp/term/nctype/OAR_arc#辻番付1",
+    "Related": "https://jpsearch.go.jp/term/nctype/OAR_arc#Related",
+    "図録解説": "https://jpsearch.go.jp/term/nctype/OAR_arc#図録解説",
+    "詳細解説": "https://jpsearch.go.jp/term/nctype/OAR_arc#詳細解説",
+    "考証": "https://jpsearch.go.jp/term/nctype/OAR_arc#考証",
+    "写真DB": "https://jpsearch.go.jp/term/nctype/OAR_arc#写真DB",
+    "参考資料": "https://jpsearch.go.jp/term/nctype/OAR_arc#参考資料",
+    "漫画十二多色": "https://jpsearch.go.jp/term/nctype/OAR_arc#漫画十二多色",
+    "部首一覧": "https://jpsearch.go.jp/term/nctype/OAR_arc#部首一覧",
+    "通俗漢楚軍談1": "https://jpsearch.go.jp/term/nctype/OAR_arc#通俗漢楚軍談1",
+    "参考": "https://jpsearch.go.jp/term/nctype/OAR_arc#参考",
+    "書籍DB": "https://jpsearch.go.jp/term/nctype/OAR_arc#書籍DB",
+    "MFA_Boston_": "https://jpsearch.go.jp/term/nctype/OAR_arc#MFA_Boston_",
+    "ARC近代": "https://jpsearch.go.jp/term/nctype/OAR_arc#ARC近代",
+    "影印複製": "https://jpsearch.go.jp/term/nctype/OAR_arc#影印複製",
+    "作成中": "https://jpsearch.go.jp/term/nctype/OAR_arc#作成中",
+    "版画DB.": "https://jpsearch.go.jp/term/nctype/OAR_arc#版画DB.",
+    "口絵": "https://jpsearch.go.jp/term/nctype/OAR_arc#口絵",
+    "明治初年後摺": "https://jpsearch.go.jp/term/nctype/OAR_arc#明治初年後摺",
+    "15": "https://jpsearch.go.jp/term/nctype/15",
+    "xlsm": "https://jpsearch.go.jp/term/nctype/xlsm",
+    "解説3": "https://jpsearch.go.jp/term/nctype/OAR_arc#解説3",
+    "Q3304751": "http://www.wikidata.org/entity/Q3304751",
+    "Slide2": "https://jpsearch.go.jp/term/nctype/OAR_arc#Slide2",
+    "全体図": "https://jpsearch.go.jp/term/nctype/OAR_arc#全体図",
+    "北斎漫画": "https://jpsearch.go.jp/term/nctype/OAR_arc#北斎漫画",
+    "論文": "https://jpsearch.go.jp/term/nctype/OAR_arc#論文",
+    "影印翻刻": "https://jpsearch.go.jp/term/nctype/OAR_arc#影印翻刻",
+    "刊行本": "https://jpsearch.go.jp/term/nctype/OAR_arc#刊行本",
+    "図録閲覧": "https://jpsearch.go.jp/term/nctype/OAR_arc#図録閲覧",
+    "17": "https://jpsearch.go.jp/term/nctype/17",
+    "北斎漫画1": "https://jpsearch.go.jp/term/nctype/OAR_arc#北斎漫画1",
+    "演博": "https://jpsearch.go.jp/term/nctype/OAR_arc#演博",
+    "DOI": "https://jpsearch.go.jp/term/nctype/OAR_arc#DOI",
+    "安永7.11絵本番付": "https://jpsearch.go.jp/term/nctype/OAR_arc#安永7.11絵本番付",
+    "各図詳細情報": "https://jpsearch.go.jp/term/nctype/OAR_arc#各図詳細情報",
+    "写本表示": "https://jpsearch.go.jp/term/nctype/OAR_arc#写本表示",
+    "番付検索": "https://jpsearch.go.jp/term/nctype/OAR_arc#番付検索",
+    "NDL書誌": "https://jpsearch.go.jp/term/nctype/OAR_arc#NDL書誌",
+    "全巻翻刻": "https://jpsearch.go.jp/term/nctype/OAR_arc#全巻翻刻",
+    "国文研": "https://jpsearch.go.jp/term/nctype/OAR_arc#国文研",
+    "関連冊子": "https://jpsearch.go.jp/term/nctype/OAR_arc#関連冊子",
+    "北斎漫画３": "https://jpsearch.go.jp/term/nctype/OAR_arc#北斎漫画３",
+    "辻番付2": "https://jpsearch.go.jp/term/nctype/OAR_arc#辻番付2",
+    "辻番付": "https://jpsearch.go.jp/term/nctype/OAR_arc#辻番付",
+    "掲載書籍": "https://jpsearch.go.jp/term/nctype/OAR_arc#掲載書籍",
+    "図録頁": "https://jpsearch.go.jp/term/nctype/OAR_arc#図録頁",
+    "翻刻本文": "https://jpsearch.go.jp/term/nctype/OAR_arc#翻刻本文",
+    "12": "https://jpsearch.go.jp/term/nctype/12",
+    "銅板表紙": "https://jpsearch.go.jp/term/nctype/OAR_arc#銅板表紙",
+    "スライド": "https://jpsearch.go.jp/term/type/スライド",
+    "複製閲覧": "https://jpsearch.go.jp/term/nctype/OAR_arc#複製閲覧",
+    "http://www.arc.ritsumei.ac.jp/": "https://jpsearch.go.jp/term/nctype/OAR_arc#http://www.arc.ritsumei.ac.jp/",
+    "名所絵": "http://ja.dbpedia.org/resource/名所絵",
+    "修復前画像": "https://jpsearch.go.jp/term/nctype/OAR_arc#修復前画像",
+    "絵本番付2": "https://jpsearch.go.jp/term/nctype/OAR_arc#絵本番付2",
+    "訓蒙図彙": "https://jpsearch.go.jp/term/nctype/OAR_arc#訓蒙図彙",
+    "貼込頁": "https://jpsearch.go.jp/term/nctype/OAR_arc#貼込頁",
+    "絵本番付①": "https://jpsearch.go.jp/term/nctype/OAR_arc#絵本番付①",
+    "校合本": "https://jpsearch.go.jp/term/nctype/OAR_arc#校合本",
+    "浮世DB.": "https://jpsearch.go.jp/term/nctype/OAR_arc#浮世DB.",
+    "国会本": "https://jpsearch.go.jp/term/nctype/OAR_arc#国会本",
+    "JPsearch": "https://jpsearch.go.jp/term/nctype/OAR_arc#JPsearch",
+    "ORG_Search": "https://jpsearch.go.jp/term/nctype/OAR_arc#ORG_Search",
+    "関連図": "https://jpsearch.go.jp/term/nctype/OAR_arc#関連図",
+    "参考画像": "https://jpsearch.go.jp/term/nctype/OAR_arc#参考画像",
+    "未指定": "https://jpsearch.go.jp/term/type/未指定",
+    "旧ORG閲覧": "https://jpsearch.go.jp/term/nctype/OAR_arc#旧ORG閲覧",
+    "活字本": "https://jpsearch.go.jp/term/nctype/OAR_arc#活字本",
+    "解題翻刻": "https://jpsearch.go.jp/term/nctype/OAR_arc#解題翻刻",
+    "ARC浮世絵": "https://jpsearch.go.jp/term/nctype/OAR_arc#ARC浮世絵",
+    "13": "https://jpsearch.go.jp/term/nctype/13",
+    "ARC画像": "https://jpsearch.go.jp/term/nctype/OAR_arc#ARC画像",
+    "PDF(J)": "https://jpsearch.go.jp/term/nctype/OAR_arc#PDF(J)",
+    "解説411": "https://jpsearch.go.jp/term/nctype/OAR_arc#解説411",
+    "建築物": "https://jpsearch.go.jp/term/type/建築物",
+    "Service": "http://www.w3.org/ns/sparql-service-description#Service",
+    "博士論文": "https://jpsearch.go.jp/term/type/博士論文",
+    "AgentClass": "http://purl.org/dc/terms/AgentClass",
+    "広報リリース": "https://jpsearch.go.jp/term/nctype/OAR_arc#広報リリース",
+    "原品": "https://jpsearch.go.jp/term/nctype/OAR_arc#原品",
+    "浮世絵ポータル": "https://jpsearch.go.jp/term/nctype/OAR_arc#浮世絵ポータル",
+    "十二編色々な": "https://jpsearch.go.jp/term/nctype/OAR_arc#十二編色々な",
+    "立命館図書館": "https://jpsearch.go.jp/term/nctype/OAR_arc#立命館図書館",
+    "番付閲覧": "https://jpsearch.go.jp/term/nctype/OAR_arc#番付閲覧",
+    "pl": "https://jpsearch.go.jp/term/nctype/pl",
+    "japan": "https://jpsearch.go.jp/term/nctype/japan",
+    "縮緬本": "https://jpsearch.go.jp/term/nctype/OAR_arc#縮緬本",
+    "14": "https://jpsearch.go.jp/term/nctype/14",
+    "PDF(E)": "https://jpsearch.go.jp/term/nctype/OAR_arc#PDF(E)",
+    "Legislation": "http://schema.org/Legislation",
+}
+
 
 def ndc_codes_to_labels(codes: list) -> list:
     """コードリスト (例: ['76', '77']) を表示ラベル表記のリスト (例: ['76:音楽・舞踊', ...]) に変換"""
@@ -262,6 +719,14 @@ def chunk_regex_str(regex_str: str, chunk_size: int = 12) -> list[str]:
     return chunked
 
 
+def regex_to_bif_contains(regex_str: str) -> str:
+    """パイプ区切りの正規表現文字列を、Virtuosoの bif:contains 用のクエリ文字列に変換します (例: 'A' OR 'B')"""
+    if not regex_str:
+        return ""
+    kws = [k.strip().replace("'", "") for k in regex_str.split("|") if k.strip()]
+    return " OR ".join([f"'{k}'" for k in kws])
+
+
 def _sanitize_and_sync_result(result: dict) -> dict:
     """keywords から title_regex および desc_regex を自動連動・確認・補正（包含関係の最適化含む）"""
     if "keywords" in result and isinstance(result["keywords"], list):
@@ -323,11 +788,18 @@ def generate_sparql_queries(expansion_result: dict) -> list:
     raw_title_regex = expansion_result.get("title_regex", "")
     raw_desc_regex = expansion_result.get("desc_regex", raw_title_regex)
     
+    rdf_types = expansion_result.get("rdf_types", [])
+    type_filter_str = ""
+    if rdf_types:
+        uris = " ".join([f"<{uri}>" for uri in rdf_types])
+        type_filter_str = f"FILTER NOT EXISTS {{\n                    VALUES ?excluded_type {{ {uris} }}\n                    ?s rdf:type ?excluded_type .\n                  }}"
+    
     queries = []
     
     # 1. タイトル・名称 (rdfs:label / schema:name) 検索
     title_chunks = chunk_regex_str(raw_title_regex, chunk_size=12)
     for c_idx, t_pattern in enumerate(title_chunks):
+        bif_str = regex_to_bif_contains(t_pattern)
         p_name = f"1-{c_idx+1}. タイトル・名称 網羅検索 (Part {c_idx+1})" if len(title_chunks) > 1 else "1. タイトル・名称 (label / name) 網羅検索"
         def make_q_title(pat):
             def q_title(lim, offset=0):
@@ -336,22 +808,24 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                 PREFIX schema: <http://schema.org/>
                 
                 SELECT DISTINCT ?s WHERE {{
+                  {type_filter_str}
                   {{
                     ?s rdfs:label ?title .
-                    FILTER (REGEX(?title, "{pat}", "i"))
+                    ?title bif:contains "{pat}" .
                   }} UNION {{
                     ?s schema:name ?title .
-                    FILTER (REGEX(?title, "{pat}", "i"))
+                    ?title bif:contains "{pat}" .
                   }}
                 }}
                 OFFSET {offset}
                 LIMIT {lim}
                 """
             return q_title
-        queries.append((p_name, make_q_title(t_pattern)))
+        queries.append((p_name, make_q_title(bif_str)))
 
     # 2-A. 主題エンティティ (schema:about) 網羅検索 (超高速インデックス仕様: 0.39秒)
     for c_idx, t_pattern in enumerate(title_chunks):
+        bif_str = regex_to_bif_contains(t_pattern)
         p_name = f"2A-{c_idx+1}. 主題エンティティ (schema:about) 網羅検索 (Part {c_idx+1})" if len(title_chunks) > 1 else "2A. 主題エンティティ (schema:about) 網羅検索"
         def make_q_about(pat):
             def q_about(lim, offset=0):
@@ -360,18 +834,25 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
                 
                 SELECT DISTINCT ?s WHERE {{
+                  {type_filter_str}
                   ?s schema:about ?about .
-                  ?about (rdfs:label|schema:name) ?aboutLabel .
-                  FILTER (REGEX(?aboutLabel, "{pat}", "i"))
+                  {{
+                    ?about rdfs:label ?aboutLabel .
+                    ?aboutLabel bif:contains "{pat}" .
+                  }} UNION {{
+                    ?about schema:name ?aboutLabel .
+                    ?aboutLabel bif:contains "{pat}" .
+                  }}
                 }}
                 OFFSET {offset}
                 LIMIT {lim}
                 """
             return q_about
-        queries.append((p_name, make_q_about(t_pattern)))
+        queries.append((p_name, make_q_about(bif_str)))
 
     # 2-B. 主題・件名・キーワード (schema:keywords / dct:subject) 検索
     for c_idx, t_pattern in enumerate(title_chunks):
+        bif_str = regex_to_bif_contains(t_pattern)
         p_name = f"2B-{c_idx+1}. キーワード・件名 (keywords / subject) 網羅検索 (Part {c_idx+1})" if len(title_chunks) > 1 else "2B. キーワード・件名 (keywords / subject) 網羅検索"
         def make_q_subject(pat):
             def q_subject(lim, offset=0):
@@ -380,19 +861,20 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                 PREFIX dct: <http://purl.org/dc/terms/>
                 
                 SELECT DISTINCT ?s WHERE {{
+                  {type_filter_str}
                   {{
                     ?s schema:keywords ?kw .
-                    FILTER (REGEX(STR(?kw), "{pat}", "i"))
+                    ?kw bif:contains "{pat}" .
                   }} UNION {{
                     ?s dct:subject ?subj .
-                    FILTER (REGEX(STR(?subj), "{pat}", "i"))
+                    ?subj bif:contains "{pat}" .
                   }}
                 }}
                 OFFSET {offset}
                 LIMIT {lim}
                 """
             return q_subject
-        queries.append((p_name, make_q_subject(t_pattern)))
+        queries.append((p_name, make_q_subject(bif_str)))
 
     # 3. 説明文・内容記述 (schema:description) 検索
     # 長文テキスト属性に対する重い全件走査(504)を防止するため、2文字以上の具体的キーワードに絞込み、最大5パートに最適化
@@ -401,6 +883,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
     desc_chunks = chunk_regex_str(safe_desc_regex, chunk_size=8)[:5]
 
     for c_idx, d_pattern in enumerate(desc_chunks):
+        bif_str = regex_to_bif_contains(d_pattern)
         p_name = f"3-{c_idx+1}. 説明文 網羅検索 (Part {c_idx+1})" if len(desc_chunks) > 1 else "3. 説明文 (description) 網羅検索"
         def make_q_desc(pat):
             def q_desc(lim, offset=0):
@@ -409,15 +892,16 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
                 
                 SELECT DISTINCT ?s WHERE {{
+                  {type_filter_str}
                   ?s rdfs:label ?label .
                   ?s schema:description ?desc .
-                  FILTER (REGEX(?desc, "{pat}", "i"))
+                  ?desc bif:contains "{pat}" .
                 }}
                 OFFSET {offset}
                 LIMIT {lim}
                 """
             return q_desc
-        queries.append((p_name, make_q_desc(d_pattern)))
+        queries.append((p_name, make_q_desc(bif_str)))
 
     # 4. NDC 二次区分分類 (schema:genre) 網羅検索
     ndc_codes = expansion_result.get("ndc_codes", [])
@@ -442,6 +926,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                 PREFIX schema: <http://schema.org/>
                 
                 SELECT DISTINCT ?s WHERE {{
+                  {type_filter_str}
                   ?s schema:genre ?genre .
                   FILTER (
                     {filter_str}
