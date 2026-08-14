@@ -57,42 +57,57 @@ def shorten_uri(uri: str) -> str:
     return uri
 
 
-def fetch_uris_with_query_func(query_func, pattern_name="Custom Query", limit=DEFAULT_LIMIT, progress_callback=None, timeout_sec=120) -> tuple:
+def fetch_uris_with_query_func(
+    query_func, 
+    pattern_name="Custom Query", 
+    limit=500, 
+    unlimited: bool = True, 
+    progress_callback=None, 
+    timeout_sec=45, 
+    max_query_retries=3
+) -> tuple:
     """
-    クエリ生成関数(limit)を呼び出し、Japan SearchからURIを自動分割・補填取得します。
-    504エラー等でLIMITが縮小された場合でも、目標件数 (limit) に達するまで小分けリクエストを繰り返して全件を完走取得します。
+    クエリ生成関数(limit, offset)を呼び出し、Japan SearchからURIを自動ページネーション取得します。
+    unlimited=True の場合、該当する全データが尽きるまで何千〜何万件でも全件自動収集します。
+    504エラー等が発生した場合は自動的にLIMITを縮小して自律回復します。
     """
     collected_uris = []
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-    max_query_retries = 3
     session = get_robust_session()
-    current_limit = limit
-    target_limit = limit
+    base_batch_size = limit if limit and limit > 0 else 500
+    current_limit = base_batch_size
+    target_limit = limit if (not unlimited and limit and limit > 0) else None
 
-    print(f"\n--- [開始] {pattern_name} (目標件数: {target_limit}件) ---")
+    target_str = f"目標: {target_limit}件" if target_limit else "全件網羅 (上限なし)"
+    print(f"\n--- [開始] {pattern_name} ({target_str}) ---")
 
     is_finished = False
-    while len(collected_uris) < target_limit and not is_finished:
-        needed_count = target_limit - len(collected_uris)
-        fetch_size = min(current_limit, needed_count)
+    while not is_finished:
+        if target_limit and len(collected_uris) >= target_limit:
+            break
+
+        if target_limit:
+            needed_count = target_limit - len(collected_uris)
+            fetch_size = min(current_limit, needed_count)
+        else:
+            fetch_size = current_limit
+
         current_offset = len(collected_uris)
-        query = query_func(fetch_size, current_offset)
-        data = {'query': query, 'format': 'json'}
         
         batch_success = False
         for attempt in range(1, max_query_retries + 1):
             try:
-                fetch_size = min(current_limit, needed_count)
                 query = query_func(fetch_size, current_offset)
                 data = {'query': query, 'format': 'json'}
                 
-                print(f"[{pattern_name}] Sub-fetch (limit={fetch_size}, progress={len(collected_uris)}/{target_limit}) ...", end=" ")
+                prog_str = f"{len(collected_uris)}/{target_limit}" if target_limit else f"{len(collected_uris)}件〜"
+                print(f"[{pattern_name}] Sub-fetch (limit={fetch_size}, progress={prog_str}) ...", end=" ")
                 start_time = time.time()
 
                 response = session.post(ENDPOINT, data=data, headers=headers, timeout=timeout_sec)
 
                 if response.status_code in [504, 502, 503, 500]:
-                    current_limit = max(10, current_limit // 2)
+                    current_limit = max(20, current_limit // 2)
                     print(f"\n[Server {response.status_code} 負荷警告] 単回LIMITを {current_limit} 件に縮小して即時小分け再リトライします...")
                     time.sleep(2)
                     continue
@@ -122,19 +137,26 @@ def fetch_uris_with_query_func(query_func, pattern_name="Custom Query", limit=DE
                 collected_uris.extend(new_uris)
 
                 elapsed = time.time() - start_time
-                print(f"Got {len(new_uris)} new items. (Total: {len(collected_uris)}/{target_limit}) [{elapsed:.2f}s]")
+                total_str = f"{len(collected_uris)}/{target_limit}" if target_limit else f"累計: {len(collected_uris)}件"
+                print(f"Got {len(new_uris)} new items. ({total_str}) [{elapsed:.2f}s]")
 
                 if progress_callback:
                     progress_callback(pattern_name, len(collected_uris))
+
+                # 成功したら LIMIT を徐々に元のサイズに戻す
+                if current_limit < base_batch_size:
+                    current_limit = min(base_batch_size, current_limit * 2)
+
+                # 要求したfetch_sizeより返ってきた件数が少なければ、それが最後のページ
+                if len(current_uris) < fetch_size:
+                    print(f"[{pattern_name}] 最終バッチ到達（全データ取得完了）。")
+                    is_finished = True
 
                 batch_success = True
                 break
 
             except requests.exceptions.ReadTimeout:
                 current_limit = max(20, current_limit // 2)
-                fetch_size = min(current_limit, needed_count)
-                query = query_func(fetch_size, current_offset)
-                data = {'query': query, 'format': 'json'}
                 print(f"\n[応答タイムアウト 試行 {attempt}/{max_query_retries}] LIMITを {current_limit} 件に縮小して小分け再読み込みします。")
                 time.sleep(3)
             except Exception as e:
@@ -145,16 +167,17 @@ def fetch_uris_with_query_func(query_func, pattern_name="Custom Query", limit=DE
             print(f"[{pattern_name}] サブバッチ処理の応答遅延により一時終了。")
             break
 
-        time.sleep(1.0)
+        time.sleep(0.5)
 
     is_success = len(collected_uris) > 0
-    time.sleep(2.0)  # 各 Part (クエリパターン) 完了ごとのウェイト
+    time.sleep(1.0)  # 各 Part (クエリパターン) 完了ごとのウェイト
     return collected_uris, is_success
 
 
-def fetch_deep_graph(uris: list, session: requests.Session = None) -> list:
+def fetch_deep_graph(uris: list, session: requests.Session = None, timeout_sec: int = 45) -> list:
     """
     CONSTRUCTクエリで親・子・孫ノードを一括取得 (BuildMetadata.py 準拠)
+    504などのタイムアウトが発生した場合は、自動的にチャンクを半分に分割して再帰取得します。
     """
     if not uris:
         return []
@@ -195,24 +218,39 @@ def fetch_deep_graph(uris: list, session: requests.Session = None) -> list:
     data = {'query': query, 'format': 'json'}
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
 
-    for attempt in range(1, MAX_RETRIES + 1):
+    # 1〜2回通常試行し、ダメなら即座に小分け分割へ移行
+    for attempt in range(1, 3):
         try:
-            response = session.post(ENDPOINT, data=data, headers=headers, timeout=120)
+            response = session.post(ENDPOINT, data=data, headers=headers, timeout=timeout_sec)
             if response.status_code == 200:
                 return response.json().get('results', {}).get('bindings', [])
-            else:
-                print(f"[Warning fetch_deep_graph] Attempt {attempt}/{MAX_RETRIES} Status Code: {response.status_code}")
+            elif response.status_code in [504, 502, 503]:
+                print(f"[504負荷検知] 全 {len(uris)} 件のグラフ取得で遅延発生。小分け分割へ移行します...")
+                break
         except Exception as e:
-            print(f"[Error in fetch_deep_graph attempt {attempt}/{MAX_RETRIES}]: {e}")
-        time.sleep(2 * attempt)
+            print(f"[通信遅延検知]: {e}")
+            break
+        time.sleep(1)
 
-    # 失敗時、半分のチャンクに小分けにしてフォールバック再取得
-    if len(uris) > 5:
-        print(f"-> チャンク分割フォールバック再試行 (全 {len(uris)} 件を半分ずつ小分け取得)")
+    # 失敗時、半分のチャンクに小分けにして再帰的にフォールバック取得
+    if len(uris) > 1:
         mid = len(uris) // 2
-        res1 = fetch_deep_graph(uris[:mid], session)
-        res2 = fetch_deep_graph(uris[mid:], session)
+        print(f"-> チャンク分割小分け取得 ({len(uris)} 件 ➔ {mid} 件 + {len(uris) - mid} 件)")
+        res1 = fetch_deep_graph(uris[:mid], session, timeout_sec=timeout_sec)
+        res2 = fetch_deep_graph(uris[mid:], session, timeout_sec=timeout_sec)
         return res1 + res2
+
+    # 1件単体でも失敗した場合の簡易フォールバック（直下トリプルのみ取得）
+    try:
+        simple_query = f"""
+        CONSTRUCT {{ <{uris[0]}> ?p ?o . }}
+        WHERE {{ <{uris[0]}> ?p ?o . }}
+        """
+        res = session.post(ENDPOINT, data={'query': simple_query, 'format': 'json'}, headers=headers, timeout=20)
+        if res.status_code == 200:
+            return res.json().get('results', {}).get('bindings', [])
+    except Exception:
+        pass
 
     return []
 
@@ -298,7 +336,7 @@ def build_metadata_for_uris(uri_list: list, output_jsonl_path: str, batch_size: 
             if progress_callback:
                 progress_callback(processed_count, total_count)
 
-            time.sleep(5)
+            time.sleep(1)
 
     return processed_count
 

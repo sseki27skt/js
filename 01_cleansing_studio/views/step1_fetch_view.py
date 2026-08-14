@@ -274,7 +274,19 @@ def render_step1_view(paths: dict):
     st.subheader(f"3. 実行対象SPARQLクエリパターン ({len(queries)} パターン)")
     st.caption("定義されたキーワード、NDC分類コード、正規表現パターンに基づき生成されたSPARQLクエリ:")
 
-    limit_val = st.number_input("1バッチあたりの取得上限 (LIMIT):", min_value=50, max_value=1000, value=200, step=50)
+    c_lim1, c_lim2 = st.columns([1, 1])
+    with c_lim1:
+        is_unlimited = st.checkbox(
+            "🌐 全件網羅収集モード (上限なし・尽きるまで全件取得)", 
+            value=True, 
+            help="各クエリパターンに合致するすべての文化資源メタデータを、件数制限なく最後まで収集します（推奨・Recall 100%）。"
+        )
+    with c_lim2:
+        if is_unlimited:
+            batch_size_val = st.number_input("単回リクエスト件数 (LIMIT):", min_value=100, max_value=1000, value=500, step=100, help="1回のリクエストで取得する件数。通常500で最速です。")
+            limit_val = batch_size_val
+        else:
+            limit_val = st.number_input("1パターンあたりの取得上限件数:", min_value=50, max_value=10000, value=200, step=50)
 
     if st.button("Japan Searchからの関連メタデータ一括取得および構造化実行", type="primary", use_container_width=True):
         status_box = st.empty()
@@ -286,8 +298,22 @@ def render_step1_view(paths: dict):
         # Phase 1: 一斉クエリ取得
         total_steps = len(queries)
         for idx, (name, func) in enumerate(queries):
-            status_box.markdown(f"全 {len(queries)} 件中 {idx+1} 件目: `[{name}]` のメタデータを取得中...")
-            uris, success = fetch_uris_with_query_func(func, pattern_name=name, limit=limit_val, timeout_sec=45)
+            def on_phase1_progress(p_name, current_pattern_count):
+                status_box.markdown(
+                    f"全 {len(queries)} パターン中 **{idx+1} パターン目**: `[{name}]` を収集中...  \n"
+                    f"・このパターンの取得数: **{current_pattern_count:,} 件**  \n"
+                    f"・現在までの全体累計 (重複除外前概算): **{len(all_collected_uris) + current_pattern_count:,} 件**"
+                )
+
+            on_phase1_progress(name, 0)
+            uris, success = fetch_uris_with_query_func(
+                func, 
+                pattern_name=name, 
+                limit=limit_val, 
+                unlimited=is_unlimited, 
+                progress_callback=on_phase1_progress, 
+                timeout_sec=45
+            )
             all_collected_uris.update(uris)
             if not success:
                 failed_queries.append((name, func))
@@ -295,17 +321,39 @@ def render_step1_view(paths: dict):
 
         # Phase 2: 応答遅延パターンの自動再取得フェーズ
         if failed_queries:
-            status_box.warning(f"初回応答遅延が発生した {len(failed_queries)} 件のクエリパターンに対して、5秒待機後に自動再読み込みを実行します...")
-            time.sleep(5)
+            status_box.warning(f"初回応答遅延が発生した {len(failed_queries)} 件のクエリパターンに対して、3秒待機後に自動再読み込みを実行します...")
+            time.sleep(3)
             for idx, (name, func) in enumerate(failed_queries):
-                status_box.markdown(f"自動再取得フェーズ [{idx+1}/{len(failed_queries)}]: `[{name}]` を再読み込み中...")
-                uris, success = fetch_uris_with_query_func(func, pattern_name=f"{name} (再試行)", limit=limit_val, timeout_sec=60)
+                def on_phase2_progress(p_name, current_pattern_count):
+                    status_box.markdown(
+                        f"自動再取得フェーズ [{idx+1}/{len(failed_queries)}]: `[{name}]` を再読み込み中...  \n"
+                        f"・現在までの全体累計: **{len(all_collected_uris) + current_pattern_count:,} 件**"
+                    )
+
+                on_phase2_progress(name, 0)
+                uris, success = fetch_uris_with_query_func(
+                    func, 
+                    pattern_name=f"{name} (再試行)", 
+                    limit=limit_val, 
+                    unlimited=is_unlimited, 
+                    progress_callback=on_phase2_progress, 
+                    timeout_sec=60
+                )
                 all_collected_uris.update(uris)
                 if success:
                     st.info(f"再取得成功: `[{name}]` から追加データを正常に取得しました。")
 
-        st.success(f"リソースURIの収集完了: 重複のない {len(all_collected_uris):,} 件の対象URIを取得しました。")
+        st.success(f"リソースURIの収集完了: 重複のない **{len(all_collected_uris):,} 件** の対象URIを取得しました。")
         
-        with st.spinner("詳細書誌メタデータ（グラフ構造含む）の構築処理を実行中..."):
-            count = build_metadata_for_uris(list(all_collected_uris), paths['PATH_RAW_METADATA'], batch_size=50)
+        def on_build_progress(done_count, total_count):
+            status_box.markdown(f"詳細書誌メタデータ構築中: **{done_count:,} / {total_count:,} 件** 完了 ({done_count/total_count*100:.1f}%)")
+            progress_bar.progress(done_count / total_count)
+
+        with st.spinner(f"詳細書誌メタデータ（全 {len(all_collected_uris):,} 件）の深層グラフ構築処理を実行中..."):
+            count = build_metadata_for_uris(
+                list(all_collected_uris), 
+                paths['PATH_RAW_METADATA'], 
+                batch_size=20, 
+                progress_callback=on_build_progress
+            )
             st.success(f"メタデータ構築完了: 全 {count:,} 件の構造化データを `{paths['PATH_RAW_METADATA']}` に保存しました。")
