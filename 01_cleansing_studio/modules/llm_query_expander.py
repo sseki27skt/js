@@ -806,7 +806,17 @@ def generate_sparql_queries(expansion_result: dict) -> list:
     queries = []
     
     # 1. タイトル・名称 (rdfs:label / schema:name) 検索
-    title_chunks = chunk_regex_str(raw_title_regex, chunk_size=12)
+    parsed_title_kws = [w.strip() for w in re.split(r"\|", raw_title_regex) if w.strip()]
+    multi_char_kws = [w for w in parsed_title_kws if len(w) >= 2]
+    single_char_kws = [w for w in parsed_title_kws if len(w) == 1]
+    
+    multi_regex = "|".join(multi_char_kws) if multi_char_kws else ""
+    title_chunks = chunk_regex_str(multi_regex, chunk_size=12) if multi_regex else []
+    
+    # 1文字キーワードは、500エラー(メモリパンク)を避けるため全て1つずつの独立したクエリ（チャンク）にする
+    for kw in single_char_kws:
+        title_chunks.append(kw)
+        
     for c_idx, t_pattern in enumerate(title_chunks):
         bif_str = regex_to_bif_contains(t_pattern)
         p_name = f"1-{c_idx+1}. タイトル・名称 網羅検索 (Part {c_idx+1})" if len(title_chunks) > 1 else "1. タイトル・名称 (label / name) 網羅検索"
@@ -945,6 +955,32 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                 LIMIT {lim}
                 """
             queries.append(("4. NDC分類 (schema:genre) 網羅検索", q_ndc))
+
+    # 5. ホワイトリスト (強制全件取得) 検索
+    whitelist_rdf_types = expansion_result.get("whitelist_rdf_types", [])
+    for uri in whitelist_rdf_types:
+        uri_str = str(uri).strip()
+        if not uri_str:
+            continue
+        # タイプ名を見つける（URLの最後など）
+        type_name = uri_str.split("/")[-1]
+        if "#" in type_name:
+            type_name = type_name.split("#")[-1]
+            
+        p_name = f"5. ホワイトリスト強制全件検索 ({type_name})"
+        def make_q_whitelist(tgt_uri):
+            def q_whitelist(lim, offset=0):
+                return f"""
+                PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+                
+                SELECT DISTINCT ?s WHERE {{
+                  ?s rdf:type <{tgt_uri}> .
+                }}
+                OFFSET {offset}
+                LIMIT {lim}
+                """
+            return q_whitelist
+        queries.append((p_name, make_q_whitelist(uri_str)))
 
     return queries
 

@@ -52,6 +52,7 @@ def _on_apply_manual_params():
     desc_regex_input = st.session_state.get("input_desc_regex_manual", "")
     domain_def_input = st.session_state.get("input_domain_def_manual", "")
     selected_rdf_types = st.session_state.get("input_rdf_types_multiselect", [])
+    selected_whitelist_rdf_types = st.session_state.get("input_rdf_types_whitelist_multiselect", [])
 
     parsed_kws = [w.strip() for w in re.split(r"[\n,・/／]+", kw_input_text) if w.strip()]
     
@@ -76,6 +77,7 @@ def _on_apply_manual_params():
     exp["desc_regex"] = final_desc_regex
     exp["domain_definition"] = domain_def_input.strip()
     exp["rdf_types"] = [TYPE_MASTER[k] for k in selected_rdf_types if k in TYPE_MASTER]
+    exp["whitelist_rdf_types"] = [TYPE_MASTER[k] for k in selected_whitelist_rdf_types if k in TYPE_MASTER]
     st.session_state["expansion_res"] = exp
     st.session_state["msg_success"] = "設定パラメータの保存・適用が完了しました。"
 
@@ -107,6 +109,7 @@ def render_step1_view(paths: dict):
             "title_regex": init_regex,
             "desc_regex": init_regex,
             "rdf_types": [],
+            "whitelist_rdf_types": [],
             "is_fallback": False,
             "fallback_reason": None
         }
@@ -205,6 +208,10 @@ def render_step1_view(paths: dict):
         cur_types = exp.get("rdf_types", [])
         inv_type_map = {v: k for k, v in TYPE_MASTER.items()}
         st.session_state["input_rdf_types_multiselect"] = [inv_type_map[uri] for uri in cur_types if uri in inv_type_map]
+    if "input_rdf_types_whitelist_multiselect" not in st.session_state:
+        cur_w_types = exp.get("whitelist_rdf_types", [])
+        inv_type_map = {v: k for k, v in TYPE_MASTER.items()}
+        st.session_state["input_rdf_types_whitelist_multiselect"] = [inv_type_map[uri] for uri in cur_w_types if uri in inv_type_map]
 
     # フォールバック通知表示
     if exp.get("is_fallback"):
@@ -226,12 +233,26 @@ def render_step1_view(paths: dict):
             key="input_kw_manual"
         )
     with c_edit2:
-        st.multiselect(
+        all_types = list(TYPE_MASTER.keys())
+
+        wl_selected = st.multiselect(
+            "問答無用で全件取得する rdf:type (ホワイトリスト):",
+            options=all_types,
+            help="指定したカテゴリを持つ資料をキーワードの有無に関わらず全件取得します。※「図書」など巨大なカテゴリの指定は避けてください。",
+            key="input_rdf_types_whitelist_multiselect"
+        )
+
+        bl_selected = st.multiselect(
             "除外する rdf:type (資料種別):",
-            options=list(TYPE_MASTER.keys()),
+            options=all_types,
             help="指定したカテゴリを持つ資料を検索対象から除外します。明らかなノイズ（例：動物標本など）を弾くことで、網羅性を保ちながら検索速度を向上させます。",
             key="input_rdf_types_multiselect"
         )
+        
+        # 矛盾チェック（ホワイトリストとブラックリストの重複）
+        overlap = set(wl_selected).intersection(set(bl_selected))
+        if overlap:
+            st.error(f"⚠️ **指定の矛盾**: 以下のタイプがホワイトリストとブラックリストの両方に指定されています。正常に処理できないため、どちらかから削除してください。\n\n **重複項目**: {', '.join(overlap)}")
         st.multiselect(
             "NDC (日本十進分類法) 二次区分選択リスト:",
             options=list(NDC_MASTER.values()),
