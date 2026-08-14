@@ -57,57 +57,98 @@ def shorten_uri(uri: str) -> str:
     return uri
 
 
-def fetch_uris_with_query_func(query_func, pattern_name="Custom Query", limit=DEFAULT_LIMIT, progress_callback=None, timeout_sec=25) -> tuple:
+def fetch_uris_with_query_func(query_func, pattern_name="Custom Query", limit=DEFAULT_LIMIT, progress_callback=None, timeout_sec=120) -> tuple:
     """
-    クエリ生成関数(limit)を呼び出し、Japan SearchからURIを一括高速取得します。
-    戻り値: (収集されたURIリスト, 取得成功フラグ: bool)
+    クエリ生成関数(limit)を呼び出し、Japan SearchからURIを自動分割・補填取得します。
+    504エラー等でLIMITが縮小された場合でも、目標件数 (limit) に達するまで小分けリクエストを繰り返して全件を完走取得します。
     """
     collected_uris = []
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-    max_query_retries = 2
+    max_query_retries = 3
     session = get_robust_session()
-    is_success = False
-    
-    print(f"\n--- [開始] {pattern_name} ---")
+    current_limit = limit
+    target_limit = limit
 
-    query = query_func(limit, None)
-    data = {'query': query, 'format': 'json'}
+    print(f"\n--- [開始] {pattern_name} (目標件数: {target_limit}件) ---")
 
-    for attempt in range(1, max_query_retries + 1):
-        try:
-            print(f"[{pattern_name}] Fetching (limit={limit}, timeout={timeout_sec}s) ...", end=" ")
-            start_time = time.time()
+    is_finished = False
+    while len(collected_uris) < target_limit and not is_finished:
+        needed_count = target_limit - len(collected_uris)
+        fetch_size = min(current_limit, needed_count)
+        current_offset = len(collected_uris)
+        query = query_func(fetch_size, current_offset)
+        data = {'query': query, 'format': 'json'}
+        
+        batch_success = False
+        for attempt in range(1, max_query_retries + 1):
+            try:
+                fetch_size = min(current_limit, needed_count)
+                query = query_func(fetch_size, current_offset)
+                data = {'query': query, 'format': 'json'}
+                
+                print(f"[{pattern_name}] Sub-fetch (limit={fetch_size}, progress={len(collected_uris)}/{target_limit}) ...", end=" ")
+                start_time = time.time()
 
-            response = session.post(ENDPOINT, data=data, headers=headers, timeout=timeout_sec)
+                response = session.post(ENDPOINT, data=data, headers=headers, timeout=timeout_sec)
 
-            if response.status_code != 200:
-                print(f"\n[Error] Status Code: {response.status_code}")
-                time.sleep(2)
-                continue
+                if response.status_code in [504, 502, 503, 500]:
+                    current_limit = max(10, current_limit // 2)
+                    print(f"\n[Server {response.status_code} 負荷警告] 単回LIMITを {current_limit} 件に縮小して即時小分け再リトライします...")
+                    time.sleep(2)
+                    continue
+                elif response.status_code != 200:
+                    print(f"\n[Error] Status Code: {response.status_code}")
+                    time.sleep(4)
+                    continue
 
-            resp_data = response.json()
-            bindings = resp_data.get('results', {}).get('bindings', [])
+                resp_data = response.json()
+                bindings = resp_data.get('results', {}).get('bindings', [])
 
-            current_uris = [b['s']['value'] for b in bindings if 's' in b]
-            collected_uris.extend(current_uris)
+                if not bindings:
+                    print("Done (データ上限達成・これ以上結果なし).")
+                    batch_success = True
+                    is_finished = True
+                    break
 
-            elapsed = time.time() - start_time
-            print(f"Got {len(current_uris)} items. [{elapsed:.2f}s]")
+                current_uris = [b['s']['value'] for b in bindings if 's' in b]
+                new_uris = [u for u in current_uris if u not in collected_uris]
+                
+                if not new_uris:
+                    print("Done (重複なしデータエンド).")
+                    batch_success = True
+                    is_finished = True
+                    break
 
-            if progress_callback:
-                progress_callback(pattern_name, len(collected_uris))
-            
-            is_success = True
+                collected_uris.extend(new_uris)
+
+                elapsed = time.time() - start_time
+                print(f"Got {len(new_uris)} new items. (Total: {len(collected_uris)}/{target_limit}) [{elapsed:.2f}s]")
+
+                if progress_callback:
+                    progress_callback(pattern_name, len(collected_uris))
+
+                batch_success = True
+                break
+
+            except requests.exceptions.ReadTimeout:
+                current_limit = max(20, current_limit // 2)
+                fetch_size = min(current_limit, needed_count)
+                query = query_func(fetch_size, current_offset)
+                data = {'query': query, 'format': 'json'}
+                print(f"\n[応答タイムアウト 試行 {attempt}/{max_query_retries}] LIMITを {current_limit} 件に縮小して小分け再読み込みします。")
+                time.sleep(3)
+            except Exception as e:
+                print(f"\n[通信例外 試行 {attempt}/{max_query_retries}]: {e}")
+                time.sleep(3)
+
+        if not batch_success:
+            print(f"[{pattern_name}] サブバッチ処理の応答遅延により一時終了。")
             break
 
-        except Exception as e:
-            print(f"\n[Timeout / Exception attempt {attempt}/{max_query_retries}]: {e}")
-            if attempt < max_query_retries:
-                time.sleep(2)
-            else:
-                print(f"[{pattern_name}] 一時的な応答遅延を検出。後ほど自動再取得フェーズで再トライします。")
+        time.sleep(1.0)
 
-    time.sleep(1.0)  # 各 Part (クエリパターン) 完了ごとのウェイト
+    is_success = len(collected_uris) > 0
+    time.sleep(2.0)  # 各 Part (クエリパターン) 完了ごとのウェイト
     return collected_uris, is_success
 
 
@@ -156,7 +197,7 @@ def fetch_deep_graph(uris: list, session: requests.Session = None) -> list:
 
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            response = session.post(ENDPOINT, data=data, headers=headers, timeout=45)
+            response = session.post(ENDPOINT, data=data, headers=headers, timeout=120)
             if response.status_code == 200:
                 return response.json().get('results', {}).get('bindings', [])
             else:
@@ -257,7 +298,7 @@ def build_metadata_for_uris(uri_list: list, output_jsonl_path: str, batch_size: 
             if progress_callback:
                 progress_callback(processed_count, total_count)
 
-            time.sleep(2)
+            time.sleep(5)
 
     return processed_count
 

@@ -330,8 +330,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
     for c_idx, t_pattern in enumerate(title_chunks):
         p_name = f"1-{c_idx+1}. タイトル・名称 網羅検索 (Part {c_idx+1})" if len(title_chunks) > 1 else "1. タイトル・名称 (label / name) 網羅検索"
         def make_q_title(pat):
-            def q_title(lim, last_uri=None):
-                f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
+            def q_title(lim, offset=0):
                 return f"""
                 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
                 PREFIX schema: <http://schema.org/>
@@ -340,13 +339,12 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                   {{
                     ?s rdfs:label ?title .
                     FILTER (REGEX(?title, "{pat}", "i"))
-                    {f_clause}
                   }} UNION {{
                     ?s schema:name ?title .
                     FILTER (REGEX(?title, "{pat}", "i"))
-                    {f_clause}
                   }}
                 }}
+                OFFSET {offset}
                 LIMIT {lim}
                 """
             return q_title
@@ -356,8 +354,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
     for c_idx, t_pattern in enumerate(title_chunks):
         p_name = f"2A-{c_idx+1}. 主題エンティティ (schema:about) 網羅検索 (Part {c_idx+1})" if len(title_chunks) > 1 else "2A. 主題エンティティ (schema:about) 網羅検索"
         def make_q_about(pat):
-            def q_about(lim, last_uri=None):
-                f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
+            def q_about(lim, offset=0):
                 return f"""
                 PREFIX schema: <http://schema.org/>
                 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -366,8 +363,8 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                   ?s schema:about ?about .
                   ?about (rdfs:label|schema:name) ?aboutLabel .
                   FILTER (REGEX(?aboutLabel, "{pat}", "i"))
-                  {f_clause}
                 }}
+                OFFSET {offset}
                 LIMIT {lim}
                 """
             return q_about
@@ -377,8 +374,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
     for c_idx, t_pattern in enumerate(title_chunks):
         p_name = f"2B-{c_idx+1}. キーワード・件名 (keywords / subject) 網羅検索 (Part {c_idx+1})" if len(title_chunks) > 1 else "2B. キーワード・件名 (keywords / subject) 網羅検索"
         def make_q_subject(pat):
-            def q_subject(lim, last_uri=None):
-                f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
+            def q_subject(lim, offset=0):
                 return f"""
                 PREFIX schema: <http://schema.org/>
                 PREFIX dct: <http://purl.org/dc/terms/>
@@ -387,33 +383,37 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                   {{
                     ?s schema:keywords ?kw .
                     FILTER (REGEX(STR(?kw), "{pat}", "i"))
-                    {f_clause}
                   }} UNION {{
                     ?s dct:subject ?subj .
                     FILTER (REGEX(STR(?subj), "{pat}", "i"))
-                    {f_clause}
                   }}
                 }}
+                OFFSET {offset}
                 LIMIT {lim}
                 """
             return q_subject
         queries.append((p_name, make_q_subject(t_pattern)))
 
     # 3. 説明文・内容記述 (schema:description) 検索
-    desc_chunks = chunk_regex_str(raw_desc_regex, chunk_size=6)
+    # 長文テキスト属性に対する重い全件走査(504)を防止するため、2文字以上の具体的キーワードに絞込み、最大5パートに最適化
+    desc_kws = [w for w in re.split(r"\|", raw_desc_regex) if len(w.strip()) >= 2]
+    safe_desc_regex = "|".join(desc_kws) if desc_kws else raw_desc_regex
+    desc_chunks = chunk_regex_str(safe_desc_regex, chunk_size=8)[:5]
+
     for c_idx, d_pattern in enumerate(desc_chunks):
         p_name = f"3-{c_idx+1}. 説明文 網羅検索 (Part {c_idx+1})" if len(desc_chunks) > 1 else "3. 説明文 (description) 網羅検索"
         def make_q_desc(pat):
-            def q_desc(lim, last_uri=None):
-                f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
+            def q_desc(lim, offset=0):
                 return f"""
                 PREFIX schema: <http://schema.org/>
+                PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
                 
                 SELECT DISTINCT ?s WHERE {{
+                  ?s rdfs:label ?label .
                   ?s schema:description ?desc .
                   FILTER (REGEX(?desc, "{pat}", "i"))
-                  {f_clause}
                 }}
+                OFFSET {offset}
                 LIMIT {lim}
                 """
             return q_desc
@@ -437,8 +437,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
         
         if filter_exprs:
             filter_str = " ||\n              ".join(filter_exprs)
-            def q_ndc(lim, last_uri=None):
-                f_clause = f"FILTER (?s > <{last_uri}>)" if last_uri else ""
+            def q_ndc(lim, offset=0):
                 return f"""
                 PREFIX schema: <http://schema.org/>
                 
@@ -447,8 +446,8 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                   FILTER (
                     {filter_str}
                   )
-                  {f_clause}
                 }}
+                OFFSET {offset}
                 LIMIT {lim}
                 """
             queries.append(("4. NDC分類 (schema:genre) 網羅検索", q_ndc))

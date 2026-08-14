@@ -287,7 +287,7 @@ def render_step1_view(paths: dict):
         total_steps = len(queries)
         for idx, (name, func) in enumerate(queries):
             status_box.markdown(f"全 {len(queries)} 件中 {idx+1} 件目: `[{name}]` のメタデータを取得中...")
-            uris, success = fetch_uris_with_query_func(func, pattern_name=name, limit=limit_val, timeout_sec=25)
+            uris, success = fetch_uris_with_query_func(func, pattern_name=name, limit=limit_val, timeout_sec=45)
             all_collected_uris.update(uris)
             if not success:
                 failed_queries.append((name, func))
@@ -299,7 +299,7 @@ def render_step1_view(paths: dict):
             time.sleep(5)
             for idx, (name, func) in enumerate(failed_queries):
                 status_box.markdown(f"自動再取得フェーズ [{idx+1}/{len(failed_queries)}]: `[{name}]` を再読み込み中...")
-                uris, success = fetch_uris_with_query_func(func, pattern_name=f"{name} (再試行)", limit=limit_val, timeout_sec=45)
+                uris, success = fetch_uris_with_query_func(func, pattern_name=f"{name} (再試行)", limit=limit_val, timeout_sec=60)
                 all_collected_uris.update(uris)
                 if success:
                     st.info(f"再取得成功: `[{name}]` から追加データを正常に取得しました。")
