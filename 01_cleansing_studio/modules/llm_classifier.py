@@ -11,6 +11,7 @@ import re
 import time
 import urllib.parse
 import requests
+from .logger import logger
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 try:

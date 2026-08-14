@@ -8,6 +8,7 @@ import os
 import re
 import urllib.parse
 import requests
+from .logger import logger
 from collections import Counter
 
 DEFAULT_LLM_URL = os.environ.get("LLM_API_BASE", "http://localhost:1234/v1")
@@ -176,6 +177,7 @@ def suggest_ng_keywords_with_llm(
                 if isinstance(parsed, list):
                     return [k for k in parsed if k not in ng_set and k not in ok_set]
         except Exception as e:
+            logger.warning(f"[Gemini Suggest Warning] {e}")
             print(f"[Gemini Suggest Warning] {e}")
 
     # --- 2. Local LLM / OpenAI ---
@@ -215,6 +217,7 @@ def suggest_ng_keywords_with_llm(
                 if isinstance(parsed, list):
                     return [k for k in parsed if k not in ng_set and k not in ok_set]
         except Exception as e:
+            logger.warning(f"[LLM Fast Suggest Warning] {e}")
             print(f"[LLM Fast Suggest Warning] {e}")
 
     return [k for k in sample_keywords if k not in ng_set and k not in ok_set][:15]
@@ -293,6 +296,7 @@ def suggest_related_keywords_by_base(
                 if isinstance(parsed, list):
                     return [k for k in parsed if k != base_keyword]
         except Exception as e:
+            logger.warning(f"[Gemini Base Suggest Warning] {e}")
             print(f"[Gemini Base Suggest Warning] {e}")
 
     # --- 2. Local LLM / OpenAI ---
@@ -332,6 +336,7 @@ def suggest_related_keywords_by_base(
                 if isinstance(parsed, list):
                     return [k for k in parsed if k != base_keyword]
         except Exception as e:
+            logger.warning(f"[LLM Base Fast Suggest Warning] {e}")
             print(f"[LLM Base Fast Suggest Warning] {e}")
 
     return [kw for kw in candidate_samples if base_keyword != kw][:8]

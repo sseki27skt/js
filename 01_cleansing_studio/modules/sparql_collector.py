@@ -10,6 +10,7 @@ import json
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+from .logger import logger, log_stats
 import pandas as pd
 from collections import defaultdict
 
@@ -79,6 +80,7 @@ def fetch_uris_with_query_func(
     target_limit = limit if (not unlimited and limit and limit > 0) else None
 
     target_str = f"目標: {target_limit}件" if target_limit else "全件網羅 (上限なし)"
+    logger.info(f"--- [開始] {pattern_name} ({target_str}) ---")
     print(f"\n--- [開始] {pattern_name} ({target_str}) ---")
 
     is_finished = False
@@ -101,6 +103,7 @@ def fetch_uris_with_query_func(
                 data = {'query': query, 'format': 'json'}
                 
                 prog_str = f"{len(collected_uris)}/{target_limit}" if target_limit else f"{len(collected_uris)}件〜"
+                logger.info(f"[{pattern_name}] Sub-fetch (limit={fetch_size}, progress={prog_str}) ...")
                 print(f"[{pattern_name}] Sub-fetch (limit={fetch_size}, progress={prog_str}) ...", end=" ")
                 start_time = time.time()
 
@@ -108,10 +111,12 @@ def fetch_uris_with_query_func(
 
                 if response.status_code in [504, 502, 503, 500]:
                     current_limit = max(20, current_limit // 2)
+                    logger.warning(f"[{pattern_name}] [Server {response.status_code} 負荷警告] 単回LIMITを {current_limit} 件に縮小して即時小分け再リトライします...")
                     print(f"\n[Server {response.status_code} 負荷警告] 単回LIMITを {current_limit} 件に縮小して即時小分け再リトライします...")
                     time.sleep(2)
                     continue
                 elif response.status_code != 200:
+                    logger.error(f"[{pattern_name}] [Error] Status Code: {response.status_code}")
                     print(f"\n[Error] Status Code: {response.status_code}")
                     time.sleep(4)
                     continue
@@ -120,6 +125,7 @@ def fetch_uris_with_query_func(
                 bindings = resp_data.get('results', {}).get('bindings', [])
 
                 if not bindings:
+                    logger.info(f"[{pattern_name}] Done (データ上限達成・これ以上結果なし).")
                     print("Done (データ上限達成・これ以上結果なし).")
                     batch_success = True
                     is_finished = True
@@ -129,6 +135,7 @@ def fetch_uris_with_query_func(
                 new_uris = [u for u in current_uris if u not in collected_uris]
                 
                 if not new_uris:
+                    logger.info(f"[{pattern_name}] Done (重複なしデータエンド).")
                     print("Done (重複なしデータエンド).")
                     batch_success = True
                     is_finished = True
@@ -138,6 +145,8 @@ def fetch_uris_with_query_func(
 
                 elapsed = time.time() - start_time
                 total_str = f"{len(collected_uris)}/{target_limit}" if target_limit else f"累計: {len(collected_uris)}件"
+                logger.info(f"[{pattern_name}] Got {len(new_uris)} new items. ({total_str}) [{elapsed:.2f}s]")
+                log_stats("FETCH", len(new_uris), elapsed, f"{pattern_name} | Offset: {current_offset}")
                 print(f"Got {len(new_uris)} new items. ({total_str}) [{elapsed:.2f}s]")
 
                 if progress_callback:
@@ -149,6 +158,7 @@ def fetch_uris_with_query_func(
 
                 # 要求したfetch_sizeより返ってきた件数が少なければ、それが最後のページ
                 if len(current_uris) < fetch_size:
+                    logger.info(f"[{pattern_name}] 最終バッチ到達（全データ取得完了）。")
                     print(f"[{pattern_name}] 最終バッチ到達（全データ取得完了）。")
                     is_finished = True
 
@@ -157,13 +167,16 @@ def fetch_uris_with_query_func(
 
             except requests.exceptions.ReadTimeout:
                 current_limit = max(20, current_limit // 2)
+                logger.warning(f"[{pattern_name}] [応答タイムアウト 試行 {attempt}/{max_query_retries}] LIMITを {current_limit} 件に縮小して小分け再読み込みします。")
                 print(f"\n[応答タイムアウト 試行 {attempt}/{max_query_retries}] LIMITを {current_limit} 件に縮小して小分け再読み込みします。")
                 time.sleep(3)
             except Exception as e:
+                logger.error(f"[{pattern_name}] [通信例外 試行 {attempt}/{max_query_retries}]: {e}")
                 print(f"\n[通信例外 試行 {attempt}/{max_query_retries}]: {e}")
                 time.sleep(3)
 
         if not batch_success:
+            logger.error(f"[{pattern_name}] サブバッチ処理の応答遅延により一時終了。")
             print(f"[{pattern_name}] サブバッチ処理の応答遅延により一時終了。")
             break
 
@@ -225,9 +238,11 @@ def fetch_deep_graph(uris: list, session: requests.Session = None, timeout_sec: 
             if response.status_code == 200:
                 return response.json().get('results', {}).get('bindings', [])
             elif response.status_code in [504, 502, 503]:
+                logger.warning(f"[504負荷検知] 全 {len(uris)} 件のグラフ取得で遅延発生。小分け分割へ移行します...")
                 print(f"[504負荷検知] 全 {len(uris)} 件のグラフ取得で遅延発生。小分け分割へ移行します...")
                 break
         except Exception as e:
+            logger.error(f"[通信遅延検知]: {e}")
             print(f"[通信遅延検知]: {e}")
             break
         time.sleep(1)
@@ -235,6 +250,7 @@ def fetch_deep_graph(uris: list, session: requests.Session = None, timeout_sec: 
     # 失敗時、半分のチャンクに小分けにして再帰的にフォールバック取得
     if len(uris) > 1:
         mid = len(uris) // 2
+        logger.info(f"-> チャンク分割小分け取得 ({len(uris)} 件 ➔ {mid} 件 + {len(uris) - mid} 件)")
         print(f"-> チャンク分割小分け取得 ({len(uris)} 件 ➔ {mid} 件 + {len(uris) - mid} 件)")
         res1 = fetch_deep_graph(uris[:mid], session, timeout_sec=timeout_sec)
         res2 = fetch_deep_graph(uris[mid:], session, timeout_sec=timeout_sec)
@@ -319,6 +335,7 @@ def build_metadata_for_uris(uri_list: list, output_jsonl_path: str, batch_size: 
     total_count = len(unique_uris)
     processed_count = 0
 
+    logger.info(f"--- [深層メタデータ一括構築開始 (BuildMetadata.py準拠)] 全 {total_count} 件 ---")
     print(f"\n--- [深層メタデータ一括構築開始 (BuildMetadata.py準拠)] 全 {total_count} 件 ---")
     session = get_robust_session()
 
@@ -332,6 +349,7 @@ def build_metadata_for_uris(uri_list: list, output_jsonl_path: str, batch_size: 
                 out_f.write(json.dumps(item, ensure_ascii=False) + "\n")
                 processed_count += 1
 
+            logger.info(f"進捗: {processed_count} / {total_count} 件 処理完了")
             print(f"進捗: {processed_count} / {total_count} 件 処理完了")
             if progress_callback:
                 progress_callback(processed_count, total_count)

@@ -8,6 +8,7 @@ import json
 import os
 import re
 import requests
+from .logger import logger
 
 DEFAULT_LLM_URL = os.environ.get("LLM_API_BASE", "http://localhost:1234/v1")
 DEFAULT_MODEL = os.environ.get("LLM_MODEL", "local-model")
@@ -757,6 +758,7 @@ def _sanitize_and_sync_result(result: dict) -> dict:
 
 def _build_fallback_result(theme_prompt: str, reason: str) -> dict:
     """フォールバックルールベース結果の構築（ドメイン固定コードを排除し汎用化）"""
+    logger.info(f"[LLM Expander] フォールバック適用: {reason}")
     print(f"[LLM Expander] フォールバック適用: {reason}")
     words = [w.strip() for w in re.split(r"[\s,・/／におけるについて等の文献資料]+", theme_prompt) if len(w.strip()) >= 2]
     keywords = words if words else [theme_prompt]
