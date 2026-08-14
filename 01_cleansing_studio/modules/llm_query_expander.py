@@ -789,6 +789,15 @@ def generate_sparql_queries(expansion_result: dict) -> list:
     raw_desc_regex = expansion_result.get("desc_regex", raw_title_regex)
     
     rdf_types = expansion_result.get("rdf_types", [])
+    
+    # システムメタデータノード（実態のないノード）を強制的に除外リストに追加
+    # ※ ユーザーの指摘により、PersonやPlace等の典拠データは「人物リスト」等を作成する用途を考慮し除外対象から外しました。
+    system_excludes = [
+        "https://jpsearch.go.jp/term/type/アクセス情報",
+        "https://jpsearch.go.jp/term/type/ソース情報"
+    ]
+    rdf_types = list(set(rdf_types + system_excludes))
+    
     type_filter_str = ""
     if rdf_types:
         uris = " ".join([f"<{uri}>" for uri in rdf_types])
