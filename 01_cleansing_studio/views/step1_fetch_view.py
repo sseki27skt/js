@@ -4,6 +4,7 @@ MetaClean Studio - Step 1: LLMクエリ拡張 ＆ Japan Searchメタデータ一
 """
 import os
 import re
+import json
 import time
 import streamlit as st
 from modules.llm_query_expander import (
@@ -76,7 +77,7 @@ def _on_apply_manual_params():
     exp["title_regex"] = final_title_regex
     exp["desc_regex"] = final_desc_regex
     exp["domain_definition"] = domain_def_input.strip()
-    exp["rdf_types"] = [TYPE_MASTER[k] for k in selected_rdf_types if k in TYPE_MASTER]
+    exp["blacklist_rdf_types"] = [TYPE_MASTER[k] for k in selected_rdf_types if k in TYPE_MASTER]
     exp["whitelist_rdf_types"] = [TYPE_MASTER[k] for k in selected_whitelist_rdf_types if k in TYPE_MASTER]
     st.session_state["expansion_res"] = exp
     st.session_state["msg_success"] = "設定パラメータの保存・適用が完了しました。"
@@ -108,7 +109,7 @@ def render_step1_view(paths: dict):
             "ndc_codes": [],
             "title_regex": init_regex,
             "desc_regex": init_regex,
-            "rdf_types": [],
+            "blacklist_rdf_types": [],
             "whitelist_rdf_types": [],
             "is_fallback": False,
             "fallback_reason": None
@@ -188,6 +189,34 @@ def render_step1_view(paths: dict):
 
     exp = st.session_state["expansion_res"]
 
+    with st.expander("高度な設定: 検索パラメータの入出力 (JSON)", expanded=False):
+        st.caption("以前成功した検索パラメータ(JSON)をコピペして使い回すことができます。")
+        current_json = json.dumps(exp, ensure_ascii=False, indent=2)
+        st.code(current_json, language="json")
+        
+        col_j1, col_j2 = st.columns([3, 1])
+        with col_j1:
+            pasted_json = st.text_area("適用したいJSONパラメータを貼り付け:", height=100)
+        with col_j2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("JSONを適用", use_container_width=True):
+                if pasted_json.strip():
+                    try:
+                        loaded_exp = json.loads(pasted_json)
+                        st.session_state["expansion_res"] = loaded_exp
+                        # Force refresh widget states
+                        for k in ["input_kw_manual", "input_ndc_multiselect", "input_ndc_codes_manual", "input_title_regex_manual", "input_desc_regex_manual", "input_domain_def_manual", "input_rdf_types_multiselect", "input_rdf_types_whitelist_multiselect"]:
+                            if k in st.session_state:
+                                del st.session_state[k]
+                        st.success("JSONからパラメータを読み込みました！画面が更新されます。")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"JSONのパースに失敗しました: {e}")
+                else:
+                    st.warning("JSONを入力してください。")
+
+
     # Widget キーの初期値が未設定の場合のみ初期値をセット
     if "input_kw_manual" not in st.session_state:
         cur_kws = exp.get("keywords", [])
@@ -205,7 +234,7 @@ def render_step1_view(paths: dict):
     if "input_domain_def_manual" not in st.session_state:
         st.session_state["input_domain_def_manual"] = exp.get("domain_definition", f"「{theme_input}」に関連する資料")
     if "input_rdf_types_multiselect" not in st.session_state:
-        cur_types = exp.get("rdf_types", [])
+        cur_types = exp.get("blacklist_rdf_types", exp.get("rdf_types", []))
         inv_type_map = {v: k for k, v in TYPE_MASTER.items()}
         st.session_state["input_rdf_types_multiselect"] = [inv_type_map[uri] for uri in cur_types if uri in inv_type_map]
     if "input_rdf_types_whitelist_multiselect" not in st.session_state:

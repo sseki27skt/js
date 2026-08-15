@@ -790,7 +790,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
     raw_title_regex = expansion_result.get("title_regex", "")
     raw_desc_regex = expansion_result.get("desc_regex", raw_title_regex)
     
-    rdf_types = expansion_result.get("rdf_types", [])
+    rdf_types = expansion_result.get("blacklist_rdf_types", expansion_result.get("rdf_types", []))
     
     # システムメタデータノード（実態のないノード）を強制的に除外リストに追加
     # ※ ユーザーの指摘により、PersonやPlace等の典拠データは「人物リスト」等を作成する用途を考慮し除外対象から外しました。
