@@ -8,11 +8,12 @@ import streamlit as st
 from modules.review_portal import load_merged_review_data, save_human_verified_data
 
 def render_step2d_view(paths: dict):
-    """Step 2-D 画面の描画"""
-    st.title("Step 2-D: 専門家による最終査読・判定オーバーライド")
+    """Step 4 画面の描画"""
+    st.title("Step 4: 専門家による最終査読・手動オーバーライド")
     st.caption("自動ルールおよびLLMセマンティック判定結果、外部Web参照情報を総合検証し、専門家判断による最終判定（合格・除外）の確定と修正を行います。")
 
     raw_metadata_path = paths['PATH_RAW_METADATA']
+    type_filtered_path = paths.get('PATH_TYPE_FILTERED', 'data/type_filtered.jsonl')
     about_filtered_path = paths['PATH_ABOUT_FILTERED']
     ngram_filtered_path = paths['PATH_NGRAM_FILTERED']
     llm_judgments_path = paths['PATH_LLM_JUDGMENTS']
@@ -26,7 +27,7 @@ def render_step2d_view(paths: dict):
         review_records = load_merged_review_data(
             raw_jsonl_path=raw_metadata_path,
             about_filtered_path=about_filtered_path,
-            suffix_filtered_path=None,
+            type_filtered_path=type_filtered_path,
             ngram_filtered_path=ngram_filtered_path,
             llm_judgments_path=llm_judgments_path
         )

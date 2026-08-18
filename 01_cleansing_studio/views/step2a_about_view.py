@@ -6,8 +6,10 @@ import json
 import math
 import os
 import re
+import urllib.parse
 from collections import defaultdict
 import streamlit as st
+import streamlit.components.v1 as components
 
 from components.file_utils import safe_save_json, make_rich_search_links_md, make_rich_search_links
 from components.pill_board import render_pill_board
@@ -24,34 +26,89 @@ except Exception:
     hotkeys = None
 
 def cluster_about_keywords(about_ranking):
-    """Aboutキーワードを階層構造および2-gram / 共通接尾辞・部分文字列でクラスタリング"""
+    """AboutキーワードをNDC分類（公式API）・階層構造および共通プレフィックス・バケットで超高速クラスタリング"""
     if not about_ranking:
         return []
     
+    from components.ndc_utils import (
+        extract_ndc_number, 
+        resolve_ndc_label, 
+        format_about_keyword_display
+    )
+
+    ndc_groups = defaultdict(list)
+    ndlna_items = []
     prefix_groups = defaultdict(list)
     unassigned = []
     
+    from components.ndc_utils import extract_ndlna_id, resolve_ndlna_label
+
+    # 1. NDCコード / NDLNA典拠 / 階層区切り文字による分類
     for kw, count in about_ranking:
-        m = re.match(r'^(.*?)(?:[--_/\s:･]|\s+)(.+)$', kw)
-        if m:
-            parent = m.group(1).strip()
-            if "--" in kw:
-                parts = kw.split("--")
-                parent = "--".join(parts[:-1]) if len(parts) > 1 else parts[0]
+        # A. NDCコードの判定
+        ndc_num = extract_ndc_number(kw)
+        if ndc_num:
+            base_ndc = ndc_num.split('.')[0] if '.' in ndc_num else ndc_num
+            ndc_groups[base_ndc].append((kw, count))
+            continue
+
+        # B. NDLNA / NDLSH 典拠の判定
+        auth_id = extract_ndlna_id(kw)
+        if auth_id:
+            ndlna_items.append((kw, count))
+            continue
+
+        # C. 階層区切り文字（--, /, :, _, ･, 空白）
+        if "--" in kw:
+            parts = kw.split("--")
+            parent = "--".join(parts[:-1]) if len(parts) > 1 else parts[0]
             prefix_groups[parent].append((kw, count))
         else:
-            unassigned.append((kw, count))
+            m = re.match(r'^(.*?)(?:[/:\s_･]+)(.+)$', kw)
+            if m and len(m.group(1).strip()) >= 2:
+                parent = m.group(1).strip()
+                prefix_groups[parent].append((kw, count))
+            else:
+                unassigned.append((kw, count))
             
     clusters = []
     cluster_idx = 0
     
+    # 2. NDC分類クラスタの生成 (公式APIに基づくラベル付与)
+    for base_ndc, items in ndc_groups.items():
+        items_sorted = sorted(items, key=lambda x: x[1], reverse=True)
+        total_cnt = sum(c for k, c in items_sorted)
+        lbl_str, is_exact, parent_c = resolve_ndc_label(base_ndc)
+        tag_lbl = f" [{lbl_str}]" if lbl_str else ""
+        clusters.append({
+            "cluster_id": f"cl_ndc_{cluster_idx}",
+            "name": f"🏷️ NDC分類: {base_ndc}{tag_lbl}",
+            "keywords": [k for k, c in items_sorted],
+            "total_count": total_cnt
+        })
+        cluster_idx += 1
+
+    # 3. NDLNA 典拠クラスタの生成
+    if ndlna_items:
+        items_sorted = sorted(ndlna_items, key=lambda x: x[1], reverse=True)
+        total_cnt = sum(c for k, c in items_sorted)
+        clusters.append({
+            "cluster_id": f"cl_ndlna_{cluster_idx}",
+            "name": f"👥 NDLNA 典拠（人名・件名・団体名）",
+            "keywords": [k for k, c in items_sorted],
+            "total_count": total_cnt
+        })
+        cluster_idx += 1
+
+    # 4. 階層プレフィックスクラスタの生成
     for pkey, items in prefix_groups.items():
         if len(items) >= 2:
             items_sorted = sorted(items, key=lambda x: x[1], reverse=True)
             total_cnt = sum(c for k, c in items_sorted)
+            disp_pkey = format_about_keyword_display(pkey, max_label_len=28)
             clusters.append({
                 "cluster_id": f"cl_p_{cluster_idx}",
-                "name": f"階層: {pkey}",
+                "name": f"階層: {disp_pkey}",
                 "keywords": [k for k, c in items_sorted],
                 "total_count": total_cnt
             })
@@ -59,51 +116,31 @@ def cluster_about_keywords(about_ranking):
         else:
             unassigned.extend(items)
             
-    def get_bigrams(s):
-        s_clean = re.sub(r'[\W_]+', '', s.lower())
-        if len(s_clean) <= 1:
-            return set([s_clean])
-        return set(s_clean[i:i+2] for i in range(len(s_clean)-1))
+    # 5. 残りの未分類キーワードを先頭2文字の共通プレフィックスでバケット分類
+    bucket_groups = defaultdict(list)
+    for kw, cnt in unassigned:
+        prefix_key = kw[:2] if len(kw) >= 2 else kw
+        bucket_groups[prefix_key].append((kw, cnt))
         
-    visited = set()
-    for i, (kw1, cnt1) in enumerate(unassigned):
-        if kw1 in visited:
-            continue
-        group = [(kw1, cnt1)]
-        visited.add(kw1)
-        bg1 = get_bigrams(kw1)
-        
-        for j in range(i + 1, len(unassigned)):
-            kw2, cnt2 = unassigned[j]
-            if kw2 in visited:
-                continue
-            bg2 = get_bigrams(kw2)
-            
-            is_sub = (len(kw1) >= 2 and kw1 in kw2) or (len(kw2) >= 2 and kw2 in kw1)
-            is_same_suffix = (len(kw1) >= 2 and len(kw2) >= 2 and (kw1[-2:] == kw2[-2:] or kw1[:2] == kw2[:2]))
-            
-            union_len = len(bg1 | bg2)
-            jaccard = len(bg1 & bg2) / union_len if union_len > 0 else 0
-            
-            if is_sub or jaccard >= 0.35 or (is_same_suffix and jaccard >= 0.25):
-                group.append((kw2, cnt2))
-                visited.add(kw2)
-                
-        if len(group) >= 2:
-            group_sorted = sorted(group, key=lambda x: x[1], reverse=True)
-            rep_name = group_sorted[0][0]
-            total_cnt = sum(c for k, c in group_sorted)
+    for bkey, bitems in bucket_groups.items():
+        if len(bitems) >= 2:
+            bitems_sorted = sorted(bitems, key=lambda x: x[1], reverse=True)
+            rep_name = bitems_sorted[0][0]
+            disp_rep = format_about_keyword_display(rep_name, max_label_len=25)
+            total_cnt = sum(c for k, c in bitems_sorted)
             clusters.append({
-                "cluster_id": f"cl_j_{cluster_idx}",
-                "name": f"関連: {rep_name} グループ",
-                "keywords": [k for k, c in group_sorted],
+                "cluster_id": f"cl_b_{cluster_idx}",
+                "name": f"関連: {disp_rep} グループ",
+                "keywords": [k for k, c in bitems_sorted],
                 "total_count": total_cnt
             })
             cluster_idx += 1
         else:
+            kw1, cnt1 = bitems[0]
+            disp_kw1 = format_about_keyword_display(kw1, max_label_len=30)
             clusters.append({
                 "cluster_id": f"cl_s_{cluster_idx}",
-                "name": f"単一: {kw1}",
+                "name": f"単一: {disp_kw1}",
                 "keywords": [kw1],
                 "total_count": cnt1
             })
@@ -114,23 +151,74 @@ def cluster_about_keywords(about_ranking):
 
 
 def render_step2a_view(paths: dict):
-    """Step 2-A 画面の描画"""
-    st.title("Step 2-A: 主題 (schema:about) キーワード分析・判別")
-    st.markdown("取得データに含まれる `schema:about` キーワード一覧を解析し、対象ドメイン外の除外対象（NG）および保持対象（OK）のカテゴリ判別を行います。")
+    """Step 2-B 画面の描画"""
+    st.title("Step 2-B: 主題 (schema:about) キーワード分析・判別")
+    st.markdown("取得データに含まれる `schema:about` キーワード（NDC分類、NDLNA典拠、件名）を解析し、除外対象（🚫 NG）および合格確定（✅ OK: LLMスキップ）の判定を行います。")
 
     raw_metadata_path = paths['PATH_RAW_METADATA']
     about_rules_path = paths['PATH_ABOUT_RULES']
     about_filtered_path = paths['PATH_ABOUT_FILTERED']
+    type_filtered_path = paths.get('PATH_TYPE_FILTERED', 'data/type_filtered.jsonl')
+    ngram_rules_path = paths.get('PATH_NGRAM_RULES', '01_cleansing_studio/rules/ngram_rules.json')
+    ngram_filtered_path = paths.get('PATH_NGRAM_FILTERED', 'data/ngram_filtered.jsonl')
 
     if not os.path.exists(raw_metadata_path):
         st.warning("先に Step 1 で生メタデータ (raw_metadata.jsonl) を取得してください。")
         st.stop()
 
     os.makedirs(os.path.dirname(about_rules_path), exist_ok=True)
-    
-    raw_mtime = os.path.getmtime(raw_metadata_path) if os.path.exists(raw_metadata_path) else 0
 
-    @st.cache_resource(show_spinner=False)
+    # --- 📁 入力データソースの選択 ＆ 前段/後段 相互連携コントロール ---
+    data_source_options = []
+    if os.path.exists(type_filtered_path):
+        data_source_options.append("Step 2-A (データ種別) 適用後データ (type_filtered.jsonl)")
+    if os.path.exists(ngram_filtered_path):
+        data_source_options.append("Step 2-C (タイトル文字列) 適用後データ (ngram_filtered.jsonl)")
+    data_source_options.append("生メタデータ全件 (raw_metadata.jsonl)")
+
+    c_src1, c_src2 = st.columns([3, 2])
+    with c_src1:
+        chosen_source = st.selectbox(
+            "📁 分析対象データソース:",
+            options=data_source_options,
+            index=0,
+            help="前段で除外されたデータ種別やタイトルノイズをあらかじめ省いた状態で Step 2-B の分析を行うことができます。",
+            key="sb_step2a_data_source"
+        )
+    
+    if "type_filtered" in chosen_source:
+        input_path = type_filtered_path
+    elif "ngram_filtered" in chosen_source:
+        input_path = ngram_filtered_path
+    else:
+        input_path = raw_metadata_path
+
+    input_mtime = os.path.getmtime(input_path) if os.path.exists(input_path) else 0
+
+    with c_src2:
+        has_ngram_rules = os.path.exists(ngram_rules_path)
+        link_ngram_rules = False
+        if has_ngram_rules and "ngram_filtered" not in chosen_source:
+            link_ngram_rules = st.toggle(
+                "⚡ Step 2-C (タイトルNGルール) をリアルタイム連動",
+                value=True,
+                help="Step 2-C で登録済みのタイトル除外ルールに一致するレコードを、Step 2-B のシミュレーション上でも除外扱いにして分析します。",
+                key="tgl_step2a_link_ngram"
+            )
+        elif "ngram_filtered" in chosen_source:
+            st.success("✅ Step 2-C の除外結果を反映したデータセットで分析中")
+
+    # Step 2-C タイトル NG ルールのロード (リアルタイム連動用)
+    ngram_ng_set = set()
+    if link_ngram_rules and os.path.exists(ngram_rules_path):
+        try:
+            with open(ngram_rules_path, 'r', encoding='utf-8') as f:
+                ng_r = json.load(f)
+                ngram_ng_set = set([k for k, v in ng_r.items() if v == "NG"])
+        except Exception:
+            ngram_ng_set = set()
+
+    @st.cache_data(show_spinner=False)
     def load_raw_item_features(path, mtime):
         about_ranking = extract_about_keywords_from_jsonl(path)
         records_data = []
@@ -159,28 +247,44 @@ def render_step2a_view(paths: dict):
                             "title": title_str,
                             "desc": desc_str,
                             "creator": creator_str,
-                            "about_set": kw_set
+                            "about_set": list(kw_set)
                         })
                         for kw in kw_set:
                             kw_to_doc_indices[kw].append(idx)
                         idx += 1
                     except Exception:
                         continue
-        return about_ranking, records_data, kw_to_doc_indices
+        return about_ranking, records_data, dict(kw_to_doc_indices)
 
-    about_ranking, raw_records, kw_to_doc_indices = load_raw_item_features(raw_metadata_path, raw_mtime)
+    about_ranking, raw_records, kw_to_doc_indices = load_raw_item_features(input_path, input_mtime)
 
     if not about_ranking:
         st.info("データ内に schema:about キーワードが見つかりませんでした。")
         st.stop()
+
+    # 上位キーワードのNDC/NDLNAを一括事前解決（画面フリーズを防止）
+    from components.ndc_utils import prefetch_about_keywords_batch
+    top_kws = [k for k, c in about_ranking[:200]]
+    prefetch_about_keywords_batch(top_kws)
     
-    if "edited_noise" not in st.session_state:
-        rules = {}
-        if os.path.exists(about_rules_path):
+    # 常に about_rules.json とセッションステートを同期ロード
+    rules = {}
+    if os.path.exists(about_rules_path):
+        try:
             with open(about_rules_path, 'r', encoding='utf-8') as f:
                 rules = json.load(f)
+        except Exception:
+            pass
+
+    if "edited_noise" not in st.session_state:
         st.session_state["edited_noise"] = set([k for k, v in rules.items() if v == "NG"])
+    else:
+        st.session_state["edited_noise"].update([k for k, v in rules.items() if v == "NG"])
+
+    if "edited_strong" not in st.session_state:
         st.session_state["edited_strong"] = set([k for k, v in rules.items() if v == "OK"])
+    else:
+        st.session_state["edited_strong"].update([k for k, v in rules.items() if v == "OK"])
 
     current_ng = st.session_state["edited_noise"]
     current_ok = st.session_state["edited_strong"]
@@ -189,62 +293,141 @@ def render_step2a_view(paths: dict):
         st.session_state["checked_words"] = set()
     if "chk_view_ver" not in st.session_state:
         st.session_state["chk_view_ver"] = 0
+    if "draft_about_changes" not in st.session_state:
+        st.session_state["draft_about_changes"] = {}
+    draft_ab = st.session_state["draft_about_changes"]
+
+    # フィルタフラグの永続セッション保持
+    if "persistent_hide_classified" not in st.session_state:
+        st.session_state["persistent_hide_classified"] = False
+    if "persistent_hide_zero_pills" not in st.session_state:
+        st.session_state["persistent_hide_zero_pills"] = False
 
     checked_words = st.session_state["checked_words"]
 
-    # レコード（メタデータ件数）ベースの高速シミュレーション
+    # レコード（メタデータ件数）ベースの超高速シミュレーション
     total_records_cnt = len(raw_records)
+    total_about_types = len(about_ranking)
     
-    ng_doc_indices = set()
-    for ng_kw in current_ng:
-        # 完全一致をまず高速取得
-        if ng_kw in kw_to_doc_indices:
-            ng_doc_indices.update(kw_to_doc_indices[ng_kw])
-        # 部分一致の補完
-        for kw, doc_indices in kw_to_doc_indices.items():
-            if kw != ng_kw and ng_kw in kw:
-                ng_doc_indices.update(doc_indices)
+    # 確定済みルール + 現在の仮設定ルールを統合してリアルタイム計算
+    draft_ng = set(k for k, v in draft_ab.items() if v == "NG")
+    draft_ok = set(k for k, v in draft_ab.items() if v == "OK")
+    draft_reset = set(k for k, v in draft_ab.items() if v == "RESET")
 
-    ok_doc_indices = set()
-    for ok_kw in current_ok:
-        if ok_kw in kw_to_doc_indices:
-            ok_doc_indices.update([i for i in kw_to_doc_indices[ok_kw] if i not in ng_doc_indices])
-        for kw, doc_indices in kw_to_doc_indices.items():
-            if kw != ok_kw and ok_kw in kw:
-                ok_doc_indices.update([i for i in doc_indices if i not in ng_doc_indices])
+    live_ng = (set(current_ng) | draft_ng) - draft_reset
+    live_ok = (set(current_ok) | draft_ok) - draft_reset
+    
+    all_about_kws = list(kw_to_doc_indices.keys())
+    exact_ng = set(live_ng)
+    exact_ok = set(live_ok)
+    ng_partial = [w for w in live_ng if len(w) >= 2]
+    ok_partial = [w for w in live_ok if len(w) >= 2]
+    
+    matched_ng_kws = set()
+    for kw in all_about_kws:
+        if kw in exact_ng:
+            matched_ng_kws.add(kw)
+        else:
+            for ng_w in ng_partial:
+                if ng_w in kw:
+                    matched_ng_kws.add(kw)
+                    break
+                    
+    matched_ok_kws = set()
+    for kw in all_about_kws:
+        if kw in matched_ng_kws:
+            continue
+        if kw in exact_ok:
+            matched_ok_kws.add(kw)
+        else:
+            for ok_w in ok_partial:
+                if ok_w in kw:
+                    matched_ok_kws.add(kw)
+                    break
+
+    ng_doc_indices = set()
+    for kw in matched_ng_kws:
+        ng_doc_indices.update(kw_to_doc_indices[kw])
+
+    # Step 2-B N-Gram ルールによる事前除外の加算 (連動時)
+    if ngram_ng_set:
+        for idx, rec in enumerate(raw_records):
+            t_str = rec.get("title", "")
+            if any(ng_pat in t_str for ng_pat in ngram_ng_set):
+                ng_doc_indices.add(idx)
 
     active_doc_indices = set(range(total_records_cnt)) - ng_doc_indices
     discarded_records_cnt = len(ng_doc_indices)
-    ok_records_cnt = len(ok_doc_indices)
     remaining_records_cnt = len(active_doc_indices)
     reduction_rate = discarded_records_cnt / max(1, total_records_cnt)
 
-    total_about_types = len(about_ranking)
     all_kw_set = set([k for k, c in about_ranking])
-    ng_classified_count = len(all_kw_set & current_ng)
-    ok_classified_count = len(all_kw_set & current_ok)
+    ng_classified_count = len(all_kw_set & live_ng)
+    ok_classified_count = len(all_kw_set & live_ok)
     unclassified_count = total_about_types - ng_classified_count - ok_classified_count
 
-    st.subheader("Aboutルール適用によるメタデータ絞り込み進捗（レコード件数ベース）")
-    m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-    with m_col1:
+    # クラスタリングの実行 (O(N) 高速計算)
+    about_clusters = cluster_about_keywords(about_ranking)
+
+    # 3カラム / 2ペイン レイアウト（左: メイン作業領域 70% ｜ 右: 固定コントロール＆進捗パネル 30%）
+    col_main, col_ctrl = st.columns([7, 3])
+
+    # =========================================================================
+    # 右側: 固定コントロール ＆ アクションパネル
+    # =========================================================================
+    with col_ctrl:
+        st.markdown("### 🎛️ コントロール ＆ 進捗")
+        
+        # 0. 個別ピルのクリック判定モード
+        st.markdown("##### 🎯 個別ピルのクリック判定モード")
+        if "click_action_about_mode" not in st.session_state:
+            st.session_state["click_action_about_mode"] = "NGに設定"
+
+        click_mode_options = [
+            "🚫 NG (除外) に設定",
+            "✅ OK (保持) に設定",
+            "❓ 未判定に戻す",
+            "🔄 3段階トグル切替"
+        ]
+        mode_map = {
+            "🚫 NG (除外) に設定": "NGに設定",
+            "✅ OK (保持) に設定": "OKに設定",
+            "❓ 未判定に戻す": "未判定に戻す",
+            "🔄 3段階トグル切替": "トグル切替"
+        }
+        rev_mode_map = {v: k for k, v in mode_map.items()}
+
+        cur_mode_val = st.session_state.get("click_action_about_mode", "NGに設定")
+        cur_mode_disp = rev_mode_map.get(cur_mode_val, "🚫 NG (除外) に設定")
+
+        chosen_disp = st.radio(
+            "ピルクリック時の動作:",
+            options=click_mode_options,
+            index=click_mode_options.index(cur_mode_disp) if cur_mode_disp in click_mode_options else 0,
+            key="rb_global_click_mode",
+            help="クラスタ内および単体ボードの各ピルをクリックした際の判定動作を設定します。"
+        )
+        st.session_state["click_action_about_mode"] = mode_map[chosen_disp]
+        st.caption("⌨️ キーボード: **Q** = NGモード ｜ **W** = OKモード ｜ **E** = リセット")
+
+        st.write("---")
+
+        # 1. 絞り込み進捗メトリクス
+        st.markdown("##### 📊 絞り込み進捗 (レコード件数)")
         st.metric("母集団 Raw レコード", f"{total_records_cnt:,} 件")
-    with m_col2:
         st.metric(
-            "About除外対象 (削ぎ落とし)", 
+            "About 除外 (削ぎ落とし)", 
             f"{discarded_records_cnt:,} 件", 
             delta=f"-{reduction_rate:.1%}", 
             delta_color="inverse",
             help="schema:aboutにNGキーワードが含まれるため本工程で除外されるメタデータ件数"
         )
-    with m_col3:
         st.metric(
             "本工程通過残存レコード", 
             f"{remaining_records_cnt:,} 件", 
             delta=f"{remaining_records_cnt/max(1, total_records_cnt):.1%}",
             help="NGルールを除外し、次の工程へ引き継がれるメタデータ件数"
         )
-    with m_col4:
         st.metric(
             "キーワード判別進捗", 
             f"全 {total_about_types:,} 語",
@@ -252,227 +435,127 @@ def render_step2a_view(paths: dict):
             help="登録されたNG/OKキーワードの総種類数"
         )
 
-    with st.expander(f"現在の About NG / OK 登録リスト (NG: {len(current_ng)} 語 / OK: {len(current_ok)} 語)", expanded=False):
-        c_manage_ng, c_manage_ok = st.columns(2)
-        with c_manage_ng:
-            st.markdown(f"### 除外(NG) リスト ({len(current_ng)} 語)")
-            if current_ng:
-                ng_list_sorted = sorted(list(current_ng))
-                try:
-                    selected_ab_ng_pills = st.pills("選択して削除する項目をクリック:", options=ng_list_sorted, selection_mode="multi", key="pills_about_ng")
-                except AttributeError:
-                    selected_ab_ng_pills = st.multiselect("削除する項目を選択:", options=ng_list_sorted, key="ms_about_ng_fallback")
+        st.write("---")
 
-                if st.button("選択項目の NG リストからの解除", key="btn_del_ab_ng_pills", type="primary", use_container_width=True):
-                    if selected_ab_ng_pills:
-                        current_ng.difference_update(selected_ab_ng_pills)
-                        st.session_state["chk_view_ver"] += 1
-                        st.success(f"{len(selected_ab_ng_pills)} 件の項目を NG リストから削除しました。")
-                        st.rerun()
-                    else:
-                        st.warning("解除する項目が選択されていません。")
-            else:
-                st.info("NG リストは現在空です。")
-
-        with c_manage_ok:
-            st.markdown(f"### 保持(OK) リスト ({len(current_ok)} 語)")
-            if current_ok:
-                ok_list_sorted = sorted(list(current_ok))
-                try:
-                    selected_ab_ok_pills = st.pills("選択して削除する項目をクリック:", options=ok_list_sorted, selection_mode="multi", key="pills_about_ok")
-                except AttributeError:
-                    selected_ab_ok_pills = st.multiselect("削除する項目を選択:", options=ok_list_sorted, key="ms_about_ok_fallback")
-
-                if st.button("選択項目の OK リストからの解除", key="btn_del_ab_ok_pills", type="primary", use_container_width=True):
-                    if selected_ab_ok_pills:
-                        current_ok.difference_update(selected_ab_ok_pills)
-                        st.session_state["chk_view_ver"] += 1
-                        st.success(f"{len(selected_ab_ok_pills)} 件の項目を OK リストから削除しました。")
-                        st.rerun()
-                    else:
-                        st.warning("解除する項目が選択されていません。")
-            else:
-                st.info("OK リストは現在空です。")
-
-    st.write("---")
-
-    @st.cache_resource(show_spinner=False)
-    def get_cached_about_clusters(about_ranking_list):
-        return cluster_about_keywords(about_ranking_list)
-
-    about_clusters = get_cached_about_clusters(about_ranking)
-
-    tab_custom, tab_cluster, tab_single, tab_llm = st.tabs([
-        "🎯 自由入力キーワード一括指定 (カスタム指定)",
-        "クラスタ一括判別 (推奨)",
-        "単体キーワード判別ボード",
-        "LLMによるノイズ候補提案"
-    ])
-
-    # =========================================================================
-    # TAB 1: 自由入力キーワード一括指定 (カスタム指定)
-    # =========================================================================
-    with tab_custom:
-        st.markdown("### 自由入力による About キーワード除外・保持指定")
-        st.caption("主題 (schema:about) に含まれる特定の単語やジャンル（例: 政治, 法律, 経済, 医学, 地理 など）を入力し、ヒットする資料を確認しながら一括除外・保持指定できます。")
-
-        custom_about_input = st.text_area(
-            "除外・保持したい About キーワード (カンマ、読点、または改行区切りで複数入力可能):",
-            placeholder="例: 政治, 法律, 経済, 医学, 理学, 仏教, 哲学",
-            height=80,
-            key="txt_custom_about_kws"
-        )
-
-        parsed_custom_about = [
-            w.strip() for w in re.split(r"[\n,、・/／\s]+", custom_about_input) if len(w.strip()) >= 1
-        ]
-        parsed_custom_about = list(dict.fromkeys(parsed_custom_about))
-
-        if parsed_custom_about:
-            st.markdown(f"#### 🔍 入力された {len(parsed_custom_about)} 件のキーワードのヒット検証")
-            
-            kw_hit_stats = []
-            total_impact_docs = set()
-            active_impact_docs = set()
-
-            for kw in parsed_custom_about:
-                matched_about_kws = [k for k, c in about_ranking if kw in k]
-                
-                doc_indices_for_kw = set()
-                for mk in matched_about_kws:
-                    doc_indices_for_kw.update(kw_to_doc_indices.get(mk, []))
-                
-                total_impact_docs.update(doc_indices_for_kw)
-                act_docs = [i for i in doc_indices_for_kw if i in active_doc_indices]
-                active_impact_docs.update(act_docs)
-                
-                is_currently_ng = kw in current_ng
-                is_currently_ok = kw in current_ok
-                
-                samples_list = []
-                for i in list(doc_indices_for_kw)[:15]:
-                    rec = raw_records[i]
-                    samples_list.append({
-                        "id": rec.get("id", ""),
-                        "title": rec.get("title", ""),
-                        "desc": rec.get("desc", ""),
-                        "creator": rec.get("creator", "")
-                    })
-
-                kw_hit_stats.append({
-                    "keyword": kw,
-                    "matched_about": matched_about_kws,
-                    "total_hits": len(doc_indices_for_kw),
-                    "active_hits": len(act_docs),
-                    "samples": samples_list,
-                    "status": "NG" if is_currently_ng else ("OK" if is_currently_ok else "未登録")
-                })
-
-            c_s1, c_s2, c_s3 = st.columns(3)
-            with c_s1:
-                st.metric("指定キーワード総数", f"{len(parsed_custom_about)} 語")
-            with c_s2:
-                st.metric("ヒットする母集団レコード", f"{len(total_impact_docs):,} 件", help="全母データ中でいずれかのキーワードを含む資料数")
-            with c_s3:
-                st.metric("本工程での新規除外インパクト", f"{len(active_impact_docs):,} 件", delta=f"-{len(active_impact_docs):,} 件", delta_color="inverse", help="現在まだ除外されていないデータから新たに削ぎ落とされる件数")
-
-            c_a1, c_a2, c_a3 = st.columns([2, 2, 1])
-            with c_a1:
-                if st.button(f"🚫 指定した {len(parsed_custom_about)} 語を一括で NG (除外) ルールへ追加", type="primary", use_container_width=True, key="btn_apply_about_custom_ng"):
-                    for kw in parsed_custom_about:
-                        current_ng.add(kw)
-                        current_ok.discard(kw)
-                    save_dict = {k: "NG" for k in current_ng}
-                    save_dict.update({k: "OK" for k in current_ok})
-                    safe_save_json(save_dict, about_rules_path)
-                    st.session_state["chk_view_ver"] += 1
-                    st.cache_data.clear()
-                    st.success(f"{len(parsed_custom_about)} 件のキーワードを NG ルールへ登録しました。")
-                    st.rerun()
-
-            with c_a2:
-                if st.button(f"✅ 指定した {len(parsed_custom_about)} 語を一括で OK (保持) ルールへ追加", type="secondary", use_container_width=True, key="btn_apply_about_custom_ok"):
-                    for kw in parsed_custom_about:
-                        current_ok.add(kw)
-                        current_ng.discard(kw)
-                    save_dict = {k: "NG" for k in current_ng}
-                    save_dict.update({k: "OK" for k in current_ok})
-                    safe_save_json(save_dict, about_rules_path)
-                    st.session_state["chk_view_ver"] += 1
-                    st.cache_data.clear()
-                    st.success(f"{len(parsed_custom_about)} 件のキーワードを OK ルールへ登録しました。")
-                    st.rerun()
-
-            with c_a3:
-                if st.button("🔄 入力クリア", use_container_width=True, key="btn_clear_about_custom_input"):
-                    st.session_state["txt_custom_about_kws"] = ""
-                    st.rerun()
-
-            st.write("---")
-            st.markdown("##### 📋 キーワード別ヒット詳細 ＆ 該当資料プレビュー")
-            for stat in kw_hit_stats:
-                kw = stat["keyword"]
-                tot_h = stat["total_hits"]
-                act_h = stat["active_hits"]
-                cur_st = stat["status"]
-                m_abouts = stat["matched_about"]
-
-                if cur_st == "NG":
-                    st_badge = "🚫 [NG登録済]"
-                elif cur_st == "OK":
-                    st_badge = "✅ [OK登録済]"
-                else:
-                    st_badge = "❓ [未登録]"
-
-                exp_header = f"『{kw}』 ➔ 全 {tot_h:,} 件ヒット (未判定: {act_h:,} 件 / 一致About: {len(m_abouts)}種類) ｜ {st_badge}"
-                with st.expander(exp_header, expanded=(tot_h > 0 and cur_st == "未登録")):
-                    c_ak1, c_ak2 = st.columns([3, 1])
-                    with c_ak1:
-                        st.markdown(make_rich_search_links_md(kw))
-                        if m_abouts:
-                            st.caption(f"一致したAboutキーワード: {', '.join(m_abouts[:10])}{'...' if len(m_abouts)>10 else ''}")
-                    with c_ak2:
-                        if cur_st != "NG":
-                            if st.button(f"🚫 『{kw}』をNGに登録", key=f"btn_cust_ab_ng_{kw}", use_container_width=True):
-                                current_ng.add(kw)
-                                current_ok.discard(kw)
-                                save_dict = {k: "NG" for k in current_ng}
-                                save_dict.update({k: "OK" for k in current_ok})
-                                safe_save_json(save_dict, about_rules_path)
-                                st.session_state["chk_view_ver"] += 1
-                                st.cache_data.clear()
-                                st.rerun()
-                        else:
-                            if st.button(f"↩️ 『{kw}』をNG解除", key=f"btn_cust_ab_del_{kw}", use_container_width=True):
-                                current_ng.discard(kw)
-                                save_dict = {k: "NG" for k in current_ng}
-                                save_dict.update({k: "OK" for k in current_ok})
-                                safe_save_json(save_dict, about_rules_path)
-                                st.session_state["chk_view_ver"] += 1
-                                st.cache_data.clear()
-                                st.rerun()
-
-                    st.caption(f"該当資料の具体例 (先頭 {len(stat['samples'])} 件):")
-                    with st.container(height=200):
-                        for s in stat["samples"]:
-                            st.markdown(f"**📖 {s['title']}**")
-                            meta_p = []
-                            if s.get('creator'): meta_p.append(f"著者: `{s['creator']}`")
-                            if s.get('id'): meta_p.append(f"[🔗 Japan Search]({s['id']})")
-                            if meta_p: st.caption(" ｜ ".join(meta_p))
-                            if s.get('desc'):
-                                st.markdown(f"<div style='font-size:0.8rem; color:#bbb;'>{s['desc'][:120]}...</div>", unsafe_allow_html=True)
-                            st.markdown("<hr style='margin:4px 0; border:0; border-top:1px solid rgba(255,255,255,0.08);'/>", unsafe_allow_html=True)
-        else:
-            st.info("上記テキストエリアに除外したい単語（例: `政治, 法律, 経済, 医学`）を入力すると、一致するAboutキーワードの検出と一括除外が行えます。")
-
-    with tab_cluster:
-        st.markdown("類似性に基づいて抽出されたキーワード群に対し仮選択（OK/NG/未判定）を行い、一括確定を適用します。")
-
+        # 2. 仮選択の一括適用 ＆ 保存アクション
+        st.markdown("##### ⚡ ルール確定 ＆ 保存")
         if "draft_about_changes" not in st.session_state:
             st.session_state["draft_about_changes"] = {}
         draft_ab = st.session_state["draft_about_changes"]
+        draft_count = len(draft_ab)
 
+        if draft_count > 0:
+            st.warning(f"現在 **{draft_count} 件** のキーワードが仮選択中です。")
+            if st.button(f"⚡ 仮設定 ({draft_count} 件) を確定して保存", type="primary", use_container_width=True, key="btn_apply_cluster_draft_ctrl"):
+                for kw, status in draft_ab.items():
+                    if status == "NG":
+                        current_ng.add(kw)
+                        current_ok.discard(kw)
+                    elif status == "OK":
+                        current_ok.add(kw)
+                        current_ng.discard(kw)
+                    elif status == "RESET":
+                        current_ng.discard(kw)
+                        current_ok.discard(kw)
+                draft_ab.clear()
+                
+                save_dict = {k: "NG" for k in current_ng}
+                save_dict.update({k: "OK" for k in current_ok})
+                safe_save_json(save_dict, about_rules_path)
+
+                st.session_state["chk_view_ver"] += 1
+                st.success("判別結果を確定し about_rules.json へ保存しました。")
+                st.rerun()
+        else:
+            st.caption("✅ すべてのルールが保存済みです。クラスタやピルを選択すると確定ボタンが表示されます。")
+
+        st.write("---")
+
+        # 3. フィルタ適用実行
+        st.markdown("##### 🚀 フィルタ適用実行")
+        if st.button("About フィルタを実行する", type="primary", use_container_width=True, key="btn_run_about_filter_ctrl"):
+            # 仮選択がある場合は自動コミット＆保存
+            if len(draft_ab) > 0:
+                for kw, status in draft_ab.items():
+                    if status == "NG":
+                        current_ng.add(kw)
+                        current_ok.discard(kw)
+                    elif status == "OK":
+                        current_ok.add(kw)
+                        current_ng.discard(kw)
+                    elif status == "RESET":
+                        current_ng.discard(kw)
+                        current_ok.discard(kw)
+                draft_ab.clear()
+
+            save_dict = {k: "NG" for k in current_ng}
+            save_dict.update({k: "OK" for k in current_ok})
+            safe_save_json(save_dict, about_rules_path)
+
+            data_dir = os.path.dirname(about_filtered_path)
+            passed, disc = run_about_filter(input_path, about_rules_path, about_filtered_path, f"{data_dir}/discarded_about.csv")
+            
+            st.session_state["cluster_visible_limit"] = int(st.session_state.get("num_clusters_per_page", 10))
+            st.session_state["chk_view_ver"] += 1
+            st.success(f"About フィルタ完了: 通過 {passed:,} 件 / 除外 {disc:,} 件")
+            st.rerun()
+
+        st.write("---")
+
+        # 4. 表示・操作オプション
+        st.markdown("##### ⚙️ 表示・操作設定")
+        
+        def _on_tgl_hide_classified():
+            st.session_state["persistent_hide_classified"] = st.session_state["chk_hide_classified_clusters"]
+            
+        def _on_tgl_hide_zero():
+            st.session_state["persistent_hide_zero_pills"] = st.session_state["chk_hide_zero_cluster_pills"]
+
+        hide_fully_classified = st.checkbox(
+            "判定済みのクラスタおよびピルを非表示", 
+            value=st.session_state["persistent_hide_classified"],
+            key="chk_hide_classified_clusters", 
+            on_change=_on_tgl_hide_classified,
+            help="すでにOK/NG判定済みのクラスタおよびクラスタ内の判定済みピルを非表示にし、未判定項目のみに集中できます。"
+        )
+        hide_zero_cluster_pills = st.checkbox(
+            "残存0件のピルを非表示", 
+            value=st.session_state["persistent_hide_zero_pills"],
+            key="chk_hide_zero_cluster_pills", 
+            on_change=_on_tgl_hide_zero,
+            help="他条件ですでに除外され、現在の残存件数が0件になったキーワードをクラスタ内から非表示にします。"
+        )
+        sort_cluster_by = st.selectbox("クラスタソート順:", ["残存データ件数順 (推奨)", "所属キーワード数順"], key="sb_cluster_sort")
+        clusters_per_page = st.number_input("1回のクラスタ追加数", min_value=5, max_value=100, value=10, step=5, key="num_clusters_per_page")
+
+        st.write("---")
+
+        # 5. 初期化
+        with st.popover("🗑️ ルール全初期化", help="Aboutルールを初期化"):
+            st.warning("About ルール設定 (`about_rules.json`) を全初期化しますか？")
+            st.caption("登録済みの NG / OK パターンがすべて消去されます。")
+            if st.button("確定して初期化を実行", type="primary", use_container_width=True, key="btn_confirm_reset_about"):
+                st.session_state["edited_noise"] = set()
+                st.session_state["edited_strong"] = set()
+                st.session_state["draft_about_changes"] = {}
+                safe_save_json({}, about_rules_path)
+                
+                data_dir = os.path.dirname(about_filtered_path)
+                for p_rm in [about_filtered_path, f"{data_dir}/discarded_about.csv"]:
+                    if os.path.exists(p_rm):
+                        try:
+                            os.remove(p_rm)
+                        except Exception:
+                            pass
+                st.cache_data.clear()
+                st.session_state["chk_view_ver"] += 1
+                st.success("About ルールおよびフィルタ適用結果を初期化しました。")
+                st.rerun()
+
+    # =========================================================================
+    # 左側: メイン作業領域 (タブ群 ＆ 自動スクロールボード)
+    # =========================================================================
+    with col_main:
         def get_eff_status(kw):
             if kw in draft_ab:
                 v = draft_ab[kw]
@@ -483,112 +566,57 @@ def render_step2a_view(paths: dict):
                 return "NG"
             return "UN"
 
-        @st.fragment
-        def render_cluster_board():
-            c_cl_hdr1, c_cl_hdr2 = st.columns([3, 2])
-            with c_cl_hdr1:
-                draft_count = len(draft_ab)
-                if draft_count > 0:
-                    st.warning(f"現在 {draft_count} 件のキーワードが仮選択中です（未適用）。")
-                else:
-                    st.caption("各クラスタで OK / NG を仮選択し、「一括確定して適用」ボタンで更新してください。")
-            with c_cl_hdr2:
-                btn_apply_label = f"仮設定 ({draft_count} 件) の一括適用" if draft_count > 0 else "判定の一括適用"
-                if st.button(btn_apply_label, type="primary" if draft_count > 0 else "secondary", use_container_width=True, key="btn_apply_cluster_draft"):
-                    if draft_ab:
-                        for kw, status in draft_ab.items():
-                            if status == "NG":
-                                current_ng.add(kw)
-                                current_ok.discard(kw)
-                            elif status == "OK":
-                                current_ok.add(kw)
-                                current_ng.discard(kw)
-                            elif status == "RESET":
-                                current_ng.discard(kw)
-                                current_ok.discard(kw)
-                        draft_ab.clear()
-                        
-                        save_dict = {}
-                        for k in current_ng: save_dict[k] = "NG"
-                        for k in current_ok: save_dict[k] = "OK"
-                        safe_save_json(save_dict, about_rules_path)
+        tab_cluster, tab_single, tab_custom, tab_llm, tab_manage = st.tabs([
+            "🧩 クラスタ一括判別 (推奨)",
+            "📊 単体キーワード判別ボード",
+            "🎯 自由入力一括指定 (カスタム)",
+            "🤖 LLMノイズ候補提案",
+            f"📋 登録済ルール管理 ({len(current_ng)} NG / {len(current_ok)} OK)"
+        ])
 
-                        st.session_state["chk_view_ver"] += 1
-                        st.success("クラスタ判別結果を about_rules.json へ保存・適用しました。")
-                        st.rerun()
-                    else:
-                        st.info("現在仮選択中のキーワードはありません。")
+        # ---------------------------------------------------------------------
+        # TAB 1: クラスタ一括判別 (推奨)
+        # ---------------------------------------------------------------------
+        with tab_cluster:
+            st.markdown("類似性に基づいて抽出されたキーワード群に対し、一括/個別の判定（OK/NG/未判定）を行います。")
+            
+            # スクロール位置自動保持スクリプト
+            js_scroll_restore = """
+            <script>
+            (function() {
+                try {
+                    const parentDoc = window.parent.document;
+                    const scroller = parentDoc.querySelector('[data-testid="stAppViewContainer"]') || parentDoc.querySelector('section.main') || window.parent;
+                    
+                    const saved = window.parent.sessionStorage.getItem('step2a_scroll_y');
+                    if (saved) {
+                        const targetY = parseInt(saved, 10);
+                        if (scroller.scrollTop !== undefined) {
+                            scroller.scrollTop = targetY;
+                        } else if (window.parent.scrollTo) {
+                            window.parent.scrollTo(0, targetY);
+                        }
+                    }
 
-            st.write("---")
+                    function onScroll() {
+                        const y = (scroller.scrollTop !== undefined) ? scroller.scrollTop : window.parent.scrollY;
+                        window.parent.sessionStorage.setItem('step2a_scroll_y', y);
+                    }
 
-            ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([3, 2, 2])
-            with ctrl_col1:
-                hide_fully_classified = st.checkbox("判定済みのクラスタを非表示にする", value=False, key="chk_hide_classified_clusters")
-            with ctrl_col2:
-                sort_cluster_by = st.selectbox("ソート順:", ["合計データ件数順", "所属キーワード数順"], key="sb_cluster_sort")
-            with ctrl_col3:
-                clusters_per_page = st.number_input("1ページ表示数", min_value=5, max_value=100, value=10, step=5, key="num_clusters_per_page")
+                    if (scroller && scroller.addEventListener) {
+                        scroller.addEventListener('scroll', onScroll, {passive: true});
+                    }
+                    window.parent.addEventListener('scroll', onScroll, {passive: true});
+                } catch(e) {}
+            })();
+            </script>
+            """
+            components.html(js_scroll_restore, height=0, width=0)
 
-            display_clusters = []
-            for c in about_clusters:
-                kws = c["keywords"]
-                ng_c = sum(1 for k in kws if k in current_ng)
-                ok_c = sum(1 for k in kws if k in current_ok)
+            def render_single_cluster_card(c, cid, kws):
+                ng_c = sum(1 for k in kws if get_eff_status(k) == "NG")
+                ok_c = sum(1 for k in kws if get_eff_status(k) == "OK")
                 un_c = len(kws) - ng_c - ok_c
-
-                if hide_fully_classified and un_c == 0:
-                    continue
-
-                display_clusters.append({
-                    **c,
-                    "ng_count": ng_c,
-                    "ok_count": ok_c,
-                    "un_count": un_c
-                })
-
-            if sort_cluster_by == "所属キーワード数順":
-                display_clusters.sort(key=lambda x: len(x["keywords"]), reverse=True)
-            else:
-                display_clusters.sort(key=lambda x: x["total_count"], reverse=True)
-
-            total_display_clusters = len(display_clusters)
-
-            if total_display_clusters == 0:
-                st.success("表示条件に一致する未判定のクラスタはありません。")
-                return
-
-            safe_per_page = max(1, int(clusters_per_page))
-            total_pages = math.ceil(total_display_clusters / safe_per_page)
-            if "cluster_page_idx" not in st.session_state:
-                st.session_state["cluster_page_idx"] = 1
-
-            current_page = max(1, min(total_pages, int(st.session_state.get("cluster_page_idx", 1))))
-            st.session_state["cluster_page_idx"] = current_page
-
-            p_col1, p_col2, p_col3 = st.columns([1, 2, 1])
-            with p_col1:
-                if st.button("◀ 前のページ", disabled=(current_page <= 1), key="btn_prev_cluster_page", use_container_width=True):
-                    st.session_state["cluster_page_idx"] = max(1, current_page - 1)
-                    st.rerun()
-            with p_col2:
-                st.markdown(f"<div style='text-align: center; padding-top: 6px;'><b>全 {total_display_clusters} クラスタ中 {current_page} / {total_pages} ページを表示</b></div>", unsafe_allow_html=True)
-            with p_col3:
-                if st.button("次のページ ▶", disabled=(current_page >= total_pages), key="btn_next_cluster_page", use_container_width=True):
-                    st.session_state["cluster_page_idx"] = min(total_pages, current_page + 1)
-                    st.rerun()
-
-            start_idx = (current_page - 1) * safe_per_page
-            end_idx = start_idx + safe_per_page
-            page_clusters = display_clusters[start_idx:end_idx]
-
-            st.write("---")
-
-            for idx, c in enumerate(page_clusters):
-                cid = c["cluster_id"]
-                kws = c["keywords"]
-                un_c = c["un_count"]
-                ok_c = c["ok_count"]
-                ng_c = c["ng_count"]
 
                 if ng_c > 0 and ok_c == 0 and un_c == 0:
                     status_badge = "全除外 (NG)"
@@ -599,19 +627,58 @@ def render_step2a_view(paths: dict):
                 else:
                     status_badge = f"未判定 (全{un_c}件)"
 
-                kw_preview = ", ".join(kws[:5]) + ("..." if len(kws) > 5 else "")
-                expander_title = f"{c['name']} ➔ [{status_badge}] （対象語句: {kw_preview} [{len(kws)}種類] / 件数: {c['total_count']:,} 件）"
+                from components.ndc_utils import format_about_keyword_display
 
-                with st.expander(expander_title, expanded=(un_c > 0)):
+                # クラスタに属するユニークレコード件数および残存件数をO(1)集合演算で高速算出
+                cl_doc_set = set()
+                for k in kws:
+                    cl_doc_set.update(kw_to_doc_indices.get(k, []))
+                cl_total_cnt = len(cl_doc_set)
+                cl_act_cnt = len(cl_doc_set & active_doc_indices)
+
+                # ピルの絞り込み（判定済み非表示 ＆ 残存0件非表示オプション）
+                # ★確定保存済みのピルのみ非表示にし、現在選択中の「仮設定ピル (kw in draft_ab)」は保存/確定まで表示を継続！
+                visible_kws_info = []
+                for kw in kws:
+                    kw_indices = kw_to_doc_indices.get(kw, [])
+                    eff_kw_cnt = sum(1 for idx in kw_indices if idx in active_doc_indices)
+                    st_val = get_eff_status(kw)
+                    is_in_draft = (kw in draft_ab)
+                    
+                    is_classified = (st_val in ("OK", "NG")) and not is_in_draft
+                    is_zero_remaining = (eff_kw_cnt == 0) and not is_in_draft
+
+                    if hide_fully_classified and is_classified:
+                        continue
+                    if hide_zero_cluster_pills and is_zero_remaining:
+                        continue
+                    visible_kws_info.append((kw, eff_kw_cnt, st_val, len(kw_indices), is_in_draft))
+
+                # 表示すべきピルがなく、かつ仮設定もない場合はクラスタごと非表示
+                has_draft = any(k in draft_ab for k in kws)
+                if len(visible_kws_info) == 0 and not has_draft:
+                    return
+
+                kw_preview = ", ".join([format_about_keyword_display(k, 18) for k in kws[:4]]) + ("..." if len(kws) > 4 else "")
+                expander_title = f"{c['name']} ➔ [{status_badge}] （対象語句: {kw_preview} [{len(kws)}種類] ｜ 残存: {cl_act_cnt:,} 件 / 総 {cl_total_cnt:,} 件）"
+
+                with st.expander(expander_title, expanded=True):
+                    # 一括操作の対象キーワード選定（既存のOK/NG判定を保護）
+                    unclassified_kws = [k for k in kws if get_eff_status(k) == "UN"]
+                    is_partial = len(unclassified_kws) < len(kws)
+                    target_batch_kws = unclassified_kws if (is_partial or hide_fully_classified) else kws
+
                     b_col1, b_col2, b_col3 = st.columns(3)
                     with b_col1:
-                        if st.button(f"一括 OK 仮設定 [{len(kws)}件]", key=f"btn_cl_ok_{cid}", type="secondary", use_container_width=True):
-                            for k in kws:
+                        btn_ok_label = f"未判定のみ一括 OK [{len(target_batch_kws)}件]" if is_partial else f"一括 OK 仮設定 [{len(kws)}件]"
+                        if st.button(btn_ok_label, key=f"btn_cl_ok_{cid}", type="secondary", use_container_width=True, disabled=(len(target_batch_kws) == 0)):
+                            for k in target_batch_kws:
                                 draft_ab[k] = "OK"
                             st.rerun()
                     with b_col2:
-                        if st.button(f"一括 NG 仮設定 [{len(kws)}件]", key=f"btn_cl_ng_{cid}", type="primary", use_container_width=True):
-                            for k in kws:
+                        btn_ng_label = f"未判定のみ一括 NG [{len(target_batch_kws)}件]" if is_partial else f"一括 NG 仮設定 [{len(kws)}件]"
+                        if st.button(btn_ng_label, key=f"btn_cl_ng_{cid}", type="primary", use_container_width=True, disabled=(len(target_batch_kws) == 0)):
+                            for k in target_batch_kws:
                                 draft_ab[k] = "NG"
                             st.rerun()
                     with b_col3:
@@ -620,51 +687,280 @@ def render_step2a_view(paths: dict):
                                 draft_ab[k] = "RESET"
                             st.rerun()
 
-                    st.caption("個別切替 (クリックで OK / NG / 未判定 がトグル切替、🔍 で検索・資料詳細):")
-                    cl_cols = st.columns(3)
-                    for idx_k, kw in enumerate(kws):
-                        col_k = cl_cols[idx_k % 3]
-                        st_val = get_eff_status(kw)
-                        
-                        if st_val == "OK":
-                            lbl = f"✅ {kw}"
-                        elif st_val == "NG":
-                            lbl = f"🚫 {kw}"
+                    if not visible_kws_info:
+                        if un_c == 0:
+                            st.caption("※ このクラスタ内のキーワードはすべて判定済みのため非表示になっています。")
                         else:
-                            lbl = f"❓ {kw}"
+                            st.caption("※ このクラスタ内の未判定キーワードはすべて他条件で除外済み（残存0件）のため非表示になっています。")
+                    else:
+                        hidden_count = len(kws) - len(visible_kws_info)
+                        cur_m_name = st.session_state.get("click_action_about_mode", "NGに設定")
+                        st.caption(f"個別判定 (クリックで『{cur_m_name}』、右側パネルで切替可能):" + (f" [非表示: {hidden_count} 件]" if hidden_count > 0 else ""))
+                        cl_cols = st.columns(3)
+                        for idx_k, (kw, eff_kw_cnt, st_val, tot_kw_cnt, is_in_draft) in enumerate(visible_kws_info):
+                            col_k = cl_cols[idx_k % 3]
+                            disp_k = format_about_keyword_display(kw, max_label_len=24)
+                            
+                            cnt_badge = f" ({eff_kw_cnt:,}件)" if eff_kw_cnt != tot_kw_cnt else f" ({tot_kw_cnt:,}件)"
+                            draft_tag = " [仮]" if is_in_draft else ""
+                            if st_val == "OK":
+                                lbl = f"✅{draft_tag} {disp_k}{cnt_badge}"
+                            elif st_val == "NG":
+                                lbl = f"🚫{draft_tag} {disp_k}{cnt_badge}"
+                            else:
+                                lbl = f"❓{draft_tag} {disp_k}{cnt_badge}"
 
-                        kw_indices = kw_to_doc_indices.get(kw, [])
+                            c_btn_k, c_pop_k = col_k.columns([5, 1])
+                            with c_btn_k:
+                                if st.button(lbl, key=f"tgl_kw_{cid}_{kw}", use_container_width=True):
+                                    cur_m = st.session_state.get("click_action_about_mode", "NGに設定")
+                                    if cur_m == "NGに設定":
+                                        draft_ab[kw] = "NG"
+                                    elif cur_m == "OKに設定":
+                                        draft_ab[kw] = "OK"
+                                    elif cur_m == "未判定に戻す":
+                                        draft_ab[kw] = "RESET"
+                                    else:
+                                        if st_val == "OK":
+                                            draft_ab[kw] = "NG"
+                                        elif st_val == "NG":
+                                            draft_ab[kw] = "RESET"
+                                        else:
+                                            draft_ab[kw] = "OK"
+                                    st.rerun()
+                            with c_pop_k:
+                                with st.popover("🔍", help=f"『{disp_k}』の外部検索・該当資料詳細"):
+                                    st.markdown(f"### 🔍 『{format_about_keyword_display(kw)}』")
+                                    st.markdown(make_rich_search_links_md(kw))
+                                    st.markdown(f"- 該当資料件数: **未除外残存: {eff_kw_cnt:,} 件** （母データ全体: {tot_kw_cnt:,} 件）")
+                                    kw_indices = kw_to_doc_indices.get(kw, [])
+                                    if kw_indices:
+                                        st.write("---")
+                                        st.caption(f"📄 **該当資料一覧 (アクティブ残存資料を優先表示)**:")
+                                        
+                                        sorted_kw_indices = sorted(kw_indices, key=lambda i: 0 if i in active_doc_indices else 1)
+                                        with st.container(height=320):
+                                            from components.file_utils import make_jps_item_url
+                                            for idx_doc in sorted_kw_indices:
+                                                rec = raw_records[idx_doc]
+                                                r_title = rec.get('title', '') or "（無題）"
+                                                r_id = rec.get('id', '')
+                                                creator_part = f" （著者: `{rec.get('creator')}`）" if rec.get('creator') else ""
+                                                is_act = idx_doc in active_doc_indices
+                                                tag = "" if is_act else " <span style='color: #ff6b6b; font-size: 0.8rem;'>[🚫他条件で除外済]</span>"
+                                                
+                                                item_link = make_jps_item_url(r_id, r_title)
+                                                st.markdown(f"• [📖 **{r_title}**]({item_link}){creator_part}{tag}", unsafe_allow_html=True)
 
-                        c_btn_k, c_pop_k = col_k.columns([5, 1])
-                        with c_btn_k:
-                            if st.button(lbl, key=f"tgl_kw_{cid}_{kw}", use_container_width=True):
-                                if st_val == "OK":
-                                    draft_ab[kw] = "NG"
-                                elif st_val == "NG":
-                                    draft_ab[kw] = "RESET"
-                                else:
-                                    draft_ab[kw] = "OK"
+                    # クラスタ内に仮設定がある場合はカード内にも即時確定保存ボタンを表示
+                    cluster_draft_kws = [k for k in kws if k in draft_ab]
+                    if cluster_draft_kws:
+                        st.write("---")
+                        c_save_col1, c_save_col2 = st.columns([3, 2])
+                        with c_save_col1:
+                            st.info(f"📌 このクラスタ内に **{len(cluster_draft_kws)} 件** の仮設定があります。")
+                        with c_save_col2:
+                            if st.button(f"⚡ このクラスタを確定保存 ({len(cluster_draft_kws)}件)", key=f"btn_save_cl_card_{cid}", type="primary", use_container_width=True):
+                                for kw in cluster_draft_kws:
+                                    status = draft_ab[kw]
+                                    if status == "NG":
+                                        current_ng.add(kw)
+                                        current_ok.discard(kw)
+                                    elif status == "OK":
+                                        current_ok.add(kw)
+                                        current_ng.discard(kw)
+                                    elif status == "RESET":
+                                        current_ng.discard(kw)
+                                        current_ok.discard(kw)
+                                    del draft_ab[kw]
+
+                                save_dict = {k: "NG" for k in current_ng}
+                                save_dict.update({k: "OK" for k in current_ok})
+                                safe_save_json(save_dict, about_rules_path)
+
+                                st.session_state["chk_view_ver"] += 1
+                                st.success(f"クラスタ『{c['name']}』のルールを確定保存しました。")
                                 st.rerun()
-                        with c_pop_k:
-                            with st.popover("🔍", help=f"『{kw}』の外部検索・該当資料詳細"):
-                                st.markdown(f"### 🔍 『{kw}』")
-                                st.markdown(make_rich_search_links_md(kw))
-                                st.markdown(f"- 出現資料件数: **{len(kw_indices):,} 件**")
-                                st.write("---")
-                                st.caption(f"📄 出現資料サンプル (先頭 {min(15, len(kw_indices))} 件):")
-                                with st.container(height=260):
-                                    for idx_doc in kw_indices[:15]:
-                                        rec = raw_records[idx_doc]
-                                        st.markdown(f"**📖 {rec['title']}**")
-                                        meta_items = []
-                                        if rec.get('creator'): meta_items.append(f"著者: `{rec['creator']}`")
-                                        if rec.get('id'): meta_items.append(f"[🔗 Japan Search]({rec['id']})")
-                                        if meta_items: st.caption(" ｜ ".join(meta_items))
-                                        if rec.get('desc'):
-                                            st.markdown(f"<div style='font-size:0.8rem; color:#bbb; background:rgba(255,255,255,0.04); padding:3px 6px; border-radius:3px;'>{rec['desc'][:120]}...</div>", unsafe_allow_html=True)
-                                        st.markdown("<hr style='margin:4px 0; border:0; border-top:1px solid rgba(255,255,255,0.08);'/>", unsafe_allow_html=True)
 
-        render_cluster_board()
+            def render_cluster_board():
+                display_clusters = []
+                for c in about_clusters:
+                    kws = c["keywords"]
+                    
+                    # 各キーワードのアクティブ残存状況と表示対象判定
+                    cluster_visible_kws = []
+                    has_draft_in_cluster = False
+                    
+                    for k in kws:
+                        is_in_draft = (k in draft_ab)
+                        if is_in_draft:
+                            has_draft_in_cluster = True
+                        
+                        k_indices = kw_to_doc_indices.get(k, [])
+                        eff_k_cnt = sum(1 for idx in k_indices if idx in active_doc_indices)
+                        st_val = get_eff_status(k)
+                        
+                        is_classified = (st_val in ("OK", "NG")) and not is_in_draft
+                        is_zero_remaining = (eff_k_cnt == 0) and not is_in_draft
+                        
+                        if hide_fully_classified and is_classified:
+                            continue
+                        if hide_zero_cluster_pills and is_zero_remaining:
+                            continue
+                            
+                        cluster_visible_kws.append(k)
+
+                    # 表示すべきピルが1つもなく、かつ仮選択もないクラスタは一覧から除外
+                    if len(cluster_visible_kws) == 0 and not has_draft_in_cluster:
+                        continue
+
+                    # クラスタのユニーク残存件数を計算
+                    cl_doc_set = set()
+                    for k in kws:
+                        cl_doc_set.update(kw_to_doc_indices.get(k, []))
+                    cl_act_cnt = len(cl_doc_set & active_doc_indices)
+                    cl_tot_cnt = len(cl_doc_set)
+
+                    if hide_zero_cluster_pills and cl_act_cnt == 0 and not has_draft_in_cluster:
+                        continue
+
+                    ng_c = sum(1 for k in kws if get_eff_status(k) == "NG")
+                    ok_c = sum(1 for k in kws if get_eff_status(k) == "OK")
+                    un_c = len(kws) - ng_c - ok_c
+
+                    display_clusters.append({
+                        **c,
+                        "ng_count": ng_c,
+                        "ok_count": ok_c,
+                        "un_count": un_c,
+                        "active_count": cl_act_cnt,
+                        "unique_total_count": cl_tot_cnt,
+                        "visible_kws_count": len(cluster_visible_kws)
+                    })
+
+                if sort_cluster_by == "所属キーワード数順":
+                    display_clusters.sort(key=lambda x: len(x["keywords"]), reverse=True)
+                else:
+                    display_clusters.sort(key=lambda x: x["active_count"], reverse=True)
+
+                total_display_clusters = len(display_clusters)
+
+                if total_display_clusters == 0:
+                    st.success("表示条件に一致する未判定のクラスタはありません。")
+                    return
+
+                if "cluster_visible_limit" not in st.session_state:
+                    st.session_state["cluster_visible_limit"] = int(clusters_per_page)
+
+                cur_cl_limit = min(total_display_clusters, max(int(clusters_per_page), int(st.session_state.get("cluster_visible_limit", clusters_per_page))))
+                st.session_state["cluster_visible_limit"] = cur_cl_limit
+
+                st.markdown(f"<div style='padding: 4px 0 8px 0;'><b>全 {total_display_clusters} クラスタ中 {cur_cl_limit} クラスタを表示中</b> <span style='color: #4CAF50; font-size: 0.85rem; margin-left: 8px;'>⚡ スクロールで自動追加読み込み</span></div>", unsafe_allow_html=True)
+
+                page_clusters = display_clusters[:cur_cl_limit]
+
+                st.write("---")
+
+                for c in page_clusters:
+                    render_single_cluster_card(c, c["cluster_id"], c["keywords"])
+
+                # ボトムの追加読み込み ＆ 自動スクロール検知
+                if cur_cl_limit < total_display_clusters:
+                    st.write("---")
+                    cl_sentinel_id = "sentinel_about_clusters"
+                    st.markdown(f'<div id="{cl_sentinel_id}" style="height: 20px; width: 100%; text-align: center; color: #777; font-size: 0.8rem;">🔽 スクロールでクラスタを自動読み込み中...</div>', unsafe_allow_html=True)
+                    
+                    btn_cl_txt = f"🔽 次の {int(clusters_per_page)} クラスタを読み込む (スクロールで自動追加中... 現在 {cur_cl_limit} / 全 {total_display_clusters} クラスタ)"
+                    if st.button(btn_cl_txt, key="btn_bot_more_clusters", type="secondary", use_container_width=True):
+                        st.session_state["cluster_visible_limit"] = min(total_display_clusters, cur_cl_limit + int(clusters_per_page))
+                        st.rerun()
+
+                    js_cl_observer = f"""
+                    <script>
+                    (function() {{
+                        let triggered = false;
+
+                        function triggerLoadMore() {{
+                            if (triggered) return;
+                            try {{
+                                const parentDoc = window.parent.document;
+                                if (!parentDoc) return;
+                                const buttons = parentDoc.querySelectorAll('button');
+                                let triggerBtn = null;
+                                for (let b of buttons) {{
+                                    const t = (b.innerText || '').trim();
+                                    if (t.includes('クラスタを読み込む') || t.includes('自動追加中') || t.includes('次の')) {{
+                                        triggerBtn = b;
+                                        break;
+                                    }}
+                                }}
+                                if (triggerBtn) {{
+                                    triggered = true;
+                                    triggerBtn.click();
+                                    triggerBtn.dispatchEvent(new MouseEvent('click', {{bubbles: true, cancelable: true, view: window.parent}}));
+                                }}
+                            }} catch(e) {{}}
+                        }}
+
+                        function initClObserver() {{
+                            try {{
+                                const parentDoc = window.parent.document;
+                                if (!parentDoc) return;
+                                const sentinel = parentDoc.getElementById('{cl_sentinel_id}');
+                                if (!sentinel) return;
+
+                                // 1. IntersectionObserver
+                                const observer = new IntersectionObserver((entries) => {{
+                                    entries.forEach(entry => {{
+                                        if (entry.isIntersecting) {{
+                                            triggerLoadMore();
+                                        }}
+                                    }});
+                                }}, {{
+                                    root: null,
+                                    rootMargin: "600px",
+                                    threshold: 0
+                                }});
+                                observer.observe(sentinel);
+
+                                // 2. スクロールコンテナの直接検知 (フォールバック)
+                                const scrollers = [
+                                    window.parent,
+                                    parentDoc.querySelector('section.main'),
+                                    parentDoc.querySelector('[data-testid="stAppViewContainer"]')
+                                ];
+
+                                function onScrollCheck() {{
+                                    if (triggered) return;
+                                    const rect = sentinel.getBoundingClientRect();
+                                    const vh = window.parent.innerHeight || 800;
+                                    if (rect.top <= vh + 600) {{
+                                        triggerLoadMore();
+                                    }}
+                                }}
+
+                                scrollers.forEach(s => {{
+                                    if (s && s.addEventListener) {{
+                                        s.addEventListener('scroll', onScrollCheck, {{passive: true}});
+                                    }}
+                                }});
+
+                                // 初回位置チェック
+                                onScrollCheck();
+                            }} catch(e) {{}}
+                        }}
+
+                        setTimeout(initClObserver, 150);
+                        setTimeout(initClObserver, 500);
+                        setTimeout(initClObserver, 1200);
+                    }})();
+                    </script>
+                    """
+                    components.html(js_cl_observer, height=0, width=0)
+                else:
+                    st.caption(f"✅ 全 {total_display_clusters} クラスタを表示完了しました。")
+
+            render_cluster_board()
 
     with tab_single:
         col_opt1, col_opt2 = st.columns([3, 2])
@@ -679,7 +975,6 @@ def render_step2a_view(paths: dict):
             hide_zero_about = st.checkbox(
                 "残存未判定件数が 0 件のキーワードを非表示にする", 
                 value=True, 
-                disabled=not is_unclassified_mode,
                 key="chk_hide_zero_about"
             )
         with col_opt2:
@@ -738,6 +1033,7 @@ def render_step2a_view(paths: dict):
             filtered_ranking = [(k, c) for k, c in filtered_ranking if k in current_ok]
 
         if search_query:
+            from components.ndc_utils import format_about_keyword_display
             parts = [p.strip() for p in re.split(r'\s+', search_query.replace('　', ' ')) if p.strip()]
             inc_words = [p.lower() for p in parts if not p.startswith('-')]
             exc_words = [p[1:].lower() for p in parts if p.startswith('-') and len(p) > 1]
@@ -745,16 +1041,36 @@ def render_step2a_view(paths: dict):
             res_list = []
             for kw, cnt in filtered_ranking:
                 kw_l = kw.lower()
-                if all(i in kw_l for i in inc_words) and not any(e in kw_l for e in exc_words):
+                disp_kw_l = format_about_keyword_display(kw).lower()
+                if all(i in kw_l or i in disp_kw_l for i in inc_words) and not any(e in kw_l or e in disp_kw_l for e in exc_words):
                     res_list.append((kw, cnt))
             filtered_ranking = res_list
+        # 残存未判定件数 (eff_cnt) の超高速算出 (整数カウントのみ)
+        kw_eff_counts = {}
+        for kw, cnt in filtered_ranking:
+            doc_idx_list = kw_to_doc_indices.get(kw, [])
+            eff_c = sum(1 for idx in doc_idx_list if idx in active_doc_indices)
+            kw_eff_counts[kw] = eff_c
+
+        if hide_zero_about:
+            filtered_ranking = [
+                (kw, cnt) for kw, cnt in filtered_ranking 
+                if kw_eff_counts.get(kw, 0) > 0 or kw in current_ng or kw in current_ok
+            ]
+
+        # 現在のページ（最大36件）に表示されるキーワードのみ詳細サンプルをオンデマンド遅延生成
+        cur_page = int(st.session_state.get("about_single_page", 1))
+        items_per_page = 36
+        start_idx = max(0, (cur_page - 1) * items_per_page)
+        page_kws = set([k for k, c in filtered_ranking[start_idx : start_idx + items_per_page]])
 
         active_samples_info = {}
         for kw, cnt in filtered_ranking:
+            eff_c = kw_eff_counts.get(kw, cnt)
             doc_idx_list = kw_to_doc_indices.get(kw, [])
             act_indices = [idx for idx in doc_idx_list if idx in active_doc_indices]
             samples_list = []
-            for i in act_indices[:30]:
+            for i in act_indices[:150]:
                 rec = raw_records[i]
                 samples_list.append({
                     "id": rec.get("id", ""),
@@ -763,15 +1079,9 @@ def render_step2a_view(paths: dict):
                     "creator": rec.get("creator", "")
                 })
             active_samples_info[kw] = {
-                "eff_cnt": len(act_indices),
+                "eff_cnt": eff_c,
                 "samples": samples_list
             }
-
-        if is_unclassified_mode and hide_zero_about:
-            filtered_ranking = [
-                (kw, cnt) for kw, cnt in filtered_ranking 
-                if active_samples_info.get(kw, {}).get("eff_cnt", 0) > 0 or kw in current_ng or kw in current_ok
-            ]
 
         if "draft_about_changes" not in st.session_state:
             st.session_state["draft_about_changes"] = {}
@@ -819,6 +1129,155 @@ def render_step2a_view(paths: dict):
                 else:
                     st.info("現在仮選択中のキーワードはありません。")
 
+    # -------------------------------------------------------------------------
+    # TAB 3: 自由入力キーワード一括指定 (カスタム指定)
+    # -------------------------------------------------------------------------
+    with tab_custom:
+        st.markdown("### 自由入力による主題(About)キーワード除外・保持指定")
+        st.caption("主題（schema:about）に含まれる特定の語句（例: `工芸, 建築, 絵画, 彫刻, 陶芸, 写真, 考古学` など）を入力し、ヒットする資料を確認しながら一括除外・保持指定できます。")
+
+        if "about_custom_txt_ver" not in st.session_state:
+            st.session_state["about_custom_txt_ver"] = 0
+        txt_ver_ab = st.session_state["about_custom_txt_ver"]
+        txt_key_ab = f"txt_custom_about_kws_{txt_ver_ab}"
+
+        custom_about_input = st.text_area(
+            "除外・保持したい主題キーワード (カンマ、読点、または改行区切りで複数入力可能):",
+            placeholder="例: 工芸, 建築, 絵画, 彫刻, 陶芸, 写真, 考古学",
+            height=80,
+            key=txt_key_ab
+        )
+
+        parsed_custom_ab = [
+            w.strip() for w in re.split(r"[\n,、・/／\s]+", custom_about_input) if len(w.strip()) >= 1
+        ]
+        parsed_custom_ab = list(dict.fromkeys(parsed_custom_ab))
+
+        if parsed_custom_ab:
+            st.markdown(f"#### 🔍 入力された {len(parsed_custom_ab)} 件のキーワードのヒット検証")
+            
+            ab_hit_stats = []
+            total_impact_docs = set()
+            active_impact_docs = set()
+
+            for kw in parsed_custom_ab:
+                doc_indices = kw_to_doc_indices.get(kw, [])
+                act_indices = [idx for idx in doc_indices if idx in active_doc_indices]
+                
+                total_impact_docs.update(doc_indices)
+                active_impact_docs.update(act_indices)
+                
+                is_currently_ng = kw in current_ng
+                is_currently_ok = kw in current_ok
+                
+                ab_hit_stats.append({
+                    "keyword": kw,
+                    "total_hits": len(doc_indices),
+                    "active_hits": len(act_indices),
+                    "doc_indices": doc_indices[:15],
+                    "status": "NG" if is_currently_ng else ("OK" if is_currently_ok else "未登録")
+                })
+
+            c_s1, c_s2, c_s3 = st.columns(3)
+            with c_s1:
+                st.metric("指定キーワード総数", f"{len(parsed_custom_ab)} 語")
+            with c_s2:
+                st.metric("ヒットする資料総数", f"{len(total_impact_docs):,} 件", help="全母集団中でいずれかのキーワードが付与された資料数")
+            with c_s3:
+                st.metric("新規除外インパクト", f"{len(active_impact_docs):,} 件", delta=f"-{len(active_impact_docs):,} 件", delta_color="inverse", help="現在まだ除外されていないデータから新たに削ぎ落とされる件数")
+
+            c_a1, c_a2, c_a3 = st.columns([2, 2, 1])
+            with c_a1:
+                if st.button(f"🚫 指定した {len(parsed_custom_ab)} 語を一括で NG (除外) ルールへ追加", type="primary", use_container_width=True, key="btn_apply_about_custom_ng"):
+                    for kw in parsed_custom_ab:
+                        current_ng.add(kw)
+                        current_ok.discard(kw)
+                    save_dict = {}
+                    for k in current_ng: save_dict[k] = "NG"
+                    for k in current_ok: save_dict[k] = "OK"
+                    safe_save_json(save_dict, about_rules_path)
+                    st.session_state["chk_view_ver"] += 1
+                    st.cache_data.clear()
+                    st.success(f"{len(parsed_custom_ab)} 件のキーワードを NG ルールへ登録しました。")
+                    st.rerun()
+
+            with c_a2:
+                if st.button(f"✅ 指定した {len(parsed_custom_ab)} 語を一括で OK (保持) ルールへ追加", type="secondary", use_container_width=True, key="btn_apply_about_custom_ok"):
+                    for kw in parsed_custom_ab:
+                        current_ok.add(kw)
+                        current_ng.discard(kw)
+                    save_dict = {}
+                    for k in current_ng: save_dict[k] = "NG"
+                    for k in current_ok: save_dict[k] = "OK"
+                    safe_save_json(save_dict, about_rules_path)
+                    st.session_state["chk_view_ver"] += 1
+                    st.cache_data.clear()
+                    st.success(f"{len(parsed_custom_ab)} 件のキーワードを OK ルールへ登録しました。")
+                    st.rerun()
+
+            with c_a3:
+                if st.button("🔄 入力クリア", use_container_width=True, key="btn_clear_about_custom_input"):
+                    st.session_state["about_custom_txt_ver"] += 1
+                    st.rerun()
+
+            st.write("---")
+            st.markdown("##### 📋 キーワード別ヒット詳細 ＆ 該当資料例")
+            for stat in ab_hit_stats:
+                kw = stat["keyword"]
+                tot_h = stat["total_hits"]
+                act_h = stat["active_hits"]
+                cur_st = stat["status"]
+                
+                if cur_st == "NG":
+                    st_badge = "🚫 [NG登録済]"
+                elif cur_st == "OK":
+                    st_badge = "✅ [OK登録済]"
+                else:
+                    st_badge = "❓ [未登録]"
+
+                exp_header = f"『{kw}』 ➔ 全 {tot_h:,} 件ヒット (未判定: {act_h:,} 件) ｜ {st_badge}"
+                with st.expander(exp_header, expanded=(tot_h > 0 and cur_st == "未登録")):
+                    c_k1, c_k2 = st.columns([3, 1])
+                    with c_k1:
+                        st.markdown(make_rich_search_links_md(kw))
+                    with c_k2:
+                        if cur_st != "NG":
+                            if st.button(f"🚫 『{kw}』をNGに登録", key=f"btn_cust_ab_ng_{kw}", use_container_width=True):
+                                current_ng.add(kw)
+                                current_ok.discard(kw)
+                                save_dict = {}
+                                for k in current_ng: save_dict[k] = "NG"
+                                for k in current_ok: save_dict[k] = "OK"
+                                safe_save_json(save_dict, about_rules_path)
+                                st.session_state["chk_view_ver"] += 1
+                                st.cache_data.clear()
+                                st.rerun()
+                        else:
+                            if st.button(f"↩️ 『{kw}』をNG解除", key=f"btn_cust_ab_del_{kw}", use_container_width=True):
+                                current_ng.discard(kw)
+                                save_dict = {}
+                                for k in current_ng: save_dict[k] = "NG"
+                                for k in current_ok: save_dict[k] = "OK"
+                                safe_save_json(save_dict, about_rules_path)
+                                st.session_state["chk_view_ver"] += 1
+                                st.cache_data.clear()
+                                st.rerun()
+
+                    st.caption(f"該当する資料の具体例 (先頭 {len(stat['doc_indices'])} 件):")
+                    from components.file_utils import make_jps_item_url
+                    for idx_doc in stat["doc_indices"]:
+                        rec = raw_records[idx_doc]
+                        r_title = rec.get('title', '') or "（無題）"
+                        r_id = rec.get('id', '')
+                        creator_part = f" ({rec.get('creator')})" if rec.get('creator') else ""
+                        item_link = make_jps_item_url(r_id, r_title)
+                        st.markdown(f"• [📖 **{r_title}**]({item_link}){creator_part}")
+        else:
+            st.info("上記テキストエリアに除外したい主題単語（例: `工芸, 建築, 絵画, 彫刻, 陶芸, 写真`）を入力すると、一致する資料の検出と一括除外が行えます。")
+
+    # -------------------------------------------------------------------------
+    # TAB 4: LLMノイズ候補提案
+    # -------------------------------------------------------------------------
     with tab_llm:
         st.markdown("【全域ノイズ判定アシスト】: 保持したいドメイン中心語を指定し、データセット全体から対象外キーワードの候補をLLMで自動抽出します。")
         default_targets = list(current_ok) if current_ok else st.session_state.get("expansion_res", {}).get("keywords", ["楽譜", "音楽", "音譜", "能楽", "三味線"])
@@ -849,83 +1308,62 @@ def render_step2a_view(paths: dict):
 
         if "llm_about_suggs" in st.session_state:
             suggs = st.session_state["llm_about_suggs"]
-            st.warning(f"LLMが抽出したノイズ候補 (全 {len(suggs)} 件)")
-            selected_suggs = st.multiselect("一括登録するキーワードの選択:", options=suggs, default=suggs, key="ms_llm_suggs")
-            if st.button("選択したノイズ候補を NG リストに追加", type="primary", key="btn_add_llm_suggs_ng"):
-                if selected_suggs:
-                    current_ng.update(selected_suggs)
-                    st.success(f"{len(selected_suggs)} 件を NG リストに追加しました。")
-                    st.session_state.pop("llm_about_suggs", None)
-                    st.rerun()
+            if suggs:
+                st.warning(f"🤖 LLMが抽出したノイズ候補 (全 {len(suggs)} 件)")
+                selected_suggs = st.multiselect("一括登録するキーワードの選択:", options=suggs, default=suggs, key="ms_llm_suggs")
+                if st.button("選択したノイズ候補を NG リストに追加", type="primary", key="btn_add_llm_suggs_ng"):
+                    if selected_suggs:
+                        current_ng.update(selected_suggs)
+                        st.success(f"{len(selected_suggs)} 件を NG リストに追加しました。")
+                        st.session_state.pop("llm_about_suggs", None)
+                        st.rerun()
+        # -------------------------------------------------------------------------
+        # TAB 5: 登録済ルール管理
+        # -------------------------------------------------------------------------
+        with tab_manage:
+            from components.ndc_utils import format_about_keyword_display
+            st.markdown(f"現在登録されている About 判定ルールの一覧です（**NG: {len(current_ng)} 件** ｜ **OK: {len(current_ok)} 件**）。")
+            
+            c_mng1, c_mng2 = st.columns(2)
+            with c_mng1:
+                st.markdown(f"##### 🚫 登録済 NG (除外) ルール [{len(current_ng)} 件]")
+                if current_ng:
+                    ng_sorted = sorted(list(current_ng))
+                    for kw in ng_sorted:
+                        disp_k = format_about_keyword_display(kw)
+                        c_w, c_del = st.columns([5, 1])
+                        with c_w:
+                            st.markdown(f"• **{disp_k}**")
+                        with c_del:
+                            if st.button("🗑️ 削除", key=f"del_mng_ng_{kw}", use_container_width=True):
+                                current_ng.discard(kw)
+                                save_dict = {k: "NG" for k in current_ng}
+                                save_dict.update({k: "OK" for k in current_ok})
+                                safe_save_json(save_dict, about_rules_path)
+                                st.session_state["chk_view_ver"] += 1
+                                st.rerun()
+                else:
+                    st.info("登録済みの NG ルールはありません。")
 
-    col_act1, col_act2, col_act3 = st.columns([3, 3, 2])
-    with col_act1:
-        if st.button("選択中のキーワードを NG リストに追加", type="primary", use_container_width=True):
-            if checked_words:
-                to_add = list(checked_words)
-                current_ng.update(to_add)
-                for k in to_add: current_ok.discard(k)
-                checked_words.clear()
-                st.session_state["chk_view_ver"] += 1
-                st.success(f"{len(to_add)} 件のキーワードを NG リストに追加しました。")
-                st.rerun()
-            else:
-                st.warning("選択されているキーワードがありません。")
+            with c_mng2:
+                st.markdown(f"##### ✅ 登録済 OK (保持) ルール [{len(current_ok)} 件]")
+                if current_ok:
+                    ok_sorted = sorted(list(current_ok))
+                    for kw in ok_sorted:
+                        disp_k = format_about_keyword_display(kw)
+                        c_w, c_del = st.columns([5, 1])
+                        with c_w:
+                            st.markdown(f"• **{disp_k}**")
+                        with c_del:
+                            if st.button("🗑️ 削除", key=f"del_mng_ok_{kw}", use_container_width=True):
+                                current_ok.discard(kw)
+                                save_dict = {k: "NG" for k in current_ng}
+                                save_dict.update({k: "OK" for k in current_ok})
+                                safe_save_json(save_dict, about_rules_path)
+                                st.session_state["chk_view_ver"] += 1
+                                st.rerun()
+                else:
+                    st.info("登録済みの OK ルールはありません。")
 
-    with col_act2:
-        if st.button("選択中のキーワードを OK リストに追加", use_container_width=True):
-            if checked_words:
-                to_add = list(checked_words)
-                current_ok.update(to_add)
-                for k in to_add: current_ng.discard(k)
-                checked_words.clear()
-                st.session_state["chk_view_ver"] += 1
-                st.success(f"{len(to_add)} 件のキーワードを OK リストに追加しました。")
-                st.rerun()
 
-    st.write("---")
-    c_save1, c_save2, c_reset = st.columns([2, 1, 1])
-    with c_save1:
-        st.caption("設定は「about_rules.json に保存する」ボタンを押すとファイルへ永続保存されます。")
-    with c_save2:
-        if st.button("about_rules.json に保存する", type="primary", use_container_width=True):
-            save_dict = {}
-            for k in current_ng: save_dict[k] = "NG"
-            for k in current_ok: save_dict[k] = "OK"
-            safe_save_json(save_dict, about_rules_path)
-            st.success("about_rules.json に設定を保存しました。")
 
-    with c_reset:
-        with st.popover("ルール全初期化", help="Aboutルールを初期化"):
-            st.warning("About ルール設定 (about_rules.json) を全初期化しますか？")
-            st.caption("登録済みの NG / OK パターンがすべて初期化されます。")
-            if st.button("確定して初期化を実行", type="primary", use_container_width=True, key="btn_confirm_reset_about"):
-                st.session_state["edited_noise"] = set()
-                st.session_state["edited_strong"] = set()
-                st.session_state["draft_about_changes"] = {}
-                safe_save_json({}, about_rules_path)
-                
-                data_dir = os.path.dirname(about_filtered_path)
-                for p_rm in [about_filtered_path, f"{data_dir}/discarded_about.csv"]:
-                    if os.path.exists(p_rm):
-                        try:
-                            os.remove(p_rm)
-                        except Exception:
-                            pass
-                st.cache_data.clear()
-                st.session_state["chk_view_ver"] += 1
-                st.success("About ルールおよびフィルタ適用結果を初期化しました。")
-                st.rerun()
-
-    st.write("---")
-    st.subheader("About ルールフィルタの適用実行")
-    if st.button("About ルールフィルタリングを実行してノイズを除外する", type="primary", use_container_width=True):
-        save_dict = {}
-        for k in current_ng: save_dict[k] = "NG"
-        for k in current_ok: save_dict[k] = "OK"
-        safe_save_json(save_dict, about_rules_path)
-
-        data_dir = os.path.dirname(about_filtered_path)
-        passed, disc = run_about_filter(raw_metadata_path, about_rules_path, about_filtered_path, f"{data_dir}/discarded_about.csv")
-        st.cache_data.clear()
-        st.success(f"About ルールフィルタリング完了: 通過 {passed:,} 件 / 除外 {disc:,} 件 (除外ログ: {data_dir}/discarded_about.csv)")

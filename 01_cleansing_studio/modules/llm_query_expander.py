@@ -7,6 +7,7 @@ LLMアシスト型 網羅的検索キーワード拡張 & ドメイン定義生�
 import json
 import os
 import re
+from collections import defaultdict
 import requests
 from .logger import logger
 
@@ -525,6 +526,42 @@ def ndc_labels_to_codes(labels: list) -> list:
     return codes
 
 
+def optimize_ndc_codes_for_regex(codes: list) -> str:
+    """
+    NDCコードリスト（例: ['00', '01', ..., '09', '76', '15.4']）を
+    上位大分類への集約とSPARQL用正規表現パターンに最適化する
+    """
+    if not codes:
+        return ""
+    
+    cleaned = set()
+    for code in codes:
+        c = str(code).strip()
+        if c:
+            cleaned.add(c)
+    
+    digit_groups = defaultdict(set)
+    other_codes = set()
+    for c in cleaned:
+        if c.isdigit() and len(c) == 2:
+            digit_groups[c[0]].add(c[1])
+        else:
+            other_codes.add(c)
+            
+    final_patterns = []
+    for d, sub_digits in sorted(digit_groups.items()):
+        if len(sub_digits) == 10:  # 0-9 すべて揃っている場合は1桁に圧縮
+            final_patterns.append(d)
+        else:
+            for sd in sorted(list(sub_digits)):
+                final_patterns.append(f"{d}{sd}")
+                
+    final_patterns.extend(sorted(list(other_codes)))
+    
+    escaped_patterns = [re.escape(p) for p in final_patterns]
+    return "|".join(escaped_patterns)
+
+
 def _safe_json_loads(text_content: str) -> dict:
     """
     LLMが生成したJSON文字列から不要なマークダウン記法やコメントを除去し、
@@ -834,31 +871,12 @@ def generate_sparql_queries(expansion_result: dict) -> list:
     
     exclude_ndc_filter_str = ""
     if flattened_ex_codes:
-        ex_conds = []
-        for code in flattened_ex_codes:
-            c = str(code).strip()
-            if not c:
-                continue
-            if c.startswith("http"):
-                ex_conds.append(f'STRSTARTS(STR(?_ex_g), "{c}")')
-            else:
-                # NDL系（ndc9, ndc8, ndc10, ndc）、JLA系、リテラルを完全網羅
-                ex_conds.extend([
-                    f'STRSTARTS(STR(?_ex_g), "http://jla.or.jp/data/ndc#{c}")',
-                    f'STRSTARTS(STR(?_ex_g), "http://jla.or.jp/data/ndc8#{c}")',
-                    f'STRSTARTS(STR(?_ex_g), "http://jla.or.jp/data/ndc9#{c}")',
-                    f'STRSTARTS(STR(?_ex_g), "http://id.ndl.go.jp/class/ndc9/{c}")',
-                    f'STRSTARTS(STR(?_ex_g), "http://id.ndl.go.jp/class/ndc8/{c}")',
-                    f'STRSTARTS(STR(?_ex_g), "http://id.ndl.go.jp/class/ndc10/{c}")',
-                    f'STRSTARTS(STR(?_ex_g), "http://id.ndl.go.jp/class/ndc/{c}")',
-                    f'STRSTARTS(STR(?_ex_g), "{c}")'
-                ])
-        if ex_conds:
-            ex_cond_str = " ||\n                        ".join(ex_conds)
+        ndc_pattern = optimize_ndc_codes_for_regex(flattened_ex_codes)
+        if ndc_pattern:
             exclude_ndc_filter_str = f"""FILTER NOT EXISTS {{
                     {{ ?s schema:genre ?_ex_g . }} UNION {{ ?s schema:about ?_ex_g . }} UNION {{ ?s <http://purl.org/dc/terms/subject> ?_ex_g . }}
                     FILTER (
-                      {ex_cond_str}
+                      REGEX(STR(?_ex_g), "(ndc[0-9]*[#/]|/ndc/|^)({ndc_pattern})")
                     )
                   }}"""
     
@@ -989,27 +1007,8 @@ def generate_sparql_queries(expansion_result: dict) -> list:
         ndc_codes = [c.strip() for c in re.split(r"[\n,・/／]+", ndc_codes) if c.strip()]
 
     if ndc_codes:
-        filter_exprs = []
-        for code in ndc_codes:
-            c = str(code).strip()
-            if not c:
-                continue
-            if c.startswith("http"):
-                filter_exprs.append(f'STRSTARTS(STR(?genre), "{c}")')
-            else:
-                filter_exprs.extend([
-                    f'STRSTARTS(STR(?genre), "http://jla.or.jp/data/ndc#{c}")',
-                    f'STRSTARTS(STR(?genre), "http://jla.or.jp/data/ndc8#{c}")',
-                    f'STRSTARTS(STR(?genre), "http://jla.or.jp/data/ndc9#{c}")',
-                    f'STRSTARTS(STR(?genre), "http://id.ndl.go.jp/class/ndc9/{c}")',
-                    f'STRSTARTS(STR(?genre), "http://id.ndl.go.jp/class/ndc8/{c}")',
-                    f'STRSTARTS(STR(?genre), "http://id.ndl.go.jp/class/ndc10/{c}")',
-                    f'STRSTARTS(STR(?genre), "http://id.ndl.go.jp/class/ndc/{c}")',
-                    f'STRSTARTS(STR(?genre), "{c}")'
-                ])
-        
-        if filter_exprs:
-            filter_str = " ||\n              ".join(filter_exprs)
+        inc_ndc_pattern = optimize_ndc_codes_for_regex(ndc_codes)
+        if inc_ndc_pattern:
             def q_ndc(lim, offset=0):
                 return f"""
                 PREFIX schema: <http://schema.org/>
@@ -1018,7 +1017,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                   {type_filter_str}
                   {{ ?s schema:genre ?genre . }} UNION {{ ?s schema:about ?genre . }}
                   FILTER (
-                    {filter_str}
+                    REGEX(STR(?genre), "(ndc[0-9]*[#/]|/ndc/|^)({inc_ndc_pattern})")
                   )
                 }}
                 OFFSET {offset}

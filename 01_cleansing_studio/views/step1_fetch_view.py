@@ -59,6 +59,47 @@ def _on_rebuild_regex():
     st.session_state["msg_success"] = "キーワード一覧に基づく正規表現パターンの再構築および最適化が完了しました。"
 
 
+def _on_populate_exclude_ndc_from_complement():
+    selected_ndc_labels = st.session_state.get("input_ndc_multiselect", [])
+    ndc_codes_input = st.session_state.get("input_ndc_codes_manual", "")
+    
+    parsed_ndc_from_select = ndc_labels_to_codes(selected_ndc_labels)
+    parsed_ndc_from_text = [c.strip() for c in re.split(r"[\n,・/／]+", ndc_codes_input) if c.strip()]
+    included_codes = set(parsed_ndc_from_select + parsed_ndc_from_text)
+    
+    # 包含コードと競合・衝突する二次区分（00-99）を特定して保護
+    # 例: 包含コードに "76" や "768" がある場合、除外リストに "76" を入れると前方一致で "768" も消えてしまうため除外不可とする
+    protected_2digit = set()
+    for code in included_codes:
+        c = code.replace(".", "").strip()
+        if len(c) == 1:
+            for i in range(10):
+                protected_2digit.add(f"{c}{i}")
+        elif len(c) >= 2:
+            protected_2digit.add(c[:2])
+    
+    # 全NDC二次区分（00-99）から包含関連コードを除いた補集合を計算
+    all_2digit = sorted(list(NDC_MASTER.keys()))
+    complement_codes = [c for c in all_2digit if c not in protected_2digit]
+    
+    st.session_state["input_exclude_ndc_multiselect"] = ndc_codes_to_labels(complement_codes)
+    st.session_state["input_exclude_ndc_codes_manual"] = ", ".join(complement_codes)
+    
+    exp = st.session_state.get("expansion_res", {})
+    exp["exclude_ndc_codes"] = complement_codes
+    st.session_state["expansion_res"] = exp
+    st.session_state["msg_success"] = f"OK(包含)リスト以外の全NDC二次区分（{len(complement_codes)}件）を除外(Blacklist)リストに一括設定しました。"
+
+
+def _on_clear_exclude_ndc():
+    st.session_state["input_exclude_ndc_multiselect"] = []
+    st.session_state["input_exclude_ndc_codes_manual"] = ""
+    exp = st.session_state.get("expansion_res", {})
+    exp["exclude_ndc_codes"] = []
+    st.session_state["expansion_res"] = exp
+    st.session_state["msg_success"] = "除外NDCリストをクリアしました。"
+
+
 def _on_apply_manual_params():
     kw_input_text = st.session_state.get("input_kw_manual", "")
     selected_ndc_labels = st.session_state.get("input_ndc_multiselect", [])
@@ -352,6 +393,22 @@ def render_step1_view(paths: dict):
             help="例: 375, 49, 59, 288, 51 (細分類コードも入力可能です)",
             key="input_exclude_ndc_codes_manual"
         )
+        
+        c_ndc_btn1, c_ndc_btn2 = st.columns(2)
+        with c_ndc_btn1:
+            st.button(
+                "➕ OKリスト以外を一括除外に追加",
+                on_click=_on_populate_exclude_ndc_from_complement,
+                help="包含(OK)リストに含まれていない全てのNDC二次区分（00〜99）を除外(Blacklist)リストに一括設定します",
+                use_container_width=True
+            )
+        with c_ndc_btn2:
+            st.button(
+                "🗑️ 除外リストをクリア",
+                on_click=_on_clear_exclude_ndc,
+                help="除外NDCリストを空にします",
+                use_container_width=True
+            )
 
     domain_def_input = st.text_area(
         "ドメイン定義文 (Step 2-C セマンティック適合判定の評価基準):",

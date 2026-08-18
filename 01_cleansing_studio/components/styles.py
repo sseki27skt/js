@@ -14,15 +14,30 @@ def inject_custom_css():
         font-family: 'Plus Jakarta Sans', 'Noto Sans JP', -apple-system, sans-serif;
     }
 
-    div[data-testid="stAppViewBlockContainer"] {
+    /* ページ遷移時のレイアウトシフト・スクロールブレ・不要アニメーションの完全抑止 */
+    html, body, section.main {
+        scroll-behavior: auto !important;
+    }
+    
+    div[data-testid="stAppViewContainer"],
+    div[data-testid="stAppViewBlockContainer"],
+    div[data-testid="stMainBlockContainer"],
+    div[data-testid="stVerticalBlock"] {
         opacity: 1 !important;
         transition: none !important;
-        padding-top: 1.2rem;
+        animation: none !important;
     }
+
+    div[data-testid="stAppViewBlockContainer"] {
+        padding-top: 1.2rem !important;
+    }
+
     .element-container, .stButton, div[data-st-mode="running"] {
         opacity: 1 !important;
         transition: none !important;
+        animation: none !important;
     }
+
     [data-testid="stStatusWidget"] {
         visibility: hidden !important;
     }
@@ -69,36 +84,6 @@ def inject_custom_css():
         border-radius: 12px;
         padding: 18px 22px;
         margin-bottom: 16px;
-    }
-
-    /* OK (緑) ＆ NG (赤) ＆ 未判定 ボタンの完全超ビジュアル色分けスタイル */
-    div.stButton > button:has(div:contains("🟢")),
-    div.stButton > button:has(div:contains("✅")),
-    div.stButton > button:has(p:contains("🟢")),
-    div.stButton > button:has(p:contains("✅")) {
-        background-color: #064e3b !important;
-        border: 1.5px solid #10b981 !important;
-        color: #6ee7b7 !important;
-        font-weight: 700 !important;
-        box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25) !important;
-    }
-
-    div.stButton > button:has(div:contains("🔴")),
-    div.stButton > button:has(div:contains("🚫")),
-    div.stButton > button:has(p:contains("🔴")),
-    div.stButton > button:has(p:contains("🚫")) {
-        background-color: #7f1d1d !important;
-        border: 1.5px solid #ef4444 !important;
-        color: #fca5a5 !important;
-        font-weight: 700 !important;
-        box-shadow: 0 2px 6px rgba(239, 68, 68, 0.25) !important;
-    }
-
-    div.stButton > button:has(div:contains("⚪")),
-    div.stButton > button:has(p:contains("⚪")) {
-        background-color: #1e293b !important;
-        border: 1px solid #475569 !important;
-        color: #94a3b8 !important;
     }
     </style>
     """, unsafe_allow_html=True)

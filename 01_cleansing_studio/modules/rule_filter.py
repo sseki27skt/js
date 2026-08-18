@@ -152,7 +152,8 @@ def suggest_ng_keywords_with_llm(
     if provider.lower() == "gemini":
         gemini_key = api_key or os.environ.get("GEMINI_API_KEY", "")
         if not gemini_key:
-            return [k for k in sample_keywords if k not in ng_set and k not in ok_set][:15]
+            logger.warning("[Gemini Suggest Warning] Gemini API Key is missing.")
+            return []
 
         target_model = model if model and model != "local-model" else "gemini-3.6-flash"
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{target_model}:generateContent?key={gemini_key}"
@@ -179,6 +180,7 @@ def suggest_ng_keywords_with_llm(
         except Exception as e:
             logger.warning(f"[Gemini Suggest Warning] {e}")
             print(f"[Gemini Suggest Warning] {e}")
+            return []
 
     # --- 2. Local LLM / OpenAI ---
     else:
@@ -219,8 +221,9 @@ def suggest_ng_keywords_with_llm(
         except Exception as e:
             logger.warning(f"[LLM Fast Suggest Warning] {e}")
             print(f"[LLM Fast Suggest Warning] {e}")
+            return []
 
-    return [k for k in sample_keywords if k not in ng_set and k not in ok_set][:15]
+    return []
 
 
 def suggest_related_keywords_by_base(
@@ -342,15 +345,64 @@ def suggest_related_keywords_by_base(
     return [kw for kw in candidate_samples if base_keyword != kw][:8]
 
 
+def match_about_keyword(keyword: str, rule_target: str) -> bool:
+    """
+    Aboutキーワードとルールの合致判定。
+    - NDCコードの場合: 階層的・前方一致（例: '76' は '768' や 'ndc9:768.1' にマッチするが '976' にはマッチしない）
+    - 一般語彙の場合: 完全一致、または階層区切り（'--', ':', '/'）の前方一致
+    """
+    if not keyword or not rule_target:
+        return False
+    
+    k_clean = str(keyword).strip()
+    r_clean = str(rule_target).strip()
+    
+    if k_clean == r_clean:
+        return True
+
+    from components.ndc_utils import extract_ndc_number
+    k_ndc = extract_ndc_number(k_clean)
+    r_ndc = extract_ndc_number(r_clean)
+
+    if k_ndc and r_ndc:
+        if k_ndc == r_ndc:
+            return True
+        # 親コードが子コードを包含 (例: rule '76' / '760' -> item '768')
+        if len(r_ndc) <= len(k_ndc):
+            r_norm = r_ndc.rstrip('0') if r_ndc != '0' else r_ndc
+            if k_ndc.startswith(r_norm):
+                return True
+        return False
+
+    # 階層区切り記号をもつキーワードのプレフィックス判定
+    for sep in ["--", " / ", " : ", "･", "・"]:
+        if sep in k_clean:
+            parts = k_clean.split(sep)
+            if r_clean in parts or r_clean == parts[0]:
+                return True
+
+    # 部分一致フォールバック (ただしルール文字列が3文字以上の場合のみ安全に適用)
+    if len(r_clean) >= 3 and r_clean in k_clean:
+        return True
+
+    return False
+
+
 def run_about_filter(input_jsonl_path: str, rules_json_path: str, output_filtered_path: str, output_discarded_csv: str):
-    """schema:about キーワード分類ルールに基づいてデータをフィルタリング"""
+    """
+    schema:about キーワード分類ルールに基づいてデータをフィルタリング。
+    NG優先で除外判定し、残存データを出力します。
+    """
     if not os.path.exists(input_jsonl_path):
         return 0, 0
 
     about_rules = {}
     if os.path.exists(rules_json_path):
         with open(rules_json_path, 'r', encoding='utf-8') as f:
-            about_rules = json.load(f)
+            try:
+                about_rules = json.load(f)
+            except Exception:
+                about_rules = {}
 
     ng_categories = set([cat for cat, status in about_rules.items() if status == "NG"])
 
@@ -360,13 +412,16 @@ def run_about_filter(input_jsonl_path: str, rules_json_path: str, output_filtere
     os.makedirs(os.path.dirname(output_filtered_path), exist_ok=True)
     os.makedirs(os.path.dirname(output_discarded_csv), exist_ok=True)
 
-    with open(input_jsonl_path, 'r', encoding='utf-8') as in_f, \
+    with open(input_jsonl_path, 'r', encoding='utf-8', errors='ignore') as in_f, \
          open(output_filtered_path, 'w', encoding='utf-8') as out_f:
 
         for line in in_f:
             if not line.strip():
                 continue
-            item = json.loads(line)
+            try:
+                item = json.loads(line)
+            except Exception:
+                continue
             
             about_val = item.get("schema:about", [])
             extracted_kws = extract_about_values(about_val)
@@ -375,7 +430,7 @@ def run_about_filter(input_jsonl_path: str, rules_json_path: str, output_filtere
             matched_ng_cat = ""
             for kw in extracted_kws:
                 for ng_cat in ng_categories:
-                    if ng_cat in kw:
+                    if match_about_keyword(kw, ng_cat):
                         has_ng = True
                         matched_ng_cat = ng_cat
                         break
@@ -384,9 +439,10 @@ def run_about_filter(input_jsonl_path: str, rules_json_path: str, output_filtere
 
             if has_ng:
                 label = item.get("rdfs:label", item.get("schema:name", "No Title"))
+                title_str = label[0] if isinstance(label, list) and label else str(label)
                 discarded_records.append({
-                    "id": item.get("@id", ""),
-                    "title": label if isinstance(label, str) else str(label),
+                    "id": item.get("@id", item.get("id", "")),
+                    "title": title_str,
                     "matched_ng": matched_ng_cat,
                     "reason": f"Aboutルール除外: {matched_ng_cat}"
                 })
@@ -420,7 +476,7 @@ def run_suffix_filter(input_jsonl_path: str, rules_json_path: str, output_filter
     os.makedirs(os.path.dirname(output_filtered_path), exist_ok=True)
     os.makedirs(os.path.dirname(output_discarded_csv), exist_ok=True)
 
-    with open(input_jsonl_path, 'r', encoding='utf-8') as in_f, \
+    with open(input_jsonl_path, 'r', encoding='utf-8', errors='ignore') as in_f, \
          open(output_filtered_path, 'w', encoding='utf-8') as out_f:
 
         for line in in_f:
@@ -444,7 +500,7 @@ def run_suffix_filter(input_jsonl_path: str, rules_json_path: str, output_filter
 
             if has_ng:
                 discarded_records.append({
-                    "id": item.get("@id", ""),
+                    "id": item.get("@id", item.get("id", "")),
                     "title": label_str,
                     "matched_suffix": matched_suffix,
                     "reason": f"接尾辞ルール除外: 末尾「{matched_suffix}」"
@@ -470,10 +526,8 @@ def split_dataset_by_rules(
     output_discarded_csv: str
 ) -> tuple:
     """
-    AboutルールおよびN-Gramルールに基づいてデータを3分類します。
-    - OKルール判定: LLM判定をバイパスし合格確定 (is_target=True)
-    - NGルール判定: 事前除外 (is_target=False)
-    - 未判定: グレーゾーン (target_for_llm.jsonl へ保存してLLM判定へ投入)
+    Aboutルールおよびタイトル文字列ルールに基づいてデータを3分類します。
+    - 判定ポリシー: NG判定最優先 ＞ 残りの中でOK判定（LLMバイパス合格） ＞ 未判定（グレーゾーン・LLM投入）
     """
     if not os.path.exists(input_jsonl_path):
         return 0, 0, 0
@@ -532,13 +586,15 @@ def split_dataset_by_rules(
             about_val = item.get("schema:about", [])
             extracted_about_kws = extract_about_values(about_val)
 
-            # 1. NG判定
+            # =================================================================
+            # 1. NG判定（最優先）
+            # =================================================================
             has_ng = False
             matched_ng_reason = ""
 
             for kw in extracted_about_kws:
                 for ng_cat in ng_about:
-                    if ng_cat in kw:
+                    if match_about_keyword(kw, ng_cat):
                         has_ng = True
                         matched_ng_reason = f"About NG: 「{ng_cat}」"
                         break
@@ -549,7 +605,7 @@ def split_dataset_by_rules(
                 for pat in ng_ngram:
                     if pat in title_str:
                         has_ng = True
-                        matched_ng_reason = f"N-Gram NG: 「{pat}」"
+                        matched_ng_reason = f"タイトル NG: 「{pat}」"
                         break
 
             if has_ng:
@@ -561,13 +617,15 @@ def split_dataset_by_rules(
                 ng_count += 1
                 continue
 
-            # 2. OK判定 (LLMバイパス合格)
+            # =================================================================
+            # 2. OK判定 (NGなし ＆ OKあり -> LLMバイパス合格)
+            # =================================================================
             has_ok = False
             matched_ok_reason = ""
 
             for kw in extracted_about_kws:
                 for ok_cat in ok_about:
-                    if ok_cat in kw:
+                    if match_about_keyword(kw, ok_cat):
                         has_ok = True
                         matched_ok_reason = f"About OK: 「{ok_cat}」"
                         break
@@ -578,7 +636,7 @@ def split_dataset_by_rules(
                 for pat in ok_ngram:
                     if pat in title_str:
                         has_ok = True
-                        matched_ok_reason = f"N-Gram OK: 「{pat}」"
+                        matched_ok_reason = f"タイトル OK: 「{pat}」"
                         break
 
             if has_ok:
@@ -592,7 +650,9 @@ def split_dataset_by_rules(
                 ok_count += 1
                 continue
 
-            # 3. グレーゾーン (LLM判定へ)
+            # =================================================================
+            # 3. グレーゾーン (NGでもOKでもない -> LLM判定へ)
+            # =================================================================
             grey_f.write(json.dumps(item, ensure_ascii=False) + "\n")
             grey_count += 1
 
@@ -608,4 +668,193 @@ def split_dataset_by_rules(
         df_disc.to_csv(output_discarded_csv, index=False, encoding='utf-8-sig')
 
     return ok_count, ng_count, grey_count
+
+
+# =============================================================================
+# rdf:type (データ種別・リソース型) 抽出 ＆ フィルタリング
+# =============================================================================
+
+def extract_type_values(type_val) -> list:
+    """
+    rdf:type / type の生値（str, dict, list, またはそのネスト）から
+    URI および短縮ラベル（日本語名）のペア [(full_uri, short_label), ...] を抽出します。
+    """
+    if not type_val:
+        return []
+    
+    raw_list = type_val if isinstance(type_val, list) else [type_val]
+    types_out = []
+    
+    for item in raw_list:
+        if not item:
+            continue
+        if isinstance(item, dict):
+            val = item.get("rdfs:label") or item.get("schema:name") or item.get("@id") or item.get("id") or ""
+            if isinstance(val, list) and val:
+                val = val[0]
+            val_str = str(val).strip()
+        else:
+            val_str = str(item).strip()
+            
+        if not val_str:
+            continue
+            
+        if val_str.startswith("http"):
+            short_lbl = urllib.parse.unquote(val_str.split("/")[-1].split("#")[-1])
+            types_out.append((val_str, short_lbl if short_lbl else val_str))
+        else:
+            types_out.append((val_str, val_str))
+            
+    return types_out
+
+
+def extract_types_from_jsonl(input_jsonl_path: str) -> list:
+    """
+    jsonl から rdf:type を集計し、
+    [(short_label, full_uri, count, sample_docs), ...] の降順リストを返します。
+    """
+    if not os.path.exists(input_jsonl_path):
+        return []
+
+    type_counts = Counter()
+    type_to_uri = {}
+    type_samples = {}
+
+    with open(input_jsonl_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                rec = json.loads(line)
+            except Exception:
+                continue
+
+            # タイトルの堅牢な取得 (rdfs:label, schema:name, title等)
+            raw_title = rec.get('rdfs:label') or rec.get('schema:name') or rec.get('name') or rec.get('title') or ""
+            if isinstance(raw_title, list) and raw_title:
+                raw_title = raw_title[0]
+            title = str(raw_title).strip() if raw_title else "（無題）"
+
+            # IDの堅牢な取得 (@id, id)
+            rec_id = rec.get('@id') or rec.get('id') or ""
+
+            # 著者の堅牢な取得 (schema:creator)
+            raw_creator = rec.get('schema:creator') or rec.get('creator') or ""
+            if isinstance(raw_creator, list) and raw_creator:
+                raw_creator = raw_creator[0]
+            if isinstance(raw_creator, dict):
+                raw_creator = raw_creator.get('rdfs:label') or raw_creator.get('name') or raw_creator.get('@id') or ""
+            raw_creator_str = str(raw_creator).strip()
+            if raw_creator_str.startswith("http"):
+                creator = urllib.parse.unquote(raw_creator_str.split("/")[-1].split("#")[-1])
+            else:
+                creator = raw_creator_str
+
+            # rdf:type の抽出
+            t_val = rec.get('type') or rec.get('rdf_type') or rec.get('rdf:type')
+            extracted = extract_type_values(t_val)
+
+            doc_info = {"id": rec_id, "title": title, "creator": creator}
+
+            if not extracted:
+                type_counts["（未定義 / 種別なし）"] += 1
+                type_to_uri["（未定義 / 種別なし）"] = ""
+                if "（未定義 / 種別なし）" not in type_samples:
+                    type_samples["（未定義 / 種別なし）"] = []
+                type_samples["（未定義 / 種別なし）"].append(doc_info)
+            else:
+                for full_uri, short_lbl in extracted:
+                    type_counts[short_lbl] += 1
+                    type_to_uri[short_lbl] = full_uri
+                    if short_lbl not in type_samples:
+                        type_samples[short_lbl] = []
+                    type_samples[short_lbl].append(doc_info)
+
+    result = []
+    for short_lbl, cnt in type_counts.most_common():
+        result.append({
+            "short_label": short_lbl,
+            "full_uri": type_to_uri.get(short_lbl, ""),
+            "count": cnt,
+            "samples": type_samples.get(short_lbl, [])
+        })
+
+    return result
+
+
+def load_type_rules(rules_path: str) -> dict:
+    """type_rules.json を読み込み {'NG': set(), 'OK': set()} を返します"""
+    rules = {"NG": set(), "OK": set()}
+    if os.path.exists(rules_path):
+        try:
+            with open(rules_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    rules["NG"] = set(data.get("NG", []))
+                    rules["OK"] = set(data.get("OK", []))
+        except Exception as e:
+            logger.error(f"Error loading type_rules: {e}")
+    return rules
+
+
+def save_type_rules(rules_path: str, rules_dict: dict) -> bool:
+    """type_rules を JSON 保存します"""
+    try:
+        os.makedirs(os.path.dirname(rules_path), exist_ok=True)
+        data = {
+            "NG": sorted(list(rules_dict.get("NG", set()))),
+            "OK": sorted(list(rules_dict.get("OK", set())))
+        }
+        with open(rules_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        logger.error(f"Error saving type_rules: {e}")
+        return False
+
+
+def apply_type_filter(input_jsonl_path: str, output_jsonl_path: str, type_rules_path: str) -> tuple:
+    """
+    type_rules.json の NG ルールに基づき、除外フィルタを適用して type_filtered.jsonl を生成します。
+    戻り値: (total_count, passed_count, discarded_count)
+    """
+    rules = load_type_rules(type_rules_path)
+    ng_types = rules["NG"]
+
+    if not os.path.exists(input_jsonl_path):
+        return 0, 0, 0
+
+    total_cnt = 0
+    passed_cnt = 0
+    discarded_cnt = 0
+
+    os.makedirs(os.path.dirname(output_jsonl_path), exist_ok=True)
+    with open(input_jsonl_path, 'r', encoding='utf-8') as in_f, \
+         open(output_jsonl_path, 'w', encoding='utf-8') as out_f:
+        for line in in_f:
+            if not line.strip():
+                continue
+            total_cnt += 1
+            rec = json.loads(line)
+            t_val = rec.get('type') or rec.get('rdf_type') or rec.get('rdf:type')
+            extracted = extract_type_values(t_val)
+            
+            is_ng = False
+            if not extracted:
+                if "（未定義 / 種別なし）" in ng_types:
+                    is_ng = True
+            else:
+                for full_uri, short_lbl in extracted:
+                    if short_lbl in ng_types or full_uri in ng_types:
+                        is_ng = True
+                        break
+            
+            if is_ng:
+                discarded_cnt += 1
+            else:
+                out_f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                passed_cnt += 1
+
+    return total_cnt, passed_cnt, discarded_cnt
+
 

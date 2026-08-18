@@ -1,12 +1,10 @@
-# -*- coding: utf-8 -*-
-"""
-MetaClean Studio - 汎用ピルボード (Pill Board) ＆ 仮判定操作UIコンポーネント
-"""
-
 import math
+import urllib.parse
 import streamlit as st
+import streamlit.components.v1 as components
 from components.file_utils import make_rich_search_links_md, make_rich_search_links
 
+@st.fragment
 def render_pill_board(
     items: list, 
     active_samples_map: dict, 
@@ -20,51 +18,31 @@ def render_pill_board(
 ):
     """
     キーワード/フレーズのピル（Pill）一覧をインタラクティブかつ爆速描画する汎用コンポーネント
-    
-    :param items: (word, total_count) または (word, total_count, raw_samples) のリスト
-    :param active_samples_map: word -> active_samples リストの辞書
-    :param current_ng: 確定済みNGセット
-    :param current_ok: 確定済みOKセット
-    :param draft_dict: 仮選択中ステータス辞書
-    :param click_action_mode: 現在の判定モード ("🚫 NGに設定", "✅ OKに設定", "🔄 未判定に戻す")
-    :param page_session_key: ページネーション用のセッションキー
-    :param parent_rule_func: (word) -> (parent_type, parent_word) を返す関数 (オプション)
-    :param items_per_page: 1ページあたりの描画アイテム数
+    スクロールに応じた完全自動追加読み込み（Auto Infinite Scroll）に対応
     """
     total_items = len(items)
     if total_items == 0:
         st.info("条件に一致する判定対象キーワードはありません。")
         return
 
-    total_pages = math.ceil(total_items / items_per_page)
+    limit_key = f"limit_{page_session_key}"
+    if limit_key not in st.session_state:
+        st.session_state[limit_key] = items_per_page
     
-    if page_session_key not in st.session_state:
-        st.session_state[page_session_key] = 1
-    cur_p = max(1, min(total_pages, int(st.session_state.get(page_session_key, 1))))
-    st.session_state[page_session_key] = cur_p
+    cur_limit = min(total_items, int(st.session_state.get(limit_key, items_per_page)))
+    st.session_state[limit_key] = cur_limit
 
-    # ページネーションバー
-    c_p1, c_p2, c_p3 = st.columns([1, 2, 1])
-    with c_p1:
-        if st.button("◀ 前へ", disabled=(cur_p <= 1), key=f"btn_prev_{page_session_key}", use_container_width=True):
-            st.session_state[page_session_key] = cur_p - 1
-            st.rerun()
-    with c_p2:
-        st.markdown(
-            f"<div style='text-align: center; padding-top: 6px;'><b>全 {total_items:,} 件中 "
-            f"{(cur_p-1)*items_per_page+1}〜{min(total_items, cur_p*items_per_page)}件を表示 "
-            f"( {cur_p} / {total_pages} ページ )</b></div>", 
-            unsafe_allow_html=True
-        )
-    with c_p3:
-        if st.button("次へ ▶", disabled=(cur_p >= total_pages), key=f"btn_next_{page_session_key}", use_container_width=True):
-            st.session_state[page_session_key] = cur_p + 1
-            st.rerun()
+    # 操作・表示ステータスバー
+    st.markdown(
+        f"<div style='padding: 4px 0 8px 0;'><b>📋 表示中: {cur_limit:,} 件 ／ 全 {total_items:,} 件</b> "
+        f"<span style='color: #4CAF50; font-size: 0.85rem; margin-left: 8px;'>⚡ スクロールで自動追加読み込み</span></div>", 
+        unsafe_allow_html=True
+    )
 
-    page_items = items[(cur_p-1)*items_per_page : cur_p*items_per_page]
+    page_items = items[:cur_limit]
 
-    # ボードコンテナ
-    board_container = st.container(height=540)
+    # ボードコンテナ (縦スクロール可能)
+    board_container = st.container(height=600)
     with board_container:
         grid_cols = st.columns(3)
         for idx, item in enumerate(page_items):
@@ -89,6 +67,9 @@ def render_pill_board(
                 eff_c = cnt
                 display_samples = raw_samples
 
+            from components.ndc_utils import format_about_keyword_display
+            disp_w = format_about_keyword_display(w, max_label_len=24)
+
             cnt_str = f"({cnt}件)" if eff_c == cnt else f"(未判定 {eff_c}件 / 全{cnt}件)"
 
             # ツールチップ用テキスト
@@ -100,7 +81,7 @@ def render_pill_board(
                     sample_titles.append(str(s))
 
             sample_lines = [f"• {t}" for t in sample_titles if t]
-            sample_header = f"【『{w}』の未判定資料例 ({len(sample_lines)}件表示)】:\n" if sample_lines else f"【『{w}』の件数: {cnt_str}】\n"
+            sample_header = f"【『{disp_w}』の未判定資料例 ({len(sample_lines)}件表示)】:\n" if sample_lines else f"【『{disp_w}』の件数: {cnt_str}】\n"
             tooltip_txt = sample_header + "\n".join(sample_lines)
 
             # ドラフト ＆ 既存ルールのステータス判定
@@ -120,19 +101,19 @@ def render_pill_board(
                 d_tag = ""
 
             if is_ng:
-                btn_label = f"🚫 {w} {cnt_str}{d_tag}"
+                btn_label = f"🚫 {disp_w} {cnt_str}{d_tag}"
             elif is_ok:
-                btn_label = f"✅ {w} {cnt_str}{d_tag}"
+                btn_label = f"✅ {disp_w} {cnt_str}{d_tag}"
             elif parent_type == "NG":
-                btn_label = f"🚫 {w} [親:{parent_word}] {cnt_str}{d_tag}"
+                btn_label = f"🚫 {disp_w} [親:{parent_word}] {cnt_str}{d_tag}"
             elif parent_type == "OK":
-                btn_label = f"✅ {w} [親:{parent_word}] {cnt_str}{d_tag}"
+                btn_label = f"✅ {disp_w} [親:{parent_word}] {cnt_str}{d_tag}"
             else:
-                btn_label = f"❓ {w} {cnt_str}{d_tag}"
+                btn_label = f"❓ {disp_w} {cnt_str}{d_tag}"
 
             c_btn, c_pop = col.columns([6, 1])
             with c_btn:
-                if st.button(btn_label, key=f"btn_pills_{page_session_key}_{w}_{idx}_{cur_p}", help=tooltip_txt, use_container_width=True):
+                if st.button(btn_label, key=f"btn_pills_{page_session_key}_{w}_{idx}", help=tooltip_txt, use_container_width=True):
                     mode_str = str(click_action_mode)
                     if "NG" in mode_str:
                         draft_dict[w] = "NG"
@@ -142,7 +123,7 @@ def render_pill_board(
                         draft_dict[w] = "RESET"
                     else:
                         draft_dict[w] = "NG"
-                    st.rerun()
+                    st.rerun(scope="fragment")
 
             with c_pop:
                 with st.popover("🔍", help=f"『{w}』の外部検索・該当資料詳細"):
@@ -155,23 +136,25 @@ def render_pill_board(
                     # ポップオーバー内ダイレクト判定
                     c_act_ng, c_act_ok, c_act_rst = st.columns(3)
                     with c_act_ng:
-                        if st.button("🚫 NGに設定", key=f"pop_ng_{page_session_key}_{w}_{idx}_{cur_p}", use_container_width=True, type="primary" if is_ng else "secondary"):
+                        if st.button("🚫 NGに設定", key=f"pop_ng_{page_session_key}_{w}_{idx}", use_container_width=True, type="primary" if is_ng else "secondary"):
                             draft_dict[w] = "NG"
-                            st.rerun()
+                            st.rerun(scope="fragment")
                     with c_act_ok:
-                        if st.button("✅ OKに設定", key=f"pop_ok_{page_session_key}_{w}_{idx}_{cur_p}", use_container_width=True, type="primary" if is_ok else "secondary"):
+                        if st.button("✅ OKに設定", key=f"pop_ok_{page_session_key}_{w}_{idx}", use_container_width=True, type="primary" if is_ok else "secondary"):
                             draft_dict[w] = "OK"
-                            st.rerun()
+                            st.rerun(scope="fragment")
                     with c_act_rst:
-                        if st.button("🔄 未判定に戻す", key=f"pop_rst_{page_session_key}_{w}_{idx}_{cur_p}", use_container_width=True):
+                        if st.button("🔄 リセット", key=f"pop_rst_{page_session_key}_{w}_{idx}", use_container_width=True):
                             draft_dict[w] = "RESET"
-                            st.rerun()
+                            st.rerun(scope="fragment")
 
                     st.write("---")
-                    st.caption(f"📄 **このキーワードが付与された資料の具体例 (最新 {len(display_samples)} 件)**:")
+                    st.caption(f"📄 **該当資料一覧 (全 {len(display_samples):,} 件をスクロール確認可能)**:")
                     with st.container(height=320):
                         if not display_samples:
                             st.info("該当する資料サンプルはありません。")
+                        
+                        from components.file_utils import make_jps_item_url, make_jps_keyword_url
                         for s in display_samples:
                             if isinstance(s, dict):
                                 s_title = s.get("title") or "（無題）"
@@ -179,22 +162,118 @@ def render_pill_board(
                                 s_desc = s.get("desc", "")
                                 s_creator = s.get("creator", "")
 
-                                st.markdown(f"**📖 {s_title}**")
+                                item_link = make_jps_item_url(s_id, s_title)
+                                title_link = f"[📖 **{s_title}**]({item_link})"
+
                                 meta_parts = []
                                 if s_creator:
-                                    meta_parts.append(f"著者/編者: `{s_creator}`")
+                                    meta_parts.append(f"著者: `{s_creator}`")
                                 if s_id:
-                                    meta_parts.append(f"[🔗 Japan Searchで確認]({s_id})")
-                                if meta_parts:
-                                    st.caption(" ｜ ".join(meta_parts))
-                                if s_desc:
-                                    st.markdown(
-                                        f"<div style='font-size: 0.82rem; color: #bbb; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; margin-top: 2px; margin-bottom: 6px; line-height: 1.4;'>"
-                                        f"<b>説明:</b> {s_desc[:150]}{'...' if len(s_desc)>150 else ''}"
-                                        f"</div>",
-                                        unsafe_allow_html=True
-                                    )
-                                st.markdown("<hr style='margin: 6px 0; border: 0; border-top: 1px solid rgba(255,255,255,0.08);'/>", unsafe_allow_html=True)
+                                    meta_parts.append(f"[🔗 JPS]({item_link})")
+                                
+                                meta_str = f" <span style='color: #888; font-size: 0.8rem;'>({' ｜ '.join(meta_parts)})</span>" if meta_parts else ""
+                                st.markdown(f"• {title_link}{meta_str}", unsafe_allow_html=True)
                             else:
-                                st.markdown(f"- {s}")
+                                s_str = str(s)
+                                jps_search_url = make_jps_keyword_url(s_str)
+                                st.markdown(f"• [📖 **{s_str}**]({jps_search_url})")
+
+        # 自動スクロール検知用のセンチネル要素（コンテナ内部最下部）
+        sentinel_id = f"sentinel_{page_session_key}"
+        trigger_btn_id = f"btn_auto_more_{page_session_key}"
+        if cur_limit < total_items:
+            st.markdown(f'<div id="{sentinel_id}" style="height: 20px; width: 100%; text-align: center; color: #777; font-size: 0.8rem; padding-top: 4px;">🔽 スクロールで読み込み中...</div>', unsafe_allow_html=True)
+
+    # ボトムの追加読み込みバー ＆ 自動トリガーボタン
+    if cur_limit < total_items:
+        btn_txt = f"🔽 次の 36 件を読み込む (スクロールで自動追加中... 現在 {cur_limit:,} 件 / 全 {total_items:,} 件)"
+        if st.button(btn_txt, key=trigger_btn_id, type="secondary", use_container_width=True):
+            st.session_state[limit_key] = min(total_items, cur_limit + 36)
+            st.rerun(scope="fragment")
+
+        # JS IntersectionObserver 自動トリガースクリプトの注入
+        js_observer = f"""
+        <script>
+        (function() {{
+            let triggered = false;
+
+            function triggerLoadMore() {{
+                if (triggered) return;
+                try {{
+                    const parentDoc = window.parent.document;
+                    if (!parentDoc) return;
+                    const buttons = parentDoc.querySelectorAll('button');
+                    let triggerBtn = null;
+                    for (let b of buttons) {{
+                        const t = (b.innerText || '').trim();
+                        if (t.includes('スクロールで自動追加中') || t.includes('件を読み込む') || t.includes('次の')) {{
+                            triggerBtn = b;
+                            break;
+                        }}
+                    }}
+                    if (triggerBtn) {{
+                        triggered = true;
+                        triggerBtn.click();
+                        triggerBtn.dispatchEvent(new MouseEvent('click', {{bubbles: true, cancelable: true, view: window.parent}}));
+                    }}
+                }} catch(e) {{}}
+            }}
+
+            function initSentinelObserver() {{
+                try {{
+                    const parentDoc = window.parent.document;
+                    if (!parentDoc) return;
+                    const sentinel = parentDoc.getElementById('{sentinel_id}');
+                    if (!sentinel) return;
+
+                    // 1. IntersectionObserver
+                    const observer = new IntersectionObserver((entries) => {{
+                        entries.forEach(entry => {{
+                            if (entry.isIntersecting) {{
+                                triggerLoadMore();
+                            }}
+                        }});
+                    }}, {{
+                        root: null,
+                        rootMargin: "600px",
+                        threshold: 0
+                    }});
+                    observer.observe(sentinel);
+
+                    // 2. スクロールコンテナの直接検知 (フォールバック)
+                    const scrollers = [
+                        window.parent,
+                        parentDoc.querySelector('section.main'),
+                        parentDoc.querySelector('[data-testid="stAppViewContainer"]')
+                    ];
+
+                    function onScrollCheck() {{
+                        if (triggered) return;
+                        const rect = sentinel.getBoundingClientRect();
+                        const vh = window.parent.innerHeight || 800;
+                        if (rect.top <= vh + 600) {{
+                            triggerLoadMore();
+                        }}
+                    }}
+
+                    scrollers.forEach(s => {{
+                        if (s && s.addEventListener) {{
+                            s.addEventListener('scroll', onScrollCheck, {{passive: true}});
+                        }}
+                    }});
+
+                    // 初回位置チェック
+                    onScrollCheck();
+                }} catch(e) {{}}
+            }}
+
+            setTimeout(initSentinelObserver, 150);
+            setTimeout(initSentinelObserver, 500);
+            setTimeout(initSentinelObserver, 1200);
+        }})();
+        </script>
+        """
+        components.html(js_observer, height=0, width=0)
+    else:
+        st.caption(f"✅ 全 {total_items:,} 件のキーワードを表示完了しました。")
 

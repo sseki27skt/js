@@ -1,7 +1,8 @@
-
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - Step 2-C: LLMセマンティック適合判定ビュー
+MetaClean Studio - Step 3: LLMセマンティック適合判定ビュー
+事前ルールフィルタ（Step 2-A〜C）で確定しなかった判定保留（グレーゾーン）データを抽出し、
+LLMによるテキスト解釈と根拠理由生成に基づくセマンティック適合判定を行います。
 """
 import json
 import os
@@ -9,16 +10,18 @@ import time
 import pandas as pd
 import streamlit as st
 
+from components.file_utils import count_lines
 from modules.rule_filter import split_dataset_by_rules
 from modules.llm_classifier import run_llm_semantic_classification, run_stage2_llm_classification
 
 def render_step2c_view(paths: dict):
-    """Step 2-C 画面の描画"""
-    st.title("Step 2-C: LLMセマンティック適合判定 (判定保留群の分類)")
+    """Step 3 画面の描画"""
+    st.title("Step 3: LLMセマンティック適合判定 (判定保留群の分類)")
     st.caption("事前ルールフィルタで確定しなかった判定保留（グレーゾーン）データを抽出し、LLMによるテキスト解釈と根拠理由生成に基づくセマンティック適合判定を行います。")
 
     ngram_filtered_path = paths['PATH_NGRAM_FILTERED']
     about_filtered_path = paths['PATH_ABOUT_FILTERED']
+    type_filtered_path = paths.get('PATH_TYPE_FILTERED', 'data/type_filtered.jsonl')
     raw_metadata_path = paths['PATH_RAW_METADATA']
     about_rules_path = paths['PATH_ABOUT_RULES']
     ngram_rules_path = paths['PATH_NGRAM_RULES']
@@ -28,30 +31,56 @@ def render_step2c_view(paths: dict):
     llm_judgments_path = paths['PATH_LLM_JUDGMENTS']
     data_dir = os.path.dirname(llm_judgments_path)
 
+    # 入力データソースの決定 (Step 2-C > Step 2-B > Step 2-A > Raw)
     raw_input_path = ngram_filtered_path if os.path.exists(ngram_filtered_path) else (
-        about_filtered_path if os.path.exists(about_filtered_path) else raw_metadata_path
+        about_filtered_path if os.path.exists(about_filtered_path) else (
+            type_filtered_path if os.path.exists(type_filtered_path) else raw_metadata_path
+        )
     )
     if not os.path.exists(raw_input_path):
-        st.warning("対象データが存在しません。Step 1 または Step 2 を先に実行してください。")
+        st.warning("対象データが存在しません。先に Step 1 または Step 2 を実行してください。")
         st.stop()
 
-    ok_rules_cnt, ng_rules_cnt, grey_cnt = split_dataset_by_rules(
-        input_jsonl_path=raw_input_path,
-        about_rules_path=about_rules_path,
-        ngram_rules_path=ngram_rules_path,
-        output_target_for_llm_jsonl=target_for_llm_path,
-        output_confirmed_ok_jsonl=confirmed_ok_path,
-        output_discarded_csv=discarded_rules_path
-    )
+    # 既存の分割結果が存在するかチェック (不要な毎フレーム再計算を防止)
+    has_split_files = os.path.exists(target_for_llm_path) and os.path.exists(confirmed_ok_path)
 
+    def do_split():
+        with st.spinner("ルールに基づいてデータを仕分け中 (OK合格 / NG除外 / グレーゾーン)..."):
+            ok_c, ng_c, grey_c = split_dataset_by_rules(
+                input_jsonl_path=raw_input_path,
+                about_rules_path=about_rules_path,
+                ngram_rules_path=ngram_rules_path,
+                output_target_for_llm_jsonl=target_for_llm_path,
+                output_confirmed_ok_jsonl=confirmed_ok_path,
+                output_discarded_csv=discarded_rules_path
+            )
+            return ok_c, ng_c, grey_c
+
+    # ファイル未生成時のみ初回実行
+    if not has_split_files:
+        ok_rules_cnt, ng_rules_cnt, grey_cnt = do_split()
+    else:
+        ok_rules_cnt = count_lines(confirmed_ok_path)
+        ng_rules_cnt = count_lines(discarded_rules_path)
+        if ng_rules_cnt > 0:
+            ng_rules_cnt -= 1 # CSVヘッダー分
+        grey_cnt = count_lines(target_for_llm_path)
+
+    # ステータス表示
     st.markdown("### 事前ルールフィルタによる仕分け状況")
-    c_flt1, c_flt2, c_flt3 = st.columns(3)
+    c_flt1, c_flt2, c_flt3, c_flt_act = st.columns([2.5, 2.5, 2.5, 2.5])
     with c_flt1:
-        st.metric("ルール適合 (LLMバイパス)", f"{ok_rules_cnt:,} 件", help="About/N-GramルールでOK判定されたためLLM判定をスキップ")
+        st.metric("ルール適合 (LLMバイパス)", f"{ok_rules_cnt:,} 件", help="About/タイトルルールでOK判定されたためLLM判定をスキップ")
     with c_flt2:
-        st.metric("ルール除外 (事前除外)", f"{ng_rules_cnt:,} 件", help="About/N-GramルールでNG判定されたため事前除外")
+        st.metric("ルール除外 (事前除外)", f"{ng_rules_cnt:,} 件", help="About/タイトルルールでNG判定されたため事前除外")
     with c_flt3:
         st.metric("LLM判定対象 (判定保留群)", f"{grey_cnt:,} 件", help="判定保留のデータ。これらのみがLLMへ投入されます。")
+    with c_flt_act:
+        st.markdown("<div style='padding-top: 10px;'></div>", unsafe_allow_html=True)
+        if st.button("🔄 ルール仕分けの再実行", help="Step 2の最新ルールを反映して仕分けファイルを再作成します", use_container_width=True):
+            ok_rules_cnt, ng_rules_cnt, grey_cnt = do_split()
+            st.success(f"最新ルールで再仕分け完了 (保留: {grey_cnt:,} 件)")
+            st.rerun()
 
     cfg = st.session_state.get("llm_config", {})
     provider_name = cfg.get('provider', 'gemini')

@@ -10,20 +10,24 @@ import streamlit as st
 from components.file_utils import count_lines, safe_save_json
 
 def render_step3_view(paths: dict):
-    """Step 3 画面の描画"""
-    st.title("Step 3: 統合検索用データエクスポート")
+    """Step 5 画面の描画"""
+    st.title("Step 5: 統合検索用データエクスポート")
     st.markdown("精緻化された確定メタデータを検索ポータル（`02_search_viewer`）用JSON形式へ構造化出力し、一括利用可能な形式へ変換します。")
 
     verified_jsonl_path = paths['PATH_VERIFIED_JSONL']
+    llm_judgments_path = paths['PATH_LLM_JUDGMENTS']
     ngram_filtered_path = paths['PATH_NGRAM_FILTERED']
     about_filtered_path = paths['PATH_ABOUT_FILTERED']
+    type_filtered_path = paths.get('PATH_TYPE_FILTERED', 'data/type_filtered.jsonl')
     raw_metadata_path = paths['PATH_RAW_METADATA']
     export_json_path = paths['PATH_EXPORT_JSON']
     data_dir = os.path.dirname(verified_jsonl_path)
 
     source_path = verified_jsonl_path if os.path.exists(verified_jsonl_path) else (
         ngram_filtered_path if os.path.exists(ngram_filtered_path) else (
-            about_filtered_path if os.path.exists(about_filtered_path) else raw_metadata_path
+            about_filtered_path if os.path.exists(about_filtered_path) else (
+                type_filtered_path if os.path.exists(type_filtered_path) else raw_metadata_path
+            )
         )
     )
     if not os.path.exists(source_path):

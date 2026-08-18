@@ -6347,3 +6347,864 @@
 [2026-08-17 17:58:50] [INFO] [sparql_collector] 進捗: 8,948 / 8,948 件 処理完了
 [2026-08-17 17:58:52] [INFO] [sparql_collector] --- [自動完全性検証 ＆ 欠損リカバリーフェーズ開始] ---
 [2026-08-17 17:58:52] [INFO] [sparql_collector] [整合性チェック合格] 全 8,948 件のメタデータが正常に取得されています。
+[2026-08-18 12:59:11] [INFO] [sparql_collector] --- [開始] 1-1. タイトル・名称 網羅検索 (Part 1) (全件網羅 (上限なし)) ---
+[2026-08-18 12:59:11] [INFO] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:12] [WARNING] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 500 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:14] [INFO] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:14] [WARNING] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 250 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:16] [INFO] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:16] [WARNING] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 125 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:18] [ERROR] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 12:59:19] [INFO] [sparql_collector] --- [開始] 1-2. タイトル・名称 網羅検索 (Part 2) (全件網羅 (上限なし)) ---
+[2026-08-18 12:59:19] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:19] [WARNING] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] [Server 500 負荷警告] 単回LIMITを 500 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:21] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:22] [WARNING] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] [Server 500 負荷警告] 単回LIMITを 250 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:24] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:24] [WARNING] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] [Server 500 負荷警告] 単回LIMITを 125 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:26] [ERROR] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 12:59:27] [INFO] [sparql_collector] --- [開始] 1-3. タイトル・名称 網羅検索 (Part 3) (全件網羅 (上限なし)) ---
+[2026-08-18 12:59:27] [INFO] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:27] [WARNING] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] [Server 500 負荷警告] 単回LIMITを 500 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:29] [INFO] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:29] [WARNING] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] [Server 500 負荷警告] 単回LIMITを 250 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:31] [INFO] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:31] [WARNING] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] [Server 500 負荷警告] 単回LIMITを 125 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:33] [ERROR] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 12:59:34] [INFO] [sparql_collector] --- [開始] 2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1) (全件網羅 (上限なし)) ---
+[2026-08-18 12:59:34] [INFO] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:35] [WARNING] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 500 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:37] [INFO] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:37] [WARNING] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 250 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:39] [INFO] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:39] [WARNING] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 125 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:41] [ERROR] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 12:59:42] [INFO] [sparql_collector] --- [開始] 2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2) (全件網羅 (上限なし)) ---
+[2026-08-18 12:59:42] [INFO] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:42] [WARNING] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] [Server 500 負荷警告] 単回LIMITを 500 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:44] [INFO] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:45] [WARNING] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] [Server 500 負荷警告] 単回LIMITを 250 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:47] [INFO] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:47] [WARNING] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] [Server 500 負荷警告] 単回LIMITを 125 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:49] [ERROR] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 12:59:50] [INFO] [sparql_collector] --- [開始] 2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3) (全件網羅 (上限なし)) ---
+[2026-08-18 12:59:50] [INFO] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:50] [WARNING] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] [Server 500 負荷警告] 単回LIMITを 500 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:52] [INFO] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:52] [WARNING] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] [Server 500 負荷警告] 単回LIMITを 250 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:54] [INFO] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:54] [WARNING] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] [Server 500 負荷警告] 単回LIMITを 125 件に縮小して即時小分け再リトライします...
+[2026-08-18 12:59:56] [ERROR] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 12:59:57] [INFO] [sparql_collector] --- [開始] 2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1) (全件網羅 (上限なし)) ---
+[2026-08-18 12:59:57] [INFO] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 12:59:58] [WARNING] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 500 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:00:00] [INFO] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 13:00:00] [WARNING] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 250 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:00:02] [INFO] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] Sub-fetch (limit=1000, progress=0件〜) ...
+[2026-08-18 13:00:02] [WARNING] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 125 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:00:04] [ERROR] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 13:01:13] [INFO] [sparql_collector] --- [開始] 1-1. タイトル・名称 網羅検索 (Part 1) (全件網羅 (上限なし)) ---
+[2026-08-18 13:01:13] [INFO] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:13] [WARNING] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 50 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:15] [INFO] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:16] [WARNING] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 25 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:18] [INFO] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:18] [WARNING] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 20 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:20] [ERROR] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 13:01:21] [INFO] [sparql_collector] --- [開始] 1-2. タイトル・名称 網羅検索 (Part 2) (全件網羅 (上限なし)) ---
+[2026-08-18 13:01:21] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:21] [WARNING] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] [Server 500 負荷警告] 単回LIMITを 50 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:23] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:23] [WARNING] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] [Server 500 負荷警告] 単回LIMITを 25 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:25] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:25] [WARNING] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] [Server 500 負荷警告] 単回LIMITを 20 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:27] [ERROR] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 13:01:28] [INFO] [sparql_collector] --- [開始] 1-3. タイトル・名称 網羅検索 (Part 3) (全件網羅 (上限なし)) ---
+[2026-08-18 13:01:28] [INFO] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:29] [WARNING] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] [Server 500 負荷警告] 単回LIMITを 50 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:31] [INFO] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:31] [WARNING] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] [Server 500 負荷警告] 単回LIMITを 25 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:33] [INFO] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:33] [WARNING] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] [Server 500 負荷警告] 単回LIMITを 20 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:35] [ERROR] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 13:01:36] [INFO] [sparql_collector] --- [開始] 2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1) (全件網羅 (上限なし)) ---
+[2026-08-18 13:01:36] [INFO] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:36] [WARNING] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 50 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:38] [INFO] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:38] [WARNING] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 25 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:40] [INFO] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:40] [WARNING] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 20 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:42] [ERROR] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 13:01:43] [INFO] [sparql_collector] --- [開始] 2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2) (全件網羅 (上限なし)) ---
+[2026-08-18 13:01:43] [INFO] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:44] [WARNING] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] [Server 500 負荷警告] 単回LIMITを 50 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:46] [INFO] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:46] [WARNING] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] [Server 500 負荷警告] 単回LIMITを 25 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:48] [INFO] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:48] [WARNING] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] [Server 500 負荷警告] 単回LIMITを 20 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:50] [ERROR] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 13:01:51] [INFO] [sparql_collector] --- [開始] 2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3) (全件網羅 (上限なし)) ---
+[2026-08-18 13:01:51] [INFO] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:52] [WARNING] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] [Server 500 負荷警告] 単回LIMITを 50 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:54] [INFO] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:54] [WARNING] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] [Server 500 負荷警告] 単回LIMITを 25 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:56] [INFO] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:56] [WARNING] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] [Server 500 負荷警告] 単回LIMITを 20 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:01:58] [ERROR] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 13:01:59] [INFO] [sparql_collector] --- [開始] 2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1) (全件網羅 (上限なし)) ---
+[2026-08-18 13:01:59] [INFO] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:01:59] [WARNING] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 50 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:02:01] [INFO] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:02:01] [WARNING] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 25 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:02:03] [INFO] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:02:04] [WARNING] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] [Server 500 負荷警告] 単回LIMITを 20 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:02:06] [ERROR] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 13:02:07] [INFO] [sparql_collector] --- [開始] 2B-2. キーワード・件名 (keywords / subject) 網羅検索 (Part 2) (全件網羅 (上限なし)) ---
+[2026-08-18 13:02:07] [INFO] [sparql_collector] [2B-2. キーワード・件名 (keywords / subject) 網羅検索 (Part 2)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:02:07] [WARNING] [sparql_collector] [2B-2. キーワード・件名 (keywords / subject) 網羅検索 (Part 2)] [Server 500 負荷警告] 単回LIMITを 50 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:02:09] [INFO] [sparql_collector] [2B-2. キーワード・件名 (keywords / subject) 網羅検索 (Part 2)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:02:09] [WARNING] [sparql_collector] [2B-2. キーワード・件名 (keywords / subject) 網羅検索 (Part 2)] [Server 500 負荷警告] 単回LIMITを 25 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:02:11] [INFO] [sparql_collector] [2B-2. キーワード・件名 (keywords / subject) 網羅検索 (Part 2)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:02:11] [WARNING] [sparql_collector] [2B-2. キーワード・件名 (keywords / subject) 網羅検索 (Part 2)] [Server 500 負荷警告] 単回LIMITを 20 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:02:13] [ERROR] [sparql_collector] [2B-2. キーワード・件名 (keywords / subject) 網羅検索 (Part 2)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 13:02:14] [INFO] [sparql_collector] --- [開始] 2B-3. キーワード・件名 (keywords / subject) 網羅検索 (Part 3) (全件網羅 (上限なし)) ---
+[2026-08-18 13:02:14] [INFO] [sparql_collector] [2B-3. キーワード・件名 (keywords / subject) 網羅検索 (Part 3)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:02:15] [WARNING] [sparql_collector] [2B-3. キーワード・件名 (keywords / subject) 網羅検索 (Part 3)] [Server 500 負荷警告] 単回LIMITを 50 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:02:17] [INFO] [sparql_collector] [2B-3. キーワード・件名 (keywords / subject) 網羅検索 (Part 3)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:02:17] [WARNING] [sparql_collector] [2B-3. キーワード・件名 (keywords / subject) 網羅検索 (Part 3)] [Server 500 負荷警告] 単回LIMITを 25 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:02:19] [INFO] [sparql_collector] [2B-3. キーワード・件名 (keywords / subject) 網羅検索 (Part 3)] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:02:19] [WARNING] [sparql_collector] [2B-3. キーワード・件名 (keywords / subject) 網羅検索 (Part 3)] [Server 500 負荷警告] 単回LIMITを 20 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:02:21] [ERROR] [sparql_collector] [2B-3. キーワード・件名 (keywords / subject) 網羅検索 (Part 3)] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 13:02:22] [INFO] [sparql_collector] --- [開始] 3. 説明文 (description) 網羅検索 (全件網羅 (上限なし)) ---
+[2026-08-18 13:02:22] [INFO] [sparql_collector] [3. 説明文 (description) 網羅検索] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:02:22] [WARNING] [sparql_collector] [3. 説明文 (description) 網羅検索] [Server 500 負荷警告] 単回LIMITを 50 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:02:24] [INFO] [sparql_collector] [3. 説明文 (description) 網羅検索] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:02:24] [WARNING] [sparql_collector] [3. 説明文 (description) 網羅検索] [Server 500 負荷警告] 単回LIMITを 25 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:02:26] [INFO] [sparql_collector] [3. 説明文 (description) 網羅検索] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:02:26] [WARNING] [sparql_collector] [3. 説明文 (description) 網羅検索] [Server 500 負荷警告] 単回LIMITを 20 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:02:28] [ERROR] [sparql_collector] [3. 説明文 (description) 網羅検索] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 13:02:29] [INFO] [sparql_collector] --- [開始] 4. NDC分類 (schema:genre / about) 網羅検索 (全件網羅 (上限なし)) ---
+[2026-08-18 13:02:29] [INFO] [sparql_collector] [4. NDC分類 (schema:genre / about) 網羅検索] Sub-fetch (limit=100, progress=0件〜) ...
+[2026-08-18 13:02:45] [INFO] [sparql_collector] [4. NDC分類 (schema:genre / about) 網羅検索] Got 100 new items. (累計: 100件) [15.84s]
+[2026-08-18 13:02:45] [INFO] [logger] [STATS] FETCH | Count: 100 | Time: 15.84s | Info: 4. NDC分類 (schema:genre / about) 網羅検索 | Offset: 0
+[2026-08-18 13:05:09] [INFO] [sparql_collector] --- [開始] 1-1. タイトル・名称 網羅検索 (Part 1) (全件網羅 (上限なし)) ---
+[2026-08-18 13:05:09] [INFO] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] Sub-fetch (limit=500, progress=0件〜) ...
+[2026-08-18 13:05:11] [INFO] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] Got 151 new items. (累計: 151件) [2.05s]
+[2026-08-18 13:05:11] [INFO] [logger] [STATS] FETCH | Count: 151 | Time: 2.05s | Info: 1-1. タイトル・名称 網羅検索 (Part 1) | Offset: 0
+[2026-08-18 13:05:11] [INFO] [sparql_collector] [1-1. タイトル・名称 網羅検索 (Part 1)] 最終バッチ到達（全データ取得完了）。
+[2026-08-18 13:05:12] [INFO] [sparql_collector] --- [開始] 1-2. タイトル・名称 網羅検索 (Part 2) (全件網羅 (上限なし)) ---
+[2026-08-18 13:05:12] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=500, progress=0件〜) ...
+[2026-08-18 13:05:13] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Got 500 new items. (累計: 500件) [0.60s]
+[2026-08-18 13:05:13] [INFO] [logger] [STATS] FETCH | Count: 500 | Time: 0.60s | Info: 1-2. タイトル・名称 網羅検索 (Part 2) | Offset: 0
+[2026-08-18 13:05:13] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=500, progress=500件〜) ...
+[2026-08-18 13:05:14] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Got 500 new items. (累計: 1000件) [0.34s]
+[2026-08-18 13:05:14] [INFO] [logger] [STATS] FETCH | Count: 500 | Time: 0.34s | Info: 1-2. タイトル・名称 網羅検索 (Part 2) | Offset: 500
+[2026-08-18 13:05:14] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=500, progress=1000件〜) ...
+[2026-08-18 13:05:14] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Got 500 new items. (累計: 1500件) [0.32s]
+[2026-08-18 13:05:14] [INFO] [logger] [STATS] FETCH | Count: 500 | Time: 0.32s | Info: 1-2. タイトル・名称 網羅検索 (Part 2) | Offset: 1000
+[2026-08-18 13:05:15] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=500, progress=1500件〜) ...
+[2026-08-18 13:05:15] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Got 500 new items. (累計: 2000件) [0.41s]
+[2026-08-18 13:05:15] [INFO] [logger] [STATS] FETCH | Count: 500 | Time: 0.41s | Info: 1-2. タイトル・名称 網羅検索 (Part 2) | Offset: 1500
+[2026-08-18 13:05:16] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=500, progress=2000件〜) ...
+[2026-08-18 13:05:16] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Got 500 new items. (累計: 2500件) [0.44s]
+[2026-08-18 13:05:16] [INFO] [logger] [STATS] FETCH | Count: 500 | Time: 0.44s | Info: 1-2. タイトル・名称 網羅検索 (Part 2) | Offset: 2000
+[2026-08-18 13:05:17] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=500, progress=2500件〜) ...
+[2026-08-18 13:05:17] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Got 500 new items. (累計: 3000件) [0.51s]
+[2026-08-18 13:05:17] [INFO] [logger] [STATS] FETCH | Count: 500 | Time: 0.51s | Info: 1-2. タイトル・名称 網羅検索 (Part 2) | Offset: 2500
+[2026-08-18 13:05:18] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=500, progress=3000件〜) ...
+[2026-08-18 13:05:18] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Got 500 new items. (累計: 3500件) [0.57s]
+[2026-08-18 13:05:18] [INFO] [logger] [STATS] FETCH | Count: 500 | Time: 0.57s | Info: 1-2. タイトル・名称 網羅検索 (Part 2) | Offset: 3000
+[2026-08-18 13:05:19] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=500, progress=3500件〜) ...
+[2026-08-18 13:05:19] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Got 500 new items. (累計: 4000件) [0.43s]
+[2026-08-18 13:05:19] [INFO] [logger] [STATS] FETCH | Count: 500 | Time: 0.43s | Info: 1-2. タイトル・名称 網羅検索 (Part 2) | Offset: 3500
+[2026-08-18 13:05:20] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=500, progress=4000件〜) ...
+[2026-08-18 13:05:20] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Got 500 new items. (累計: 4500件) [0.60s]
+[2026-08-18 13:05:20] [INFO] [logger] [STATS] FETCH | Count: 500 | Time: 0.60s | Info: 1-2. タイトル・名称 網羅検索 (Part 2) | Offset: 4000
+[2026-08-18 13:05:21] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Sub-fetch (limit=500, progress=4500件〜) ...
+[2026-08-18 13:05:22] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] Got 297 new items. (累計: 4797件) [0.82s]
+[2026-08-18 13:05:22] [INFO] [logger] [STATS] FETCH | Count: 297 | Time: 0.82s | Info: 1-2. タイトル・名称 網羅検索 (Part 2) | Offset: 4500
+[2026-08-18 13:05:22] [INFO] [sparql_collector] [1-2. タイトル・名称 網羅検索 (Part 2)] 最終バッチ到達（全データ取得完了）。
+[2026-08-18 13:05:23] [INFO] [sparql_collector] --- [開始] 1-3. タイトル・名称 網羅検索 (Part 3) (全件網羅 (上限なし)) ---
+[2026-08-18 13:05:23] [INFO] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] Sub-fetch (limit=500, progress=0件〜) ...
+[2026-08-18 13:05:24] [INFO] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] Got 482 new items. (累計: 482件) [0.51s]
+[2026-08-18 13:05:24] [INFO] [logger] [STATS] FETCH | Count: 482 | Time: 0.51s | Info: 1-3. タイトル・名称 網羅検索 (Part 3) | Offset: 0
+[2026-08-18 13:05:24] [INFO] [sparql_collector] [1-3. タイトル・名称 網羅検索 (Part 3)] 最終バッチ到達（全データ取得完了）。
+[2026-08-18 13:05:25] [INFO] [sparql_collector] --- [開始] 2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1) (全件網羅 (上限なし)) ---
+[2026-08-18 13:05:25] [INFO] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] Sub-fetch (limit=500, progress=0件〜) ...
+[2026-08-18 13:05:26] [INFO] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] Got 4 new items. (累計: 4件) [0.38s]
+[2026-08-18 13:05:26] [INFO] [logger] [STATS] FETCH | Count: 4 | Time: 0.38s | Info: 2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1) | Offset: 0
+[2026-08-18 13:05:26] [INFO] [sparql_collector] [2A-1. 主題エンティティ (schema:about) 網羅検索 (Part 1)] 最終バッチ到達（全データ取得完了）。
+[2026-08-18 13:05:27] [INFO] [sparql_collector] --- [開始] 2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2) (全件網羅 (上限なし)) ---
+[2026-08-18 13:05:27] [INFO] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] Sub-fetch (limit=500, progress=0件〜) ...
+[2026-08-18 13:05:28] [INFO] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] Got 339 new items. (累計: 339件) [0.74s]
+[2026-08-18 13:05:28] [INFO] [logger] [STATS] FETCH | Count: 339 | Time: 0.74s | Info: 2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2) | Offset: 0
+[2026-08-18 13:05:28] [INFO] [sparql_collector] [2A-2. 主題エンティティ (schema:about) 網羅検索 (Part 2)] 最終バッチ到達（全データ取得完了）。
+[2026-08-18 13:05:29] [INFO] [sparql_collector] --- [開始] 2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3) (全件網羅 (上限なし)) ---
+[2026-08-18 13:05:29] [INFO] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] Sub-fetch (limit=500, progress=0件〜) ...
+[2026-08-18 13:05:30] [INFO] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] Got 7 new items. (累計: 7件) [0.33s]
+[2026-08-18 13:05:30] [INFO] [logger] [STATS] FETCH | Count: 7 | Time: 0.33s | Info: 2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3) | Offset: 0
+[2026-08-18 13:05:30] [INFO] [sparql_collector] [2A-3. 主題エンティティ (schema:about) 網羅検索 (Part 3)] 最終バッチ到達（全データ取得完了）。
+[2026-08-18 13:05:31] [INFO] [sparql_collector] --- [開始] 2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1) (全件網羅 (上限なし)) ---
+[2026-08-18 13:05:31] [INFO] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] Sub-fetch (limit=500, progress=0件〜) ...
+[2026-08-18 13:05:32] [INFO] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1)] Done (データ上限達成・これ以上結果なし).
+[2026-08-18 13:05:33] [INFO] [sparql_collector] --- [開始] 2B-2. キーワード・件名 (keywords / subject) 網羅検索 (Part 2) (全件網羅 (上限なし)) ---
+[2026-08-18 13:05:33] [INFO] [sparql_collector] [2B-2. キーワード・件名 (keywords / subject) 網羅検索 (Part 2)] Sub-fetch (limit=500, progress=0件〜) ...
+[2026-08-18 13:05:34] [INFO] [sparql_collector] [2B-2. キーワード・件名 (keywords / subject) 網羅検索 (Part 2)] Done (データ上限達成・これ以上結果なし).
+[2026-08-18 13:05:35] [INFO] [sparql_collector] --- [開始] 2B-3. キーワード・件名 (keywords / subject) 網羅検索 (Part 3) (全件網羅 (上限なし)) ---
+[2026-08-18 13:05:35] [INFO] [sparql_collector] [2B-3. キーワード・件名 (keywords / subject) 網羅検索 (Part 3)] Sub-fetch (limit=500, progress=0件〜) ...
+[2026-08-18 13:05:35] [INFO] [sparql_collector] [2B-3. キーワード・件名 (keywords / subject) 網羅検索 (Part 3)] Done (データ上限達成・これ以上結果なし).
+[2026-08-18 13:05:37] [INFO] [sparql_collector] --- [開始] 3. 説明文 (description) 網羅検索 (全件網羅 (上限なし)) ---
+[2026-08-18 13:05:37] [INFO] [sparql_collector] [3. 説明文 (description) 網羅検索] Sub-fetch (limit=500, progress=0件〜) ...
+[2026-08-18 13:05:37] [INFO] [sparql_collector] [3. 説明文 (description) 網羅検索] Got 147 new items. (累計: 147件) [0.58s]
+[2026-08-18 13:05:37] [INFO] [logger] [STATS] FETCH | Count: 147 | Time: 0.58s | Info: 3. 説明文 (description) 網羅検索 | Offset: 0
+[2026-08-18 13:05:37] [INFO] [sparql_collector] [3. 説明文 (description) 網羅検索] 最終バッチ到達（全データ取得完了）。
+[2026-08-18 13:05:39] [INFO] [sparql_collector] --- [開始] 4. NDC分類 (schema:genre / about) 網羅検索 (全件網羅 (上限なし)) ---
+[2026-08-18 13:05:39] [INFO] [sparql_collector] [4. NDC分類 (schema:genre / about) 網羅検索] Sub-fetch (limit=500, progress=0件〜) ...
+[2026-08-18 13:05:41] [INFO] [sparql_collector] [4. NDC分類 (schema:genre / about) 網羅検索] Got 500 new items. (累計: 500件) [1.73s]
+[2026-08-18 13:05:41] [INFO] [logger] [STATS] FETCH | Count: 500 | Time: 1.73s | Info: 4. NDC分類 (schema:genre / about) 網羅検索 | Offset: 0
+[2026-08-18 13:05:41] [INFO] [sparql_collector] [4. NDC分類 (schema:genre / about) 網羅検索] Sub-fetch (limit=500, progress=500件〜) ...
+[2026-08-18 13:05:41] [WARNING] [sparql_collector] [4. NDC分類 (schema:genre / about) 網羅検索] [Server 500 負荷警告] 単回LIMITを 250 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:05:43] [INFO] [sparql_collector] [4. NDC分類 (schema:genre / about) 網羅検索] Sub-fetch (limit=500, progress=500件〜) ...
+[2026-08-18 13:05:43] [WARNING] [sparql_collector] [4. NDC分類 (schema:genre / about) 網羅検索] [Server 500 負荷警告] 単回LIMITを 125 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:05:45] [INFO] [sparql_collector] [4. NDC分類 (schema:genre / about) 網羅検索] Sub-fetch (limit=500, progress=500件〜) ...
+[2026-08-18 13:05:45] [WARNING] [sparql_collector] [4. NDC分類 (schema:genre / about) 網羅検索] [Server 500 負荷警告] 単回LIMITを 62 件に縮小して即時小分け再リトライします...
+[2026-08-18 13:05:47] [ERROR] [sparql_collector] [4. NDC分類 (schema:genre / about) 網羅検索] サブバッチ処理の応答遅延により一時終了。
+[2026-08-18 13:05:51] [INFO] [sparql_collector] --- [開始] 2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1) (再試行) (全件網羅 (上限なし)) ---
+[2026-08-18 13:05:51] [INFO] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1) (再試行)] Sub-fetch (limit=500, progress=0件〜) ...
+[2026-08-18 13:05:52] [INFO] [sparql_collector] [2B-1. キーワード・件名 (keywords / subject) 網羅検索 (Part 1) (再試行)] Done (データ上限達成・これ以上結果なし).
+[2026-08-18 13:05:53] [INFO] [sparql_collector] --- [開始] 2B-2. キーワード・件名 (keywords / subject) 網羅検索 (Part 2) (再試行) (全件網羅 (上限なし)) ---
+[2026-08-18 13:05:53] [INFO] [sparql_collector] [2B-2. キーワード・件名 (keywords / subject) 網羅検索 (Part 2) (再試行)] Sub-fetch (limit=500, progress=0件〜) ...
+[2026-08-18 13:05:53] [INFO] [sparql_collector] [2B-2. キーワード・件名 (keywords / subject) 網羅検索 (Part 2) (再試行)] Done (データ上限達成・これ以上結果なし).
+[2026-08-18 13:05:55] [INFO] [sparql_collector] --- [開始] 2B-3. キーワード・件名 (keywords / subject) 網羅検索 (Part 3) (再試行) (全件網羅 (上限なし)) ---
+[2026-08-18 13:05:55] [INFO] [sparql_collector] [2B-3. キーワード・件名 (keywords / subject) 網羅検索 (Part 3) (再試行)] Sub-fetch (limit=500, progress=0件〜) ...
+[2026-08-18 13:05:55] [INFO] [sparql_collector] [2B-3. キーワード・件名 (keywords / subject) 網羅検索 (Part 3) (再試行)] Done (データ上限達成・これ以上結果なし).
+[2026-08-18 13:05:57] [INFO] [sparql_collector] --- [深層メタデータ一括構築開始 (BuildMetadata.py準拠)] 全 6,196 件 (batch_size=10) ---
+[2026-08-18 13:05:57] [INFO] [sparql_collector] 進捗: 10 / 6,196 件 処理完了
+[2026-08-18 13:05:59] [INFO] [sparql_collector] 進捗: 20 / 6,196 件 処理完了
+[2026-08-18 13:06:01] [INFO] [sparql_collector] 進捗: 30 / 6,196 件 処理完了
+[2026-08-18 13:06:03] [INFO] [sparql_collector] 進捗: 40 / 6,196 件 処理完了
+[2026-08-18 13:06:05] [INFO] [sparql_collector] 進捗: 50 / 6,196 件 処理完了
+[2026-08-18 13:06:07] [INFO] [sparql_collector] 進捗: 60 / 6,196 件 処理完了
+[2026-08-18 13:06:09] [INFO] [sparql_collector] 進捗: 70 / 6,196 件 処理完了
+[2026-08-18 13:06:12] [INFO] [sparql_collector] 進捗: 80 / 6,196 件 処理完了
+[2026-08-18 13:06:14] [INFO] [sparql_collector] 進捗: 90 / 6,196 件 処理完了
+[2026-08-18 13:06:16] [INFO] [sparql_collector] 進捗: 100 / 6,196 件 処理完了
+[2026-08-18 13:06:18] [INFO] [sparql_collector] 進捗: 110 / 6,196 件 処理完了
+[2026-08-18 13:06:20] [INFO] [sparql_collector] 進捗: 120 / 6,196 件 処理完了
+[2026-08-18 13:06:22] [INFO] [sparql_collector] 進捗: 130 / 6,196 件 処理完了
+[2026-08-18 13:06:24] [INFO] [sparql_collector] 進捗: 140 / 6,196 件 処理完了
+[2026-08-18 13:06:26] [INFO] [sparql_collector] 進捗: 150 / 6,196 件 処理完了
+[2026-08-18 13:06:28] [INFO] [sparql_collector] 進捗: 160 / 6,196 件 処理完了
+[2026-08-18 13:06:30] [INFO] [sparql_collector] 進捗: 170 / 6,196 件 処理完了
+[2026-08-18 13:06:32] [INFO] [sparql_collector] 進捗: 180 / 6,196 件 処理完了
+[2026-08-18 13:06:34] [INFO] [sparql_collector] 進捗: 190 / 6,196 件 処理完了
+[2026-08-18 13:06:36] [INFO] [sparql_collector] 進捗: 200 / 6,196 件 処理完了
+[2026-08-18 13:06:38] [INFO] [sparql_collector] 進捗: 210 / 6,196 件 処理完了
+[2026-08-18 13:06:40] [INFO] [sparql_collector] 進捗: 220 / 6,196 件 処理完了
+[2026-08-18 13:06:42] [INFO] [sparql_collector] 進捗: 230 / 6,196 件 処理完了
+[2026-08-18 13:06:44] [INFO] [sparql_collector] 進捗: 240 / 6,196 件 処理完了
+[2026-08-18 13:06:46] [INFO] [sparql_collector] 進捗: 250 / 6,196 件 処理完了
+[2026-08-18 13:06:48] [INFO] [sparql_collector] 進捗: 260 / 6,196 件 処理完了
+[2026-08-18 13:06:50] [INFO] [sparql_collector] 進捗: 270 / 6,196 件 処理完了
+[2026-08-18 13:06:52] [INFO] [sparql_collector] 進捗: 280 / 6,196 件 処理完了
+[2026-08-18 13:06:55] [INFO] [sparql_collector] 進捗: 290 / 6,196 件 処理完了
+[2026-08-18 13:06:57] [INFO] [sparql_collector] 進捗: 300 / 6,196 件 処理完了
+[2026-08-18 13:06:59] [INFO] [sparql_collector] 進捗: 310 / 6,196 件 処理完了
+[2026-08-18 13:07:01] [INFO] [sparql_collector] 進捗: 320 / 6,196 件 処理完了
+[2026-08-18 13:07:03] [INFO] [sparql_collector] 進捗: 330 / 6,196 件 処理完了
+[2026-08-18 13:07:05] [INFO] [sparql_collector] 進捗: 340 / 6,196 件 処理完了
+[2026-08-18 13:07:07] [INFO] [sparql_collector] 進捗: 350 / 6,196 件 処理完了
+[2026-08-18 13:07:09] [INFO] [sparql_collector] 進捗: 360 / 6,196 件 処理完了
+[2026-08-18 13:07:11] [INFO] [sparql_collector] 進捗: 370 / 6,196 件 処理完了
+[2026-08-18 13:07:13] [INFO] [sparql_collector] 進捗: 380 / 6,196 件 処理完了
+[2026-08-18 13:07:15] [INFO] [sparql_collector] 進捗: 390 / 6,196 件 処理完了
+[2026-08-18 13:07:17] [INFO] [sparql_collector] 進捗: 400 / 6,196 件 処理完了
+[2026-08-18 13:07:19] [INFO] [sparql_collector] 進捗: 410 / 6,196 件 処理完了
+[2026-08-18 13:07:21] [INFO] [sparql_collector] 進捗: 420 / 6,196 件 処理完了
+[2026-08-18 13:07:23] [INFO] [sparql_collector] 進捗: 430 / 6,196 件 処理完了
+[2026-08-18 13:07:25] [INFO] [sparql_collector] 進捗: 440 / 6,196 件 処理完了
+[2026-08-18 13:07:28] [INFO] [sparql_collector] 進捗: 450 / 6,196 件 処理完了
+[2026-08-18 13:07:30] [INFO] [sparql_collector] 進捗: 460 / 6,196 件 処理完了
+[2026-08-18 13:07:32] [INFO] [sparql_collector] 進捗: 470 / 6,196 件 処理完了
+[2026-08-18 13:07:34] [INFO] [sparql_collector] 進捗: 480 / 6,196 件 処理完了
+[2026-08-18 13:07:36] [INFO] [sparql_collector] 進捗: 490 / 6,196 件 処理完了
+[2026-08-18 13:07:38] [INFO] [sparql_collector] 進捗: 500 / 6,196 件 処理完了
+[2026-08-18 13:07:40] [INFO] [sparql_collector] 進捗: 510 / 6,196 件 処理完了
+[2026-08-18 13:07:42] [INFO] [sparql_collector] 進捗: 520 / 6,196 件 処理完了
+[2026-08-18 13:07:44] [INFO] [sparql_collector] 進捗: 530 / 6,196 件 処理完了
+[2026-08-18 13:07:46] [INFO] [sparql_collector] 進捗: 540 / 6,196 件 処理完了
+[2026-08-18 13:07:48] [INFO] [sparql_collector] 進捗: 550 / 6,196 件 処理完了
+[2026-08-18 13:07:50] [INFO] [sparql_collector] 進捗: 560 / 6,196 件 処理完了
+[2026-08-18 13:07:52] [INFO] [sparql_collector] 進捗: 570 / 6,196 件 処理完了
+[2026-08-18 13:07:55] [INFO] [sparql_collector] 進捗: 580 / 6,196 件 処理完了
+[2026-08-18 13:07:57] [INFO] [sparql_collector] 進捗: 590 / 6,196 件 処理完了
+[2026-08-18 13:07:59] [INFO] [sparql_collector] 進捗: 600 / 6,196 件 処理完了
+[2026-08-18 13:08:01] [INFO] [sparql_collector] 進捗: 610 / 6,196 件 処理完了
+[2026-08-18 13:08:03] [INFO] [sparql_collector] 進捗: 620 / 6,196 件 処理完了
+[2026-08-18 13:08:05] [INFO] [sparql_collector] 進捗: 630 / 6,196 件 処理完了
+[2026-08-18 13:08:07] [INFO] [sparql_collector] 進捗: 640 / 6,196 件 処理完了
+[2026-08-18 13:08:09] [INFO] [sparql_collector] 進捗: 650 / 6,196 件 処理完了
+[2026-08-18 13:08:12] [INFO] [sparql_collector] 進捗: 660 / 6,196 件 処理完了
+[2026-08-18 13:08:14] [INFO] [sparql_collector] 進捗: 670 / 6,196 件 処理完了
+[2026-08-18 13:08:16] [INFO] [sparql_collector] 進捗: 680 / 6,196 件 処理完了
+[2026-08-18 13:08:18] [INFO] [sparql_collector] 進捗: 690 / 6,196 件 処理完了
+[2026-08-18 13:08:20] [INFO] [sparql_collector] 進捗: 700 / 6,196 件 処理完了
+[2026-08-18 13:08:22] [INFO] [sparql_collector] 進捗: 710 / 6,196 件 処理完了
+[2026-08-18 13:08:25] [INFO] [sparql_collector] 進捗: 720 / 6,196 件 処理完了
+[2026-08-18 13:08:27] [INFO] [sparql_collector] 進捗: 730 / 6,196 件 処理完了
+[2026-08-18 13:08:29] [INFO] [sparql_collector] 進捗: 740 / 6,196 件 処理完了
+[2026-08-18 13:08:31] [INFO] [sparql_collector] 進捗: 750 / 6,196 件 処理完了
+[2026-08-18 13:08:33] [INFO] [sparql_collector] 進捗: 760 / 6,196 件 処理完了
+[2026-08-18 13:08:35] [INFO] [sparql_collector] 進捗: 770 / 6,196 件 処理完了
+[2026-08-18 13:08:38] [INFO] [sparql_collector] 進捗: 780 / 6,196 件 処理完了
+[2026-08-18 13:08:40] [INFO] [sparql_collector] 進捗: 790 / 6,196 件 処理完了
+[2026-08-18 13:08:42] [INFO] [sparql_collector] 進捗: 800 / 6,196 件 処理完了
+[2026-08-18 13:08:44] [INFO] [sparql_collector] 進捗: 810 / 6,196 件 処理完了
+[2026-08-18 13:08:46] [INFO] [sparql_collector] 進捗: 820 / 6,196 件 処理完了
+[2026-08-18 13:08:48] [INFO] [sparql_collector] 進捗: 830 / 6,196 件 処理完了
+[2026-08-18 13:08:50] [INFO] [sparql_collector] 進捗: 840 / 6,196 件 処理完了
+[2026-08-18 13:08:52] [INFO] [sparql_collector] 進捗: 850 / 6,196 件 処理完了
+[2026-08-18 13:08:54] [INFO] [sparql_collector] 進捗: 860 / 6,196 件 処理完了
+[2026-08-18 13:08:56] [INFO] [sparql_collector] 進捗: 870 / 6,196 件 処理完了
+[2026-08-18 13:08:58] [INFO] [sparql_collector] 進捗: 880 / 6,196 件 処理完了
+[2026-08-18 13:09:00] [INFO] [sparql_collector] 進捗: 890 / 6,196 件 処理完了
+[2026-08-18 13:09:02] [INFO] [sparql_collector] 進捗: 900 / 6,196 件 処理完了
+[2026-08-18 13:09:04] [INFO] [sparql_collector] 進捗: 910 / 6,196 件 処理完了
+[2026-08-18 13:09:06] [INFO] [sparql_collector] 進捗: 920 / 6,196 件 処理完了
+[2026-08-18 13:09:09] [INFO] [sparql_collector] 進捗: 930 / 6,196 件 処理完了
+[2026-08-18 13:09:11] [INFO] [sparql_collector] 進捗: 940 / 6,196 件 処理完了
+[2026-08-18 13:09:13] [INFO] [sparql_collector] 進捗: 950 / 6,196 件 処理完了
+[2026-08-18 13:09:15] [INFO] [sparql_collector] 進捗: 960 / 6,196 件 処理完了
+[2026-08-18 13:09:17] [INFO] [sparql_collector] 進捗: 970 / 6,196 件 処理完了
+[2026-08-18 13:09:19] [INFO] [sparql_collector] 進捗: 980 / 6,196 件 処理完了
+[2026-08-18 13:09:21] [INFO] [sparql_collector] 進捗: 990 / 6,196 件 処理完了
+[2026-08-18 13:09:23] [INFO] [sparql_collector] 進捗: 1,000 / 6,196 件 処理完了
+[2026-08-18 13:09:25] [INFO] [sparql_collector] 進捗: 1,010 / 6,196 件 処理完了
+[2026-08-18 13:09:27] [INFO] [sparql_collector] 進捗: 1,020 / 6,196 件 処理完了
+[2026-08-18 13:09:29] [INFO] [sparql_collector] 進捗: 1,030 / 6,196 件 処理完了
+[2026-08-18 13:09:31] [INFO] [sparql_collector] 進捗: 1,040 / 6,196 件 処理完了
+[2026-08-18 13:09:33] [INFO] [sparql_collector] 進捗: 1,050 / 6,196 件 処理完了
+[2026-08-18 13:09:35] [INFO] [sparql_collector] 進捗: 1,060 / 6,196 件 処理完了
+[2026-08-18 13:09:37] [INFO] [sparql_collector] 進捗: 1,070 / 6,196 件 処理完了
+[2026-08-18 13:09:40] [INFO] [sparql_collector] 進捗: 1,080 / 6,196 件 処理完了
+[2026-08-18 13:09:42] [INFO] [sparql_collector] 進捗: 1,090 / 6,196 件 処理完了
+[2026-08-18 13:09:44] [INFO] [sparql_collector] 進捗: 1,100 / 6,196 件 処理完了
+[2026-08-18 13:09:46] [INFO] [sparql_collector] 進捗: 1,110 / 6,196 件 処理完了
+[2026-08-18 13:09:49] [INFO] [sparql_collector] 進捗: 1,120 / 6,196 件 処理完了
+[2026-08-18 13:09:51] [INFO] [sparql_collector] 進捗: 1,130 / 6,196 件 処理完了
+[2026-08-18 13:09:53] [INFO] [sparql_collector] 進捗: 1,140 / 6,196 件 処理完了
+[2026-08-18 13:09:55] [INFO] [sparql_collector] 進捗: 1,150 / 6,196 件 処理完了
+[2026-08-18 13:09:58] [INFO] [sparql_collector] 進捗: 1,160 / 6,196 件 処理完了
+[2026-08-18 13:10:00] [INFO] [sparql_collector] 進捗: 1,170 / 6,196 件 処理完了
+[2026-08-18 13:10:02] [INFO] [sparql_collector] 進捗: 1,180 / 6,196 件 処理完了
+[2026-08-18 13:10:04] [INFO] [sparql_collector] 進捗: 1,190 / 6,196 件 処理完了
+[2026-08-18 13:10:07] [INFO] [sparql_collector] 進捗: 1,200 / 6,196 件 処理完了
+[2026-08-18 13:10:09] [INFO] [sparql_collector] 進捗: 1,210 / 6,196 件 処理完了
+[2026-08-18 13:10:11] [INFO] [sparql_collector] 進捗: 1,220 / 6,196 件 処理完了
+[2026-08-18 13:10:13] [INFO] [sparql_collector] 進捗: 1,230 / 6,196 件 処理完了
+[2026-08-18 13:10:15] [INFO] [sparql_collector] 進捗: 1,240 / 6,196 件 処理完了
+[2026-08-18 13:10:18] [INFO] [sparql_collector] 進捗: 1,250 / 6,196 件 処理完了
+[2026-08-18 13:10:20] [INFO] [sparql_collector] 進捗: 1,260 / 6,196 件 処理完了
+[2026-08-18 13:10:22] [INFO] [sparql_collector] 進捗: 1,270 / 6,196 件 処理完了
+[2026-08-18 13:10:24] [INFO] [sparql_collector] 進捗: 1,280 / 6,196 件 処理完了
+[2026-08-18 13:10:27] [INFO] [sparql_collector] 進捗: 1,290 / 6,196 件 処理完了
+[2026-08-18 13:10:29] [INFO] [sparql_collector] 進捗: 1,300 / 6,196 件 処理完了
+[2026-08-18 13:10:31] [INFO] [sparql_collector] 進捗: 1,310 / 6,196 件 処理完了
+[2026-08-18 13:10:33] [INFO] [sparql_collector] 進捗: 1,320 / 6,196 件 処理完了
+[2026-08-18 13:10:35] [INFO] [sparql_collector] 進捗: 1,330 / 6,196 件 処理完了
+[2026-08-18 13:10:38] [INFO] [sparql_collector] 進捗: 1,340 / 6,196 件 処理完了
+[2026-08-18 13:10:40] [INFO] [sparql_collector] 進捗: 1,350 / 6,196 件 処理完了
+[2026-08-18 13:10:42] [INFO] [sparql_collector] 進捗: 1,360 / 6,196 件 処理完了
+[2026-08-18 13:10:44] [INFO] [sparql_collector] 進捗: 1,370 / 6,196 件 処理完了
+[2026-08-18 13:10:47] [INFO] [sparql_collector] 進捗: 1,380 / 6,196 件 処理完了
+[2026-08-18 13:10:49] [INFO] [sparql_collector] 進捗: 1,390 / 6,196 件 処理完了
+[2026-08-18 13:10:51] [INFO] [sparql_collector] 進捗: 1,400 / 6,196 件 処理完了
+[2026-08-18 13:10:53] [INFO] [sparql_collector] 進捗: 1,410 / 6,196 件 処理完了
+[2026-08-18 13:10:56] [INFO] [sparql_collector] 進捗: 1,420 / 6,196 件 処理完了
+[2026-08-18 13:10:58] [INFO] [sparql_collector] 進捗: 1,430 / 6,196 件 処理完了
+[2026-08-18 13:11:00] [INFO] [sparql_collector] 進捗: 1,440 / 6,196 件 処理完了
+[2026-08-18 13:11:02] [INFO] [sparql_collector] 進捗: 1,450 / 6,196 件 処理完了
+[2026-08-18 13:11:05] [INFO] [sparql_collector] 進捗: 1,460 / 6,196 件 処理完了
+[2026-08-18 13:11:07] [INFO] [sparql_collector] 進捗: 1,470 / 6,196 件 処理完了
+[2026-08-18 13:11:09] [INFO] [sparql_collector] 進捗: 1,480 / 6,196 件 処理完了
+[2026-08-18 13:11:11] [INFO] [sparql_collector] 進捗: 1,490 / 6,196 件 処理完了
+[2026-08-18 13:11:13] [INFO] [sparql_collector] 進捗: 1,500 / 6,196 件 処理完了
+[2026-08-18 13:11:16] [INFO] [sparql_collector] 進捗: 1,510 / 6,196 件 処理完了
+[2026-08-18 13:11:18] [INFO] [sparql_collector] 進捗: 1,520 / 6,196 件 処理完了
+[2026-08-18 13:11:20] [INFO] [sparql_collector] 進捗: 1,530 / 6,196 件 処理完了
+[2026-08-18 13:11:22] [INFO] [sparql_collector] 進捗: 1,540 / 6,196 件 処理完了
+[2026-08-18 13:11:25] [INFO] [sparql_collector] 進捗: 1,550 / 6,196 件 処理完了
+[2026-08-18 13:11:27] [INFO] [sparql_collector] 進捗: 1,560 / 6,196 件 処理完了
+[2026-08-18 13:11:29] [INFO] [sparql_collector] 進捗: 1,570 / 6,196 件 処理完了
+[2026-08-18 13:11:31] [INFO] [sparql_collector] 進捗: 1,580 / 6,196 件 処理完了
+[2026-08-18 13:11:34] [INFO] [sparql_collector] 進捗: 1,590 / 6,196 件 処理完了
+[2026-08-18 13:11:36] [INFO] [sparql_collector] 進捗: 1,600 / 6,196 件 処理完了
+[2026-08-18 13:11:38] [INFO] [sparql_collector] 進捗: 1,610 / 6,196 件 処理完了
+[2026-08-18 13:11:40] [INFO] [sparql_collector] 進捗: 1,620 / 6,196 件 処理完了
+[2026-08-18 13:11:43] [INFO] [sparql_collector] 進捗: 1,630 / 6,196 件 処理完了
+[2026-08-18 13:11:45] [INFO] [sparql_collector] 進捗: 1,640 / 6,196 件 処理完了
+[2026-08-18 13:11:47] [INFO] [sparql_collector] 進捗: 1,650 / 6,196 件 処理完了
+[2026-08-18 13:11:49] [INFO] [sparql_collector] 進捗: 1,660 / 6,196 件 処理完了
+[2026-08-18 13:11:51] [INFO] [sparql_collector] 進捗: 1,670 / 6,196 件 処理完了
+[2026-08-18 13:11:54] [INFO] [sparql_collector] 進捗: 1,680 / 6,196 件 処理完了
+[2026-08-18 13:11:56] [INFO] [sparql_collector] 進捗: 1,690 / 6,196 件 処理完了
+[2026-08-18 13:11:58] [INFO] [sparql_collector] 進捗: 1,700 / 6,196 件 処理完了
+[2026-08-18 13:12:00] [INFO] [sparql_collector] 進捗: 1,710 / 6,196 件 処理完了
+[2026-08-18 13:12:03] [INFO] [sparql_collector] 進捗: 1,720 / 6,196 件 処理完了
+[2026-08-18 13:12:05] [INFO] [sparql_collector] 進捗: 1,730 / 6,196 件 処理完了
+[2026-08-18 13:12:07] [INFO] [sparql_collector] 進捗: 1,740 / 6,196 件 処理完了
+[2026-08-18 13:12:09] [INFO] [sparql_collector] 進捗: 1,750 / 6,196 件 処理完了
+[2026-08-18 13:12:12] [INFO] [sparql_collector] 進捗: 1,760 / 6,196 件 処理完了
+[2026-08-18 13:12:14] [INFO] [sparql_collector] 進捗: 1,770 / 6,196 件 処理完了
+[2026-08-18 13:12:16] [INFO] [sparql_collector] 進捗: 1,780 / 6,196 件 処理完了
+[2026-08-18 13:12:18] [INFO] [sparql_collector] 進捗: 1,790 / 6,196 件 処理完了
+[2026-08-18 13:12:21] [INFO] [sparql_collector] 進捗: 1,800 / 6,196 件 処理完了
+[2026-08-18 13:12:23] [INFO] [sparql_collector] 進捗: 1,810 / 6,196 件 処理完了
+[2026-08-18 13:12:25] [INFO] [sparql_collector] 進捗: 1,820 / 6,196 件 処理完了
+[2026-08-18 13:12:27] [INFO] [sparql_collector] 進捗: 1,830 / 6,196 件 処理完了
+[2026-08-18 13:12:30] [INFO] [sparql_collector] 進捗: 1,840 / 6,196 件 処理完了
+[2026-08-18 13:12:32] [INFO] [sparql_collector] 進捗: 1,850 / 6,196 件 処理完了
+[2026-08-18 13:12:34] [INFO] [sparql_collector] 進捗: 1,860 / 6,196 件 処理完了
+[2026-08-18 13:12:37] [INFO] [sparql_collector] 進捗: 1,870 / 6,196 件 処理完了
+[2026-08-18 13:12:39] [INFO] [sparql_collector] 進捗: 1,880 / 6,196 件 処理完了
+[2026-08-18 13:12:41] [INFO] [sparql_collector] 進捗: 1,890 / 6,196 件 処理完了
+[2026-08-18 13:12:43] [INFO] [sparql_collector] 進捗: 1,900 / 6,196 件 処理完了
+[2026-08-18 13:12:45] [INFO] [sparql_collector] 進捗: 1,910 / 6,196 件 処理完了
+[2026-08-18 13:12:48] [INFO] [sparql_collector] 進捗: 1,920 / 6,196 件 処理完了
+[2026-08-18 13:12:50] [INFO] [sparql_collector] 進捗: 1,930 / 6,196 件 処理完了
+[2026-08-18 13:12:52] [INFO] [sparql_collector] 進捗: 1,940 / 6,196 件 処理完了
+[2026-08-18 13:12:54] [INFO] [sparql_collector] 進捗: 1,950 / 6,196 件 処理完了
+[2026-08-18 13:12:56] [INFO] [sparql_collector] 進捗: 1,960 / 6,196 件 処理完了
+[2026-08-18 13:12:59] [INFO] [sparql_collector] 進捗: 1,970 / 6,196 件 処理完了
+[2026-08-18 13:13:01] [INFO] [sparql_collector] 進捗: 1,980 / 6,196 件 処理完了
+[2026-08-18 13:13:03] [INFO] [sparql_collector] 進捗: 1,990 / 6,196 件 処理完了
+[2026-08-18 13:13:05] [INFO] [sparql_collector] 進捗: 2,000 / 6,196 件 処理完了
+[2026-08-18 13:13:08] [INFO] [sparql_collector] 進捗: 2,010 / 6,196 件 処理完了
+[2026-08-18 13:13:10] [INFO] [sparql_collector] 進捗: 2,020 / 6,196 件 処理完了
+[2026-08-18 13:13:12] [INFO] [sparql_collector] 進捗: 2,030 / 6,196 件 処理完了
+[2026-08-18 13:13:14] [INFO] [sparql_collector] 進捗: 2,040 / 6,196 件 処理完了
+[2026-08-18 13:13:16] [INFO] [sparql_collector] 進捗: 2,050 / 6,196 件 処理完了
+[2026-08-18 13:13:19] [INFO] [sparql_collector] 進捗: 2,060 / 6,196 件 処理完了
+[2026-08-18 13:13:21] [INFO] [sparql_collector] 進捗: 2,070 / 6,196 件 処理完了
+[2026-08-18 13:13:23] [INFO] [sparql_collector] 進捗: 2,080 / 6,196 件 処理完了
+[2026-08-18 13:13:25] [INFO] [sparql_collector] 進捗: 2,090 / 6,196 件 処理完了
+[2026-08-18 13:13:27] [INFO] [sparql_collector] 進捗: 2,100 / 6,196 件 処理完了
+[2026-08-18 13:13:29] [INFO] [sparql_collector] 進捗: 2,110 / 6,196 件 処理完了
+[2026-08-18 13:13:32] [INFO] [sparql_collector] 進捗: 2,120 / 6,196 件 処理完了
+[2026-08-18 13:13:34] [INFO] [sparql_collector] 進捗: 2,130 / 6,196 件 処理完了
+[2026-08-18 13:13:36] [INFO] [sparql_collector] 進捗: 2,140 / 6,196 件 処理完了
+[2026-08-18 13:13:38] [INFO] [sparql_collector] 進捗: 2,150 / 6,196 件 処理完了
+[2026-08-18 13:13:40] [INFO] [sparql_collector] 進捗: 2,160 / 6,196 件 処理完了
+[2026-08-18 13:13:43] [INFO] [sparql_collector] 進捗: 2,170 / 6,196 件 処理完了
+[2026-08-18 13:13:45] [INFO] [sparql_collector] 進捗: 2,180 / 6,196 件 処理完了
+[2026-08-18 13:13:47] [INFO] [sparql_collector] 進捗: 2,190 / 6,196 件 処理完了
+[2026-08-18 13:13:49] [INFO] [sparql_collector] 進捗: 2,200 / 6,196 件 処理完了
+[2026-08-18 13:13:51] [INFO] [sparql_collector] 進捗: 2,210 / 6,196 件 処理完了
+[2026-08-18 13:13:54] [INFO] [sparql_collector] 進捗: 2,220 / 6,196 件 処理完了
+[2026-08-18 13:13:56] [INFO] [sparql_collector] 進捗: 2,230 / 6,196 件 処理完了
+[2026-08-18 13:13:58] [INFO] [sparql_collector] 進捗: 2,240 / 6,196 件 処理完了
+[2026-08-18 13:14:00] [INFO] [sparql_collector] 進捗: 2,250 / 6,196 件 処理完了
+[2026-08-18 13:14:02] [INFO] [sparql_collector] 進捗: 2,260 / 6,196 件 処理完了
+[2026-08-18 13:14:05] [INFO] [sparql_collector] 進捗: 2,270 / 6,196 件 処理完了
+[2026-08-18 13:14:07] [INFO] [sparql_collector] 進捗: 2,280 / 6,196 件 処理完了
+[2026-08-18 13:14:09] [INFO] [sparql_collector] 進捗: 2,290 / 6,196 件 処理完了
+[2026-08-18 13:14:11] [INFO] [sparql_collector] 進捗: 2,300 / 6,196 件 処理完了
+[2026-08-18 13:14:13] [INFO] [sparql_collector] 進捗: 2,310 / 6,196 件 処理完了
+[2026-08-18 13:14:15] [INFO] [sparql_collector] 進捗: 2,320 / 6,196 件 処理完了
+[2026-08-18 13:14:18] [INFO] [sparql_collector] 進捗: 2,330 / 6,196 件 処理完了
+[2026-08-18 13:14:20] [INFO] [sparql_collector] 進捗: 2,340 / 6,196 件 処理完了
+[2026-08-18 13:14:22] [INFO] [sparql_collector] 進捗: 2,350 / 6,196 件 処理完了
+[2026-08-18 13:14:24] [INFO] [sparql_collector] 進捗: 2,360 / 6,196 件 処理完了
+[2026-08-18 13:14:26] [INFO] [sparql_collector] 進捗: 2,370 / 6,196 件 処理完了
+[2026-08-18 13:14:29] [INFO] [sparql_collector] 進捗: 2,380 / 6,196 件 処理完了
+[2026-08-18 13:14:31] [INFO] [sparql_collector] 進捗: 2,390 / 6,196 件 処理完了
+[2026-08-18 13:14:33] [INFO] [sparql_collector] 進捗: 2,400 / 6,196 件 処理完了
+[2026-08-18 13:14:35] [INFO] [sparql_collector] 進捗: 2,410 / 6,196 件 処理完了
+[2026-08-18 13:14:37] [INFO] [sparql_collector] 進捗: 2,420 / 6,196 件 処理完了
+[2026-08-18 13:14:40] [INFO] [sparql_collector] 進捗: 2,430 / 6,196 件 処理完了
+[2026-08-18 13:14:42] [INFO] [sparql_collector] 進捗: 2,440 / 6,196 件 処理完了
+[2026-08-18 13:14:44] [INFO] [sparql_collector] 進捗: 2,450 / 6,196 件 処理完了
+[2026-08-18 13:14:46] [INFO] [sparql_collector] 進捗: 2,460 / 6,196 件 処理完了
+[2026-08-18 13:14:48] [INFO] [sparql_collector] 進捗: 2,470 / 6,196 件 処理完了
+[2026-08-18 13:14:51] [INFO] [sparql_collector] 進捗: 2,480 / 6,196 件 処理完了
+[2026-08-18 13:14:53] [INFO] [sparql_collector] 進捗: 2,490 / 6,196 件 処理完了
+[2026-08-18 13:14:55] [INFO] [sparql_collector] 進捗: 2,500 / 6,196 件 処理完了
+[2026-08-18 13:14:57] [INFO] [sparql_collector] 進捗: 2,510 / 6,196 件 処理完了
+[2026-08-18 13:14:59] [INFO] [sparql_collector] 進捗: 2,520 / 6,196 件 処理完了
+[2026-08-18 13:15:02] [INFO] [sparql_collector] 進捗: 2,530 / 6,196 件 処理完了
+[2026-08-18 13:15:04] [INFO] [sparql_collector] 進捗: 2,540 / 6,196 件 処理完了
+[2026-08-18 13:15:06] [INFO] [sparql_collector] 進捗: 2,550 / 6,196 件 処理完了
+[2026-08-18 13:15:08] [INFO] [sparql_collector] 進捗: 2,560 / 6,196 件 処理完了
+[2026-08-18 13:15:10] [INFO] [sparql_collector] 進捗: 2,570 / 6,196 件 処理完了
+[2026-08-18 13:15:13] [INFO] [sparql_collector] 進捗: 2,580 / 6,196 件 処理完了
+[2026-08-18 13:15:15] [INFO] [sparql_collector] 進捗: 2,590 / 6,196 件 処理完了
+[2026-08-18 13:15:17] [INFO] [sparql_collector] 進捗: 2,600 / 6,196 件 処理完了
+[2026-08-18 13:15:19] [INFO] [sparql_collector] 進捗: 2,610 / 6,196 件 処理完了
+[2026-08-18 13:15:22] [INFO] [sparql_collector] 進捗: 2,620 / 6,196 件 処理完了
+[2026-08-18 13:15:24] [INFO] [sparql_collector] 進捗: 2,630 / 6,196 件 処理完了
+[2026-08-18 13:15:26] [INFO] [sparql_collector] 進捗: 2,640 / 6,196 件 処理完了
+[2026-08-18 13:15:28] [INFO] [sparql_collector] 進捗: 2,650 / 6,196 件 処理完了
+[2026-08-18 13:15:30] [INFO] [sparql_collector] 進捗: 2,660 / 6,196 件 処理完了
+[2026-08-18 13:15:33] [INFO] [sparql_collector] 進捗: 2,670 / 6,196 件 処理完了
+[2026-08-18 13:15:35] [INFO] [sparql_collector] 進捗: 2,680 / 6,196 件 処理完了
+[2026-08-18 13:15:37] [INFO] [sparql_collector] 進捗: 2,690 / 6,196 件 処理完了
+[2026-08-18 13:15:39] [INFO] [sparql_collector] 進捗: 2,700 / 6,196 件 処理完了
+[2026-08-18 13:15:41] [INFO] [sparql_collector] 進捗: 2,710 / 6,196 件 処理完了
+[2026-08-18 13:15:43] [INFO] [sparql_collector] 進捗: 2,720 / 6,196 件 処理完了
+[2026-08-18 13:15:45] [INFO] [sparql_collector] 進捗: 2,730 / 6,196 件 処理完了
+[2026-08-18 13:15:47] [INFO] [sparql_collector] 進捗: 2,740 / 6,196 件 処理完了
+[2026-08-18 13:15:49] [INFO] [sparql_collector] 進捗: 2,750 / 6,196 件 処理完了
+[2026-08-18 13:15:51] [INFO] [sparql_collector] 進捗: 2,760 / 6,196 件 処理完了
+[2026-08-18 13:15:54] [INFO] [sparql_collector] 進捗: 2,770 / 6,196 件 処理完了
+[2026-08-18 13:15:56] [INFO] [sparql_collector] 進捗: 2,780 / 6,196 件 処理完了
+[2026-08-18 13:15:58] [INFO] [sparql_collector] 進捗: 2,790 / 6,196 件 処理完了
+[2026-08-18 13:16:00] [INFO] [sparql_collector] 進捗: 2,800 / 6,196 件 処理完了
+[2026-08-18 13:16:02] [INFO] [sparql_collector] 進捗: 2,810 / 6,196 件 処理完了
+[2026-08-18 13:16:05] [INFO] [sparql_collector] 進捗: 2,820 / 6,196 件 処理完了
+[2026-08-18 13:16:07] [INFO] [sparql_collector] 進捗: 2,830 / 6,196 件 処理完了
+[2026-08-18 13:16:10] [INFO] [sparql_collector] 進捗: 2,840 / 6,196 件 処理完了
+[2026-08-18 13:16:12] [INFO] [sparql_collector] 進捗: 2,850 / 6,196 件 処理完了
+[2026-08-18 13:16:14] [INFO] [sparql_collector] 進捗: 2,860 / 6,196 件 処理完了
+[2026-08-18 13:16:17] [INFO] [sparql_collector] 進捗: 2,870 / 6,196 件 処理完了
+[2026-08-18 13:16:19] [INFO] [sparql_collector] 進捗: 2,880 / 6,196 件 処理完了
+[2026-08-18 13:16:21] [INFO] [sparql_collector] 進捗: 2,890 / 6,196 件 処理完了
+[2026-08-18 13:16:23] [INFO] [sparql_collector] 進捗: 2,900 / 6,196 件 処理完了
+[2026-08-18 13:16:26] [INFO] [sparql_collector] 進捗: 2,910 / 6,196 件 処理完了
+[2026-08-18 13:16:28] [INFO] [sparql_collector] 進捗: 2,920 / 6,196 件 処理完了
+[2026-08-18 13:16:30] [INFO] [sparql_collector] 進捗: 2,930 / 6,196 件 処理完了
+[2026-08-18 13:16:32] [INFO] [sparql_collector] 進捗: 2,940 / 6,196 件 処理完了
+[2026-08-18 13:16:35] [INFO] [sparql_collector] 進捗: 2,950 / 6,196 件 処理完了
+[2026-08-18 13:16:37] [INFO] [sparql_collector] 進捗: 2,960 / 6,196 件 処理完了
+[2026-08-18 13:16:39] [INFO] [sparql_collector] 進捗: 2,970 / 6,196 件 処理完了
+[2026-08-18 13:16:41] [INFO] [sparql_collector] 進捗: 2,980 / 6,196 件 処理完了
+[2026-08-18 13:16:43] [INFO] [sparql_collector] 進捗: 2,990 / 6,196 件 処理完了
+[2026-08-18 13:16:46] [INFO] [sparql_collector] 進捗: 3,000 / 6,196 件 処理完了
+[2026-08-18 13:16:48] [INFO] [sparql_collector] 進捗: 3,010 / 6,196 件 処理完了
+[2026-08-18 13:16:50] [INFO] [sparql_collector] 進捗: 3,020 / 6,196 件 処理完了
+[2026-08-18 13:16:53] [INFO] [sparql_collector] 進捗: 3,030 / 6,196 件 処理完了
+[2026-08-18 13:16:55] [INFO] [sparql_collector] 進捗: 3,040 / 6,196 件 処理完了
+[2026-08-18 13:16:57] [INFO] [sparql_collector] 進捗: 3,050 / 6,196 件 処理完了
+[2026-08-18 13:16:59] [INFO] [sparql_collector] 進捗: 3,060 / 6,196 件 処理完了
+[2026-08-18 13:17:02] [INFO] [sparql_collector] 進捗: 3,070 / 6,196 件 処理完了
+[2026-08-18 13:17:04] [INFO] [sparql_collector] 進捗: 3,080 / 6,196 件 処理完了
+[2026-08-18 13:17:06] [INFO] [sparql_collector] 進捗: 3,090 / 6,196 件 処理完了
+[2026-08-18 13:17:08] [INFO] [sparql_collector] 進捗: 3,100 / 6,196 件 処理完了
+[2026-08-18 13:17:10] [INFO] [sparql_collector] 進捗: 3,110 / 6,196 件 処理完了
+[2026-08-18 13:17:13] [INFO] [sparql_collector] 進捗: 3,120 / 6,196 件 処理完了
+[2026-08-18 13:17:15] [INFO] [sparql_collector] 進捗: 3,130 / 6,196 件 処理完了
+[2026-08-18 13:17:17] [INFO] [sparql_collector] 進捗: 3,140 / 6,196 件 処理完了
+[2026-08-18 13:17:19] [INFO] [sparql_collector] 進捗: 3,150 / 6,196 件 処理完了
+[2026-08-18 13:17:21] [INFO] [sparql_collector] 進捗: 3,160 / 6,196 件 処理完了
+[2026-08-18 13:17:24] [INFO] [sparql_collector] 進捗: 3,170 / 6,196 件 処理完了
+[2026-08-18 13:17:26] [INFO] [sparql_collector] 進捗: 3,180 / 6,196 件 処理完了
+[2026-08-18 13:17:28] [INFO] [sparql_collector] 進捗: 3,190 / 6,196 件 処理完了
+[2026-08-18 13:17:30] [INFO] [sparql_collector] 進捗: 3,200 / 6,196 件 処理完了
+[2026-08-18 13:17:32] [INFO] [sparql_collector] 進捗: 3,210 / 6,196 件 処理完了
+[2026-08-18 13:17:35] [INFO] [sparql_collector] 進捗: 3,220 / 6,196 件 処理完了
+[2026-08-18 13:17:37] [INFO] [sparql_collector] 進捗: 3,230 / 6,196 件 処理完了
+[2026-08-18 13:17:39] [INFO] [sparql_collector] 進捗: 3,240 / 6,196 件 処理完了
+[2026-08-18 13:17:41] [INFO] [sparql_collector] 進捗: 3,250 / 6,196 件 処理完了
+[2026-08-18 13:17:44] [INFO] [sparql_collector] 進捗: 3,260 / 6,196 件 処理完了
+[2026-08-18 13:17:46] [INFO] [sparql_collector] 進捗: 3,270 / 6,196 件 処理完了
+[2026-08-18 13:17:48] [INFO] [sparql_collector] 進捗: 3,280 / 6,196 件 処理完了
+[2026-08-18 13:17:51] [INFO] [sparql_collector] 進捗: 3,290 / 6,196 件 処理完了
+[2026-08-18 13:17:53] [INFO] [sparql_collector] 進捗: 3,300 / 6,196 件 処理完了
+[2026-08-18 13:17:55] [INFO] [sparql_collector] 進捗: 3,310 / 6,196 件 処理完了
+[2026-08-18 13:17:58] [INFO] [sparql_collector] 進捗: 3,320 / 6,196 件 処理完了
+[2026-08-18 13:18:00] [INFO] [sparql_collector] 進捗: 3,330 / 6,196 件 処理完了
+[2026-08-18 13:18:02] [INFO] [sparql_collector] 進捗: 3,340 / 6,196 件 処理完了
+[2026-08-18 13:18:05] [INFO] [sparql_collector] 進捗: 3,350 / 6,196 件 処理完了
+[2026-08-18 13:18:07] [INFO] [sparql_collector] 進捗: 3,360 / 6,196 件 処理完了
+[2026-08-18 13:18:10] [INFO] [sparql_collector] 進捗: 3,370 / 6,196 件 処理完了
+[2026-08-18 13:18:12] [INFO] [sparql_collector] 進捗: 3,380 / 6,196 件 処理完了
+[2026-08-18 13:18:14] [INFO] [sparql_collector] 進捗: 3,390 / 6,196 件 処理完了
+[2026-08-18 13:18:17] [INFO] [sparql_collector] 進捗: 3,400 / 6,196 件 処理完了
+[2026-08-18 13:18:19] [INFO] [sparql_collector] 進捗: 3,410 / 6,196 件 処理完了
+[2026-08-18 13:18:21] [INFO] [sparql_collector] 進捗: 3,420 / 6,196 件 処理完了
+[2026-08-18 13:18:24] [INFO] [sparql_collector] 進捗: 3,430 / 6,196 件 処理完了
+[2026-08-18 13:18:26] [INFO] [sparql_collector] 進捗: 3,440 / 6,196 件 処理完了
+[2026-08-18 13:18:28] [INFO] [sparql_collector] 進捗: 3,450 / 6,196 件 処理完了
+[2026-08-18 13:18:30] [INFO] [sparql_collector] 進捗: 3,460 / 6,196 件 処理完了
+[2026-08-18 13:18:32] [INFO] [sparql_collector] 進捗: 3,470 / 6,196 件 処理完了
+[2026-08-18 13:18:35] [INFO] [sparql_collector] 進捗: 3,480 / 6,196 件 処理完了
+[2026-08-18 13:18:37] [INFO] [sparql_collector] 進捗: 3,490 / 6,196 件 処理完了
+[2026-08-18 13:18:39] [INFO] [sparql_collector] 進捗: 3,500 / 6,196 件 処理完了
+[2026-08-18 13:18:41] [INFO] [sparql_collector] 進捗: 3,510 / 6,196 件 処理完了
+[2026-08-18 13:18:44] [INFO] [sparql_collector] 進捗: 3,520 / 6,196 件 処理完了
+[2026-08-18 13:18:46] [INFO] [sparql_collector] 進捗: 3,530 / 6,196 件 処理完了
+[2026-08-18 13:18:48] [INFO] [sparql_collector] 進捗: 3,540 / 6,196 件 処理完了
+[2026-08-18 13:18:50] [INFO] [sparql_collector] 進捗: 3,550 / 6,196 件 処理完了
+[2026-08-18 13:18:52] [INFO] [sparql_collector] 進捗: 3,560 / 6,196 件 処理完了
+[2026-08-18 13:18:55] [INFO] [sparql_collector] 進捗: 3,570 / 6,196 件 処理完了
+[2026-08-18 13:18:57] [INFO] [sparql_collector] 進捗: 3,580 / 6,196 件 処理完了
+[2026-08-18 13:19:00] [INFO] [sparql_collector] 進捗: 3,590 / 6,196 件 処理完了
+[2026-08-18 13:19:02] [INFO] [sparql_collector] 進捗: 3,600 / 6,196 件 処理完了
+[2026-08-18 13:19:04] [INFO] [sparql_collector] 進捗: 3,610 / 6,196 件 処理完了
+[2026-08-18 13:19:07] [INFO] [sparql_collector] 進捗: 3,620 / 6,196 件 処理完了
+[2026-08-18 13:19:09] [INFO] [sparql_collector] 進捗: 3,630 / 6,196 件 処理完了
+[2026-08-18 13:19:11] [INFO] [sparql_collector] 進捗: 3,640 / 6,196 件 処理完了
+[2026-08-18 13:19:13] [INFO] [sparql_collector] 進捗: 3,650 / 6,196 件 処理完了
+[2026-08-18 13:19:16] [INFO] [sparql_collector] 進捗: 3,660 / 6,196 件 処理完了
+[2026-08-18 13:19:18] [INFO] [sparql_collector] 進捗: 3,670 / 6,196 件 処理完了
+[2026-08-18 13:19:20] [INFO] [sparql_collector] 進捗: 3,680 / 6,196 件 処理完了
+[2026-08-18 13:19:22] [INFO] [sparql_collector] 進捗: 3,690 / 6,196 件 処理完了
+[2026-08-18 13:19:25] [INFO] [sparql_collector] 進捗: 3,700 / 6,196 件 処理完了
+[2026-08-18 13:19:27] [INFO] [sparql_collector] 進捗: 3,710 / 6,196 件 処理完了
+[2026-08-18 13:19:29] [INFO] [sparql_collector] 進捗: 3,720 / 6,196 件 処理完了
+[2026-08-18 13:19:31] [INFO] [sparql_collector] 進捗: 3,730 / 6,196 件 処理完了
+[2026-08-18 13:19:33] [INFO] [sparql_collector] 進捗: 3,740 / 6,196 件 処理完了
+[2026-08-18 13:19:35] [INFO] [sparql_collector] 進捗: 3,750 / 6,196 件 処理完了
+[2026-08-18 13:19:38] [INFO] [sparql_collector] 進捗: 3,760 / 6,196 件 処理完了
+[2026-08-18 13:19:40] [INFO] [sparql_collector] 進捗: 3,770 / 6,196 件 処理完了
+[2026-08-18 13:19:42] [INFO] [sparql_collector] 進捗: 3,780 / 6,196 件 処理完了
+[2026-08-18 13:19:44] [INFO] [sparql_collector] 進捗: 3,790 / 6,196 件 処理完了
+[2026-08-18 13:19:47] [INFO] [sparql_collector] 進捗: 3,800 / 6,196 件 処理完了
+[2026-08-18 13:19:49] [INFO] [sparql_collector] 進捗: 3,810 / 6,196 件 処理完了
+[2026-08-18 13:19:51] [INFO] [sparql_collector] 進捗: 3,820 / 6,196 件 処理完了
+[2026-08-18 13:19:53] [INFO] [sparql_collector] 進捗: 3,830 / 6,196 件 処理完了
+[2026-08-18 13:19:55] [INFO] [sparql_collector] 進捗: 3,840 / 6,196 件 処理完了
+[2026-08-18 13:19:57] [INFO] [sparql_collector] 進捗: 3,850 / 6,196 件 処理完了
+[2026-08-18 13:19:59] [INFO] [sparql_collector] 進捗: 3,860 / 6,196 件 処理完了
+[2026-08-18 13:20:02] [INFO] [sparql_collector] 進捗: 3,870 / 6,196 件 処理完了
+[2026-08-18 13:20:04] [INFO] [sparql_collector] 進捗: 3,880 / 6,196 件 処理完了
+[2026-08-18 13:20:06] [INFO] [sparql_collector] 進捗: 3,890 / 6,196 件 処理完了
+[2026-08-18 13:20:08] [INFO] [sparql_collector] 進捗: 3,900 / 6,196 件 処理完了
+[2026-08-18 13:20:10] [INFO] [sparql_collector] 進捗: 3,910 / 6,196 件 処理完了
+[2026-08-18 13:20:12] [INFO] [sparql_collector] 進捗: 3,920 / 6,196 件 処理完了
+[2026-08-18 13:20:14] [INFO] [sparql_collector] 進捗: 3,930 / 6,196 件 処理完了
+[2026-08-18 13:20:17] [INFO] [sparql_collector] 進捗: 3,940 / 6,196 件 処理完了
+[2026-08-18 13:20:19] [INFO] [sparql_collector] 進捗: 3,950 / 6,196 件 処理完了
+[2026-08-18 13:20:21] [INFO] [sparql_collector] 進捗: 3,960 / 6,196 件 処理完了
+[2026-08-18 13:20:23] [INFO] [sparql_collector] 進捗: 3,970 / 6,196 件 処理完了
+[2026-08-18 13:20:25] [INFO] [sparql_collector] 進捗: 3,980 / 6,196 件 処理完了
+[2026-08-18 13:20:27] [INFO] [sparql_collector] 進捗: 3,990 / 6,196 件 処理完了
+[2026-08-18 13:20:29] [INFO] [sparql_collector] 進捗: 4,000 / 6,196 件 処理完了
+[2026-08-18 13:20:31] [INFO] [sparql_collector] 進捗: 4,010 / 6,196 件 処理完了
+[2026-08-18 13:20:34] [INFO] [sparql_collector] 進捗: 4,020 / 6,196 件 処理完了
+[2026-08-18 13:20:36] [INFO] [sparql_collector] 進捗: 4,030 / 6,196 件 処理完了
+[2026-08-18 13:20:38] [INFO] [sparql_collector] 進捗: 4,040 / 6,196 件 処理完了
+[2026-08-18 13:20:40] [INFO] [sparql_collector] 進捗: 4,050 / 6,196 件 処理完了
+[2026-08-18 13:20:42] [INFO] [sparql_collector] 進捗: 4,060 / 6,196 件 処理完了
+[2026-08-18 13:20:44] [INFO] [sparql_collector] 進捗: 4,070 / 6,196 件 処理完了
+[2026-08-18 13:20:46] [INFO] [sparql_collector] 進捗: 4,080 / 6,196 件 処理完了
+[2026-08-18 13:20:48] [INFO] [sparql_collector] 進捗: 4,090 / 6,196 件 処理完了
+[2026-08-18 13:20:50] [INFO] [sparql_collector] 進捗: 4,100 / 6,196 件 処理完了
+[2026-08-18 13:20:52] [INFO] [sparql_collector] 進捗: 4,110 / 6,196 件 処理完了
+[2026-08-18 13:20:55] [INFO] [sparql_collector] 進捗: 4,120 / 6,196 件 処理完了
+[2026-08-18 13:20:57] [INFO] [sparql_collector] 進捗: 4,130 / 6,196 件 処理完了
+[2026-08-18 13:20:59] [INFO] [sparql_collector] 進捗: 4,140 / 6,196 件 処理完了
+[2026-08-18 13:21:01] [INFO] [sparql_collector] 進捗: 4,150 / 6,196 件 処理完了
+[2026-08-18 13:21:03] [INFO] [sparql_collector] 進捗: 4,160 / 6,196 件 処理完了
+[2026-08-18 13:21:05] [INFO] [sparql_collector] 進捗: 4,170 / 6,196 件 処理完了
+[2026-08-18 13:21:08] [INFO] [sparql_collector] 進捗: 4,180 / 6,196 件 処理完了
+[2026-08-18 13:21:10] [INFO] [sparql_collector] 進捗: 4,190 / 6,196 件 処理完了
+[2026-08-18 13:21:12] [INFO] [sparql_collector] 進捗: 4,200 / 6,196 件 処理完了
+[2026-08-18 13:21:14] [INFO] [sparql_collector] 進捗: 4,210 / 6,196 件 処理完了
+[2026-08-18 13:21:17] [INFO] [sparql_collector] 進捗: 4,220 / 6,196 件 処理完了
+[2026-08-18 13:21:19] [INFO] [sparql_collector] 進捗: 4,230 / 6,196 件 処理完了
+[2026-08-18 13:21:21] [INFO] [sparql_collector] 進捗: 4,240 / 6,196 件 処理完了
+[2026-08-18 13:21:23] [INFO] [sparql_collector] 進捗: 4,250 / 6,196 件 処理完了
+[2026-08-18 13:21:25] [INFO] [sparql_collector] 進捗: 4,260 / 6,196 件 処理完了
+[2026-08-18 13:21:28] [INFO] [sparql_collector] 進捗: 4,270 / 6,196 件 処理完了
+[2026-08-18 13:21:30] [INFO] [sparql_collector] 進捗: 4,280 / 6,196 件 処理完了
+[2026-08-18 13:21:32] [INFO] [sparql_collector] 進捗: 4,290 / 6,196 件 処理完了
+[2026-08-18 13:21:34] [INFO] [sparql_collector] 進捗: 4,300 / 6,196 件 処理完了
+[2026-08-18 13:21:36] [INFO] [sparql_collector] 進捗: 4,310 / 6,196 件 処理完了
+[2026-08-18 13:21:38] [INFO] [sparql_collector] 進捗: 4,320 / 6,196 件 処理完了
+[2026-08-18 13:21:40] [INFO] [sparql_collector] 進捗: 4,330 / 6,196 件 処理完了
+[2026-08-18 13:21:42] [INFO] [sparql_collector] 進捗: 4,340 / 6,196 件 処理完了
+[2026-08-18 13:21:45] [INFO] [sparql_collector] 進捗: 4,350 / 6,196 件 処理完了
+[2026-08-18 13:21:47] [INFO] [sparql_collector] 進捗: 4,360 / 6,196 件 処理完了
+[2026-08-18 13:21:49] [INFO] [sparql_collector] 進捗: 4,370 / 6,196 件 処理完了
+[2026-08-18 13:21:51] [INFO] [sparql_collector] 進捗: 4,380 / 6,196 件 処理完了
+[2026-08-18 13:21:53] [INFO] [sparql_collector] 進捗: 4,390 / 6,196 件 処理完了
+[2026-08-18 13:21:55] [INFO] [sparql_collector] 進捗: 4,400 / 6,196 件 処理完了
+[2026-08-18 13:21:57] [INFO] [sparql_collector] 進捗: 4,410 / 6,196 件 処理完了
+[2026-08-18 13:21:59] [INFO] [sparql_collector] 進捗: 4,420 / 6,196 件 処理完了
+[2026-08-18 13:22:01] [INFO] [sparql_collector] 進捗: 4,430 / 6,196 件 処理完了
+[2026-08-18 13:22:04] [INFO] [sparql_collector] 進捗: 4,440 / 6,196 件 処理完了
+[2026-08-18 13:22:06] [INFO] [sparql_collector] 進捗: 4,450 / 6,196 件 処理完了
+[2026-08-18 13:22:08] [INFO] [sparql_collector] 進捗: 4,460 / 6,196 件 処理完了
+[2026-08-18 13:22:10] [INFO] [sparql_collector] 進捗: 4,470 / 6,196 件 処理完了
+[2026-08-18 13:22:12] [INFO] [sparql_collector] 進捗: 4,480 / 6,196 件 処理完了
+[2026-08-18 13:22:14] [INFO] [sparql_collector] 進捗: 4,490 / 6,196 件 処理完了
+[2026-08-18 13:22:16] [INFO] [sparql_collector] 進捗: 4,500 / 6,196 件 処理完了
+[2026-08-18 13:22:18] [INFO] [sparql_collector] 進捗: 4,510 / 6,196 件 処理完了
+[2026-08-18 13:22:20] [INFO] [sparql_collector] 進捗: 4,520 / 6,196 件 処理完了
+[2026-08-18 13:22:22] [INFO] [sparql_collector] 進捗: 4,530 / 6,196 件 処理完了
+[2026-08-18 13:22:24] [INFO] [sparql_collector] 進捗: 4,540 / 6,196 件 処理完了
+[2026-08-18 13:22:26] [INFO] [sparql_collector] 進捗: 4,550 / 6,196 件 処理完了
+[2026-08-18 13:22:28] [INFO] [sparql_collector] 進捗: 4,560 / 6,196 件 処理完了
+[2026-08-18 13:22:31] [INFO] [sparql_collector] 進捗: 4,570 / 6,196 件 処理完了
+[2026-08-18 13:22:33] [INFO] [sparql_collector] 進捗: 4,580 / 6,196 件 処理完了
+[2026-08-18 13:22:35] [INFO] [sparql_collector] 進捗: 4,590 / 6,196 件 処理完了
+[2026-08-18 13:22:37] [INFO] [sparql_collector] 進捗: 4,600 / 6,196 件 処理完了
+[2026-08-18 13:22:39] [INFO] [sparql_collector] 進捗: 4,610 / 6,196 件 処理完了
+[2026-08-18 13:22:41] [INFO] [sparql_collector] 進捗: 4,620 / 6,196 件 処理完了
+[2026-08-18 13:22:43] [INFO] [sparql_collector] 進捗: 4,630 / 6,196 件 処理完了
+[2026-08-18 13:22:45] [INFO] [sparql_collector] 進捗: 4,640 / 6,196 件 処理完了
+[2026-08-18 13:22:47] [INFO] [sparql_collector] 進捗: 4,650 / 6,196 件 処理完了
+[2026-08-18 13:22:49] [INFO] [sparql_collector] 進捗: 4,660 / 6,196 件 処理完了
+[2026-08-18 13:22:51] [INFO] [sparql_collector] 進捗: 4,670 / 6,196 件 処理完了
+[2026-08-18 13:22:53] [INFO] [sparql_collector] 進捗: 4,680 / 6,196 件 処理完了
+[2026-08-18 13:22:55] [INFO] [sparql_collector] 進捗: 4,690 / 6,196 件 処理完了
+[2026-08-18 13:22:57] [INFO] [sparql_collector] 進捗: 4,700 / 6,196 件 処理完了
+[2026-08-18 13:23:00] [INFO] [sparql_collector] 進捗: 4,710 / 6,196 件 処理完了
+[2026-08-18 13:23:02] [INFO] [sparql_collector] 進捗: 4,720 / 6,196 件 処理完了
+[2026-08-18 13:23:04] [INFO] [sparql_collector] 進捗: 4,730 / 6,196 件 処理完了
+[2026-08-18 13:23:06] [INFO] [sparql_collector] 進捗: 4,740 / 6,196 件 処理完了
+[2026-08-18 13:23:08] [INFO] [sparql_collector] 進捗: 4,750 / 6,196 件 処理完了
+[2026-08-18 13:23:10] [INFO] [sparql_collector] 進捗: 4,760 / 6,196 件 処理完了
+[2026-08-18 13:23:12] [INFO] [sparql_collector] 進捗: 4,770 / 6,196 件 処理完了
+[2026-08-18 13:23:14] [INFO] [sparql_collector] 進捗: 4,780 / 6,196 件 処理完了
+[2026-08-18 13:23:16] [INFO] [sparql_collector] 進捗: 4,790 / 6,196 件 処理完了
+[2026-08-18 13:23:18] [INFO] [sparql_collector] 進捗: 4,800 / 6,196 件 処理完了
+[2026-08-18 13:23:20] [INFO] [sparql_collector] 進捗: 4,810 / 6,196 件 処理完了
+[2026-08-18 13:23:23] [INFO] [sparql_collector] 進捗: 4,820 / 6,196 件 処理完了
+[2026-08-18 13:23:25] [INFO] [sparql_collector] 進捗: 4,830 / 6,196 件 処理完了
+[2026-08-18 13:23:27] [INFO] [sparql_collector] 進捗: 4,840 / 6,196 件 処理完了
+[2026-08-18 13:23:29] [INFO] [sparql_collector] 進捗: 4,850 / 6,196 件 処理完了
+[2026-08-18 13:23:31] [INFO] [sparql_collector] 進捗: 4,860 / 6,196 件 処理完了
+[2026-08-18 13:23:33] [INFO] [sparql_collector] 進捗: 4,870 / 6,196 件 処理完了
+[2026-08-18 13:23:35] [INFO] [sparql_collector] 進捗: 4,880 / 6,196 件 処理完了
+[2026-08-18 13:23:37] [INFO] [sparql_collector] 進捗: 4,890 / 6,196 件 処理完了
+[2026-08-18 13:23:39] [INFO] [sparql_collector] 進捗: 4,900 / 6,196 件 処理完了
+[2026-08-18 13:23:42] [INFO] [sparql_collector] 進捗: 4,910 / 6,196 件 処理完了
+[2026-08-18 13:23:44] [INFO] [sparql_collector] 進捗: 4,920 / 6,196 件 処理完了
+[2026-08-18 13:23:46] [INFO] [sparql_collector] 進捗: 4,930 / 6,196 件 処理完了
+[2026-08-18 13:23:48] [INFO] [sparql_collector] 進捗: 4,940 / 6,196 件 処理完了
+[2026-08-18 13:23:50] [INFO] [sparql_collector] 進捗: 4,950 / 6,196 件 処理完了
+[2026-08-18 13:23:52] [INFO] [sparql_collector] 進捗: 4,960 / 6,196 件 処理完了
+[2026-08-18 13:23:54] [INFO] [sparql_collector] 進捗: 4,970 / 6,196 件 処理完了
+[2026-08-18 13:23:56] [INFO] [sparql_collector] 進捗: 4,980 / 6,196 件 処理完了
+[2026-08-18 13:23:58] [INFO] [sparql_collector] 進捗: 4,990 / 6,196 件 処理完了
+[2026-08-18 13:24:00] [INFO] [sparql_collector] 進捗: 5,000 / 6,196 件 処理完了
+[2026-08-18 13:24:02] [INFO] [sparql_collector] 進捗: 5,010 / 6,196 件 処理完了
+[2026-08-18 13:24:04] [INFO] [sparql_collector] 進捗: 5,020 / 6,196 件 処理完了
+[2026-08-18 13:24:07] [INFO] [sparql_collector] 進捗: 5,030 / 6,196 件 処理完了
+[2026-08-18 13:24:09] [INFO] [sparql_collector] 進捗: 5,040 / 6,196 件 処理完了
+[2026-08-18 13:24:11] [INFO] [sparql_collector] 進捗: 5,050 / 6,196 件 処理完了
+[2026-08-18 13:24:13] [INFO] [sparql_collector] 進捗: 5,060 / 6,196 件 処理完了
+[2026-08-18 13:24:15] [INFO] [sparql_collector] 進捗: 5,070 / 6,196 件 処理完了
+[2026-08-18 13:24:17] [INFO] [sparql_collector] 進捗: 5,080 / 6,196 件 処理完了
+[2026-08-18 13:24:19] [INFO] [sparql_collector] 進捗: 5,090 / 6,196 件 処理完了
+[2026-08-18 13:24:21] [INFO] [sparql_collector] 進捗: 5,100 / 6,196 件 処理完了
+[2026-08-18 13:24:23] [INFO] [sparql_collector] 進捗: 5,110 / 6,196 件 処理完了
+[2026-08-18 13:24:25] [INFO] [sparql_collector] 進捗: 5,120 / 6,196 件 処理完了
+[2026-08-18 13:24:27] [INFO] [sparql_collector] 進捗: 5,130 / 6,196 件 処理完了
+[2026-08-18 13:24:29] [INFO] [sparql_collector] 進捗: 5,140 / 6,196 件 処理完了
+[2026-08-18 13:24:31] [INFO] [sparql_collector] 進捗: 5,150 / 6,196 件 処理完了
+[2026-08-18 13:24:34] [INFO] [sparql_collector] 進捗: 5,160 / 6,196 件 処理完了
+[2026-08-18 13:24:36] [INFO] [sparql_collector] 進捗: 5,170 / 6,196 件 処理完了
+[2026-08-18 13:24:38] [INFO] [sparql_collector] 進捗: 5,180 / 6,196 件 処理完了
+[2026-08-18 13:24:40] [INFO] [sparql_collector] 進捗: 5,190 / 6,196 件 処理完了
+[2026-08-18 13:24:42] [INFO] [sparql_collector] 進捗: 5,200 / 6,196 件 処理完了
+[2026-08-18 13:24:44] [INFO] [sparql_collector] 進捗: 5,210 / 6,196 件 処理完了
+[2026-08-18 13:24:46] [INFO] [sparql_collector] 進捗: 5,220 / 6,196 件 処理完了
+[2026-08-18 13:24:48] [INFO] [sparql_collector] 進捗: 5,230 / 6,196 件 処理完了
+[2026-08-18 13:24:50] [INFO] [sparql_collector] 進捗: 5,240 / 6,196 件 処理完了
+[2026-08-18 13:24:52] [INFO] [sparql_collector] 進捗: 5,250 / 6,196 件 処理完了
+[2026-08-18 13:24:55] [INFO] [sparql_collector] 進捗: 5,260 / 6,196 件 処理完了
+[2026-08-18 13:24:57] [INFO] [sparql_collector] 進捗: 5,270 / 6,196 件 処理完了
+[2026-08-18 13:24:59] [INFO] [sparql_collector] 進捗: 5,280 / 6,196 件 処理完了
+[2026-08-18 13:25:01] [INFO] [sparql_collector] 進捗: 5,290 / 6,196 件 処理完了
+[2026-08-18 13:25:03] [INFO] [sparql_collector] 進捗: 5,300 / 6,196 件 処理完了
+[2026-08-18 13:25:05] [INFO] [sparql_collector] 進捗: 5,310 / 6,196 件 処理完了
+[2026-08-18 13:25:07] [INFO] [sparql_collector] 進捗: 5,320 / 6,196 件 処理完了
+[2026-08-18 13:25:09] [INFO] [sparql_collector] 進捗: 5,330 / 6,196 件 処理完了
+[2026-08-18 13:25:11] [INFO] [sparql_collector] 進捗: 5,340 / 6,196 件 処理完了
+[2026-08-18 13:25:14] [INFO] [sparql_collector] 進捗: 5,350 / 6,196 件 処理完了
+[2026-08-18 13:25:16] [INFO] [sparql_collector] 進捗: 5,360 / 6,196 件 処理完了
+[2026-08-18 13:25:18] [INFO] [sparql_collector] 進捗: 5,370 / 6,196 件 処理完了
+[2026-08-18 13:25:20] [INFO] [sparql_collector] 進捗: 5,380 / 6,196 件 処理完了
+[2026-08-18 13:25:22] [INFO] [sparql_collector] 進捗: 5,390 / 6,196 件 処理完了
+[2026-08-18 13:25:24] [INFO] [sparql_collector] 進捗: 5,400 / 6,196 件 処理完了
+[2026-08-18 13:25:26] [INFO] [sparql_collector] 進捗: 5,410 / 6,196 件 処理完了
+[2026-08-18 13:25:28] [INFO] [sparql_collector] 進捗: 5,420 / 6,196 件 処理完了
+[2026-08-18 13:25:30] [INFO] [sparql_collector] 進捗: 5,430 / 6,196 件 処理完了
+[2026-08-18 13:25:32] [INFO] [sparql_collector] 進捗: 5,440 / 6,196 件 処理完了
+[2026-08-18 13:25:34] [INFO] [sparql_collector] 進捗: 5,450 / 6,196 件 処理完了
+[2026-08-18 13:25:36] [INFO] [sparql_collector] 進捗: 5,460 / 6,196 件 処理完了
+[2026-08-18 13:25:38] [INFO] [sparql_collector] 進捗: 5,470 / 6,196 件 処理完了
+[2026-08-18 13:25:41] [INFO] [sparql_collector] 進捗: 5,480 / 6,196 件 処理完了
+[2026-08-18 13:25:43] [INFO] [sparql_collector] 進捗: 5,490 / 6,196 件 処理完了
+[2026-08-18 13:26:15] [WARNING] [sparql_collector] [504負荷検知] 全 10 件のグラフ取得で遅延発生。3秒クールダウン後に小分け分割へ移行します...
+[2026-08-18 13:26:18] [INFO] [sparql_collector] -> チャンク分割小分け取得 (10 件 ➔ 5 件 + 5 件)
+[2026-08-18 13:26:50] [INFO] [sparql_collector] 進捗: 5,500 / 6,196 件 処理完了
+[2026-08-18 13:26:59] [INFO] [sparql_collector] 進捗: 5,510 / 6,196 件 処理完了
+[2026-08-18 13:27:12] [INFO] [sparql_collector] 進捗: 5,520 / 6,196 件 処理完了
+[2026-08-18 13:27:27] [INFO] [sparql_collector] 進捗: 5,530 / 6,196 件 処理完了
+[2026-08-18 13:27:42] [INFO] [sparql_collector] 進捗: 5,540 / 6,196 件 処理完了
+[2026-08-18 13:27:57] [INFO] [sparql_collector] 進捗: 5,550 / 6,196 件 処理完了
+[2026-08-18 13:28:16] [INFO] [sparql_collector] 進捗: 5,560 / 6,196 件 処理完了
+[2026-08-18 13:28:36] [INFO] [sparql_collector] 進捗: 5,570 / 6,196 件 処理完了
+[2026-08-18 13:29:01] [INFO] [sparql_collector] 進捗: 5,580 / 6,196 件 処理完了
+[2026-08-18 13:29:19] [INFO] [sparql_collector] 進捗: 5,590 / 6,196 件 処理完了
+[2026-08-18 13:29:33] [INFO] [sparql_collector] 進捗: 5,600 / 6,196 件 処理完了
+[2026-08-18 13:29:49] [INFO] [sparql_collector] 進捗: 5,610 / 6,196 件 処理完了
+[2026-08-18 13:30:04] [INFO] [sparql_collector] 進捗: 5,620 / 6,196 件 処理完了
+[2026-08-18 13:30:06] [INFO] [sparql_collector] 進捗: 5,630 / 6,196 件 処理完了
+[2026-08-18 13:30:08] [INFO] [sparql_collector] 進捗: 5,640 / 6,196 件 処理完了
+[2026-08-18 13:30:10] [INFO] [sparql_collector] 進捗: 5,650 / 6,196 件 処理完了
+[2026-08-18 13:30:12] [INFO] [sparql_collector] 進捗: 5,660 / 6,196 件 処理完了
+[2026-08-18 13:30:14] [INFO] [sparql_collector] 進捗: 5,670 / 6,196 件 処理完了
+[2026-08-18 13:30:16] [INFO] [sparql_collector] 進捗: 5,680 / 6,196 件 処理完了
+[2026-08-18 13:30:19] [INFO] [sparql_collector] 進捗: 5,690 / 6,196 件 処理完了
+[2026-08-18 13:30:21] [INFO] [sparql_collector] 進捗: 5,700 / 6,196 件 処理完了
+[2026-08-18 13:30:23] [INFO] [sparql_collector] 進捗: 5,710 / 6,196 件 処理完了
+[2026-08-18 13:30:25] [INFO] [sparql_collector] 進捗: 5,720 / 6,196 件 処理完了
+[2026-08-18 13:30:27] [INFO] [sparql_collector] 進捗: 5,730 / 6,196 件 処理完了
+[2026-08-18 13:30:29] [INFO] [sparql_collector] 進捗: 5,740 / 6,196 件 処理完了
+[2026-08-18 13:30:31] [INFO] [sparql_collector] 進捗: 5,750 / 6,196 件 処理完了
+[2026-08-18 13:30:33] [INFO] [sparql_collector] 進捗: 5,760 / 6,196 件 処理完了
+[2026-08-18 13:30:35] [INFO] [sparql_collector] 進捗: 5,770 / 6,196 件 処理完了
+[2026-08-18 13:30:37] [INFO] [sparql_collector] 進捗: 5,780 / 6,196 件 処理完了
+[2026-08-18 13:30:40] [INFO] [sparql_collector] 進捗: 5,790 / 6,196 件 処理完了
+[2026-08-18 13:30:42] [INFO] [sparql_collector] 進捗: 5,800 / 6,196 件 処理完了
+[2026-08-18 13:30:44] [INFO] [sparql_collector] 進捗: 5,810 / 6,196 件 処理完了
+[2026-08-18 13:30:46] [INFO] [sparql_collector] 進捗: 5,820 / 6,196 件 処理完了
+[2026-08-18 13:30:48] [INFO] [sparql_collector] 進捗: 5,830 / 6,196 件 処理完了
+[2026-08-18 13:30:50] [INFO] [sparql_collector] 進捗: 5,840 / 6,196 件 処理完了
+[2026-08-18 13:30:52] [INFO] [sparql_collector] 進捗: 5,850 / 6,196 件 処理完了
+[2026-08-18 13:30:54] [INFO] [sparql_collector] 進捗: 5,860 / 6,196 件 処理完了
+[2026-08-18 13:30:56] [INFO] [sparql_collector] 進捗: 5,870 / 6,196 件 処理完了
+[2026-08-18 13:30:58] [INFO] [sparql_collector] 進捗: 5,880 / 6,196 件 処理完了
+[2026-08-18 13:31:00] [INFO] [sparql_collector] 進捗: 5,890 / 6,196 件 処理完了
+[2026-08-18 13:31:02] [INFO] [sparql_collector] 進捗: 5,900 / 6,196 件 処理完了
+[2026-08-18 13:31:04] [INFO] [sparql_collector] 進捗: 5,910 / 6,196 件 処理完了
+[2026-08-18 13:31:06] [INFO] [sparql_collector] 進捗: 5,920 / 6,196 件 処理完了
+[2026-08-18 13:31:09] [INFO] [sparql_collector] 進捗: 5,930 / 6,196 件 処理完了
+[2026-08-18 13:31:11] [INFO] [sparql_collector] 進捗: 5,940 / 6,196 件 処理完了
+[2026-08-18 13:31:13] [INFO] [sparql_collector] 進捗: 5,950 / 6,196 件 処理完了
+[2026-08-18 13:31:15] [INFO] [sparql_collector] 進捗: 5,960 / 6,196 件 処理完了
+[2026-08-18 13:31:17] [INFO] [sparql_collector] 進捗: 5,970 / 6,196 件 処理完了
+[2026-08-18 13:31:19] [INFO] [sparql_collector] 進捗: 5,980 / 6,196 件 処理完了
+[2026-08-18 13:31:21] [INFO] [sparql_collector] 進捗: 5,990 / 6,196 件 処理完了
+[2026-08-18 13:31:23] [INFO] [sparql_collector] 進捗: 6,000 / 6,196 件 処理完了
+[2026-08-18 13:31:25] [INFO] [sparql_collector] 進捗: 6,010 / 6,196 件 処理完了
+[2026-08-18 13:31:27] [INFO] [sparql_collector] 進捗: 6,020 / 6,196 件 処理完了
+[2026-08-18 13:31:29] [INFO] [sparql_collector] 進捗: 6,030 / 6,196 件 処理完了
+[2026-08-18 13:31:31] [INFO] [sparql_collector] 進捗: 6,040 / 6,196 件 処理完了
+[2026-08-18 13:31:33] [INFO] [sparql_collector] 進捗: 6,050 / 6,196 件 処理完了
+[2026-08-18 13:31:35] [INFO] [sparql_collector] 進捗: 6,060 / 6,196 件 処理完了
+[2026-08-18 13:31:37] [INFO] [sparql_collector] 進捗: 6,070 / 6,196 件 処理完了
+[2026-08-18 13:31:39] [INFO] [sparql_collector] 進捗: 6,080 / 6,196 件 処理完了
+[2026-08-18 13:31:41] [INFO] [sparql_collector] 進捗: 6,090 / 6,196 件 処理完了
+[2026-08-18 13:31:43] [INFO] [sparql_collector] 進捗: 6,100 / 6,196 件 処理完了
+[2026-08-18 13:31:45] [INFO] [sparql_collector] 進捗: 6,110 / 6,196 件 処理完了
+[2026-08-18 13:31:47] [INFO] [sparql_collector] 進捗: 6,120 / 6,196 件 処理完了
+[2026-08-18 13:31:49] [INFO] [sparql_collector] 進捗: 6,130 / 6,196 件 処理完了
+[2026-08-18 13:31:51] [INFO] [sparql_collector] 進捗: 6,140 / 6,196 件 処理完了
+[2026-08-18 13:31:53] [INFO] [sparql_collector] 進捗: 6,150 / 6,196 件 処理完了
+[2026-08-18 13:31:55] [INFO] [sparql_collector] 進捗: 6,160 / 6,196 件 処理完了
+[2026-08-18 13:31:57] [INFO] [sparql_collector] 進捗: 6,170 / 6,196 件 処理完了
+[2026-08-18 13:31:59] [INFO] [sparql_collector] 進捗: 6,180 / 6,196 件 処理完了
+[2026-08-18 13:32:01] [INFO] [sparql_collector] 進捗: 6,190 / 6,196 件 処理完了
+[2026-08-18 13:32:03] [INFO] [sparql_collector] 進捗: 6,196 / 6,196 件 処理完了
+[2026-08-18 13:32:05] [INFO] [sparql_collector] --- [自動完全性検証 ＆ 欠損リカバリーフェーズ開始] ---
+[2026-08-18 13:32:06] [INFO] [sparql_collector] [整合性チェック合格] 全 6,196 件のメタデータが正常に取得されています。
+[2026-08-18 15:48:49] [WARNING] [rule_filter] [LLM Fast Suggest Warning] HTTPConnectionPool(host='localhost', port=1234): Max retries exceeded with url: /v1/chat/completions (Caused by NewConnectionError("HTTPConnection(host='localhost', port=1234): Failed to establish a new connection: [WinError 10061] 対象のコンピューターによって拒否されたため、接続できませんでした。"))
+[2026-08-18 15:48:58] [WARNING] [rule_filter] [LLM Fast Suggest Warning] HTTPConnectionPool(host='localhost', port=1234): Max retries exceeded with url: /v1/chat/completions (Caused by NewConnectionError("HTTPConnection(host='localhost', port=1234): Failed to establish a new connection: [WinError 10061] 対象のコンピューターによって拒否されたため、接続できませんでした。"))
+[2026-08-18 15:49:22] [WARNING] [rule_filter] [LLM Fast Suggest Warning] HTTPConnectionPool(host='localhost', port=1234): Max retries exceeded with url: /v1/chat/completions (Caused by NewConnectionError("HTTPConnection(host='localhost', port=1234): Failed to establish a new connection: [WinError 10061] 対象のコンピューターによって拒否されたため、接続できませんでした。"))
+[2026-08-18 15:50:03] [WARNING] [rule_filter] [LLM Fast Suggest Warning] HTTPConnectionPool(host='localhost', port=1234): Max retries exceeded with url: /v1/chat/completions (Caused by NewConnectionError("HTTPConnection(host='localhost', port=1234): Failed to establish a new connection: [WinError 10061] 対象のコンピューターによって拒否されたため、接続できませんでした。"))
+[2026-08-18 18:11:01] [WARNING] [rule_filter] [Gemini Suggest Warning] Gemini API Key is missing.

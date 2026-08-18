@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-人間による最終査読・手動オーバーライドポータル モジュール
+MetaClean Studio - 専門家による最終査読・手動オーバーライドポータル モジュール
 """
 
 import json
@@ -10,51 +10,64 @@ import pandas as pd
 
 def load_merged_review_data(
     raw_jsonl_path: str,
-    about_filtered_path: str,
-    suffix_filtered_path: str,
-    ngram_filtered_path: str,
+    about_filtered_path: str = None,
+    type_filtered_path: str = None,
+    ngram_filtered_path: str = None,
+    suffix_filtered_path: str = None,
     llm_judgments_path: str = None
 ) -> list:
     """
-    全工程（About, 接尾辞, N-Gram, LLM判定）の結果を集約し、
+    全工程（Type, About, N-Gram, LLM判定）の結果を集約し、
     各資料の現在の判定ステータスと判定理由バッジが付与された統合査読データを返します。
     """
     if not os.path.exists(raw_jsonl_path):
         return []
 
     # 各フェーズの合格ID集合を作成
+    type_passed_ids = set()
+    if type_filtered_path and os.path.exists(type_filtered_path):
+        with open(type_filtered_path, 'r', encoding='utf-8', errors='ignore') as f:
+            for line in f:
+                if line.strip():
+                    try:
+                        item = json.loads(line)
+                        type_passed_ids.add(item.get("@id", item.get("id", "")))
+                    except Exception:
+                        pass
+
     about_passed_ids = set()
     if about_filtered_path and os.path.exists(about_filtered_path):
-        with open(about_filtered_path, 'r', encoding='utf-8') as f:
+        with open(about_filtered_path, 'r', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 if line.strip():
-                    item = json.loads(line)
-                    about_passed_ids.add(item.get("@id", ""))
-
-    suffix_passed_ids = set()
-    if suffix_filtered_path and os.path.exists(suffix_filtered_path):
-        with open(suffix_filtered_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                if line.strip():
-                    item = json.loads(line)
-                    suffix_passed_ids.add(item.get("@id", ""))
+                    try:
+                        item = json.loads(line)
+                        about_passed_ids.add(item.get("@id", item.get("id", "")))
+                    except Exception:
+                        pass
 
     ngram_passed_ids = set()
     if ngram_filtered_path and os.path.exists(ngram_filtered_path):
-        with open(ngram_filtered_path, 'r', encoding='utf-8') as f:
+        with open(ngram_filtered_path, 'r', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 if line.strip():
-                    item = json.loads(line)
-                    ngram_passed_ids.add(item.get("@id", ""))
+                    try:
+                        item = json.loads(line)
+                        ngram_passed_ids.add(item.get("@id", item.get("id", "")))
+                    except Exception:
+                        pass
 
     # LLM判定結果のマップ
     llm_map = {}
     if llm_judgments_path and os.path.exists(llm_judgments_path):
-        with open(llm_judgments_path, 'r', encoding='utf-8') as f:
+        with open(llm_judgments_path, 'r', encoding='utf-8', errors='ignore') as f:
             for line in f:
                 if line.strip():
-                    j = json.loads(line)
-                    llm_map[j.get("id", "")] = j
+                    try:
+                        j = json.loads(line)
+                        llm_map[j.get("id", "")] = j
+                    except Exception:
+                        pass
 
     merged_records = []
 
@@ -62,15 +75,18 @@ def load_merged_review_data(
         for line in f:
             if not line.strip():
                 continue
-            item = json.loads(line)
-            item_id = item.get("@id", "")
+            try:
+                item = json.loads(line)
+            except Exception:
+                continue
 
+            item_id = item.get("@id", item.get("id", ""))
             label = item.get("rdfs:label", item.get("schema:name", "No Title"))
             title = label[0] if isinstance(label, list) and label else str(label)
 
             # 各フェーズでの判定ステータス評価
+            is_type_ok = item_id in type_passed_ids if type_passed_ids else True
             is_about_ok = item_id in about_passed_ids if about_passed_ids else True
-            is_suffix_ok = item_id in suffix_passed_ids if suffix_passed_ids else True
             is_ngram_ok = item_id in ngram_passed_ids if ngram_passed_ids else True
             
             llm_info = llm_map.get(item_id, {})
@@ -82,15 +98,15 @@ def load_merged_review_data(
             final_status = "合格"
             reasons = []
 
+            if not is_type_ok:
+                final_status = "除外"
+                reasons.append("データ種別(Type)除外")
             if not is_about_ok:
                 final_status = "除外"
                 reasons.append("Aboutルール除外")
-            if not is_suffix_ok:
-                final_status = "除外"
-                reasons.append("接尾辞ルール除外")
             if not is_ngram_ok:
                 final_status = "除外"
-                reasons.append("N-Gramルール除外")
+                reasons.append("タイトルルール除外")
 
             if llm_target is False:
                 final_status = "除外"
@@ -111,8 +127,8 @@ def load_merged_review_data(
                 "title": title,
                 "status": final_status,
                 "reasons": " / ".join(reasons),
+                "is_type_ok": is_type_ok,
                 "is_about_ok": is_about_ok,
-                "is_suffix_ok": is_suffix_ok,
                 "is_ngram_ok": is_ngram_ok,
                 "llm_target": llm_target,
                 "llm_reason": llm_reason,
@@ -138,8 +154,8 @@ def save_human_verified_data(records: list, human_decisions: dict, output_verifi
             
             if human_status == "合格":
                 raw_item = r["raw_item"]
-                raw_item["_human_verified"] = True
-                raw_item["_final_status"] = "合格"
+                raw_item["human_verified_status"] = "APPROVED"
+                raw_item["review_reasons"] = r["reasons"]
                 f.write(json.dumps(raw_item, ensure_ascii=False) + "\n")
                 passed_count += 1
 

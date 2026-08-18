@@ -18,26 +18,37 @@ def render_dashboard_view(paths: dict):
 
     cols = st.columns(4)
     with cols[0]:
-        st.info("Phase 1: メタデータ取得")
+        st.info("Step 1: メタデータ取得")
         st.metric("母集団 Raw メタデータ", f"{count_lines(paths['PATH_RAW_METADATA']):,} 件")
 
     with cols[1]:
-        st.warning("Phase 2: 高速ルールフィルタ")
-        st.metric("Aboutキーワード判別通過", f"{count_lines(paths['PATH_ABOUT_FILTERED']):,} 件")
-        st.metric("N-Gramパターン除外通過", f"{count_lines(paths['PATH_NGRAM_FILTERED']):,} 件")
+        st.warning("Step 2: ルールフィルタ")
+        st.metric("2-A データ種別通過", f"{count_lines(paths.get('PATH_TYPE_FILTERED', 'data/type_filtered.jsonl')):,} 件")
+        st.metric("2-B 主題キーワード通過", f"{count_lines(paths['PATH_ABOUT_FILTERED']):,} 件")
+        st.metric("2-C タイトル文字列通過", f"{count_lines(paths['PATH_NGRAM_FILTERED']):,} 件")
 
     with cols[2]:
-        st.success("Phase 3: LLM判定・専門家査読")
-        st.metric("LLMセマンティック判定数", f"{count_lines(paths['PATH_LLM_JUDGMENTS']):,} 件")
-        st.metric("専門家査読・最終確定数", f"{count_lines(paths['PATH_VERIFIED_JSONL']):,} 件")
+        st.success("Step 3/4: LLM ＆ 査読")
+        st.metric("Step 3: LLM適合判定数", f"{count_lines(paths['PATH_LLM_JUDGMENTS']):,} 件")
+        st.metric("Step 4: 専門家確定数", f"{count_lines(paths['PATH_VERIFIED_JSONL']):,} 件")
 
     with cols[3]:
-        st.error("Phase 4: 出力データ構造化")
+        st.error("Step 5: エクスポート")
         st.metric("統合検索用出力データ", f"{count_lines(paths['PATH_EXPORT_JSON']):,} 件")
 
     st.write("---")
     st.subheader("ワークフロー概要")
-    st.markdown("左側のサイドバーメニューより各分析・精緻化工程を選択し、順次処理を実行してください。")
+    st.markdown("""
+    左側のサイドバーメニューより各工程を順次実行してください：
+    1. **Step 1: クエリ拡張 ＆ Japan Searchメタデータ取得** （網羅的データ収集）
+    2. **Step 2: 多層ルールベース・フィルタリング**
+       - **Step 2-A: データ種別 (`rdf:type`) 分析・除外** （記事・絵画・公演・木工等の粗削り除外）
+       - **Step 2-B: 主題 (`schema:about`) キーワード分析・判別** （NDC/NDLNA/件名による除外＆合格確定）
+       - **Step 2-C: タイトル語彙・文字列パターン分析・除外** （頻出N-Gram/任意語彙による除外＆合格確定）
+    3. **Step 3: LLMセマンティック適合判定** （ルールで確定しなかった保留群のみを文脈判定）
+    4. **Step 4: 専門家による最終査読・手動オーバーライド** （全工程の統合検証・最終修正）
+    5. **Step 5: 統合検索用データエクスポート** （ポータル用JSON/CSV出力）
+    """)
 
     st.write("---")
     # --- 全データリセットセクション ---
@@ -49,7 +60,7 @@ def render_dashboard_view(paths: dict):
             <h4 style="color: #ff4b4b; margin: 0 0 6px 0;">【警告】すべての作業データおよび設定ルールが完全に消去されます</h4>
             <p style="margin: 0; font-size: 0.92rem; color: #dcdcdc; line-height: 1.5;">
                 この操作を実行すると、Japan Searchから収集した<b>生メタデータ（raw_metadata.jsonl）</b>、
-                Step 2の<b>全フィルタリング結果（About/N-Gram/LLM判定結果）</b>、
+                Step 2の<b>全フィルタリング結果（Type/About/N-Gram/LLM判定結果）</b>、
                 構築された<b>除外・保持ルール設定（JSON）</b>、
                 および<b>専門家査読データ</b>を含むすべてのファイルが<b>物理的に完全削除</b>されます。<br>
                 この操作は取り消すことができません。
@@ -70,6 +81,7 @@ def render_dashboard_view(paths: dict):
 
                 # 削除対象ファイルリスト
                 delete_targets = list(paths.values()) + [
+                    "data/type_filtered.jsonl",
                     "data/discarded_about.csv",
                     "data/discarded_ngram.csv",
                     "data/discarded_suffix_filtered.csv",
@@ -98,4 +110,3 @@ def render_dashboard_view(paths: dict):
 
         with c_rst2:
             st.caption("※ チェックボックスにチェックを入れると初期化実行ボタンが有効化されます。")
-
