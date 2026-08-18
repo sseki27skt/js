@@ -573,7 +573,8 @@ def expand_query_with_llm(
         "2. 対象テーマが含まれる可能性が少しでもある全ての【旧字体・異体字、派生語、専門用語、流派・楽器・形態名、関連周辺単語】を20〜40個以上徹底的に出力してください。\n"
         "3. キーワードは単一の長い文章ではなく、「譜」「楽譜」「樂譜」「音譜」「調子本」「謡本」「聲明譜」のように個別の単語リスト (keywords) として出力してください。\n"
         "4. title_regex および desc_regex には、keywords リストに含まれるすべてのキーワードを '|'（パイプ）で結合した REGEX パターンを出力してください。\n"
-        "5. 対象テーマに関連するNDC（日本十進分類法）分類コードを、下記「NDC 二次区分一覧表」を参照して【2桁の分類記号（二次区分）】（例: [\"76\", \"77\", \"18\"]）で漏れなく特定し、ndc_codes リストに出力してください。\n\n"
+        "5. 対象テーマに関連するNDC（日本十進分類法）分類コードを、下記「NDC 二次区分一覧表」を参照して【2桁の分類記号（二次区分）】（例: [\"76\", \"77\", \"18\"]）で漏れなく特定し、ndc_codes リストに出力してください。\n"
+        "6. 【最重要: 除外(Negative) NDCの特定】対象テーマの単語（例: 「譜」「音」「曲」等）に文字列として偶発的にヒットしやすいものの、明らかにドメイン外・異分野となるNDCコード（例: 教科書 \"375\", 医学 \"49\", 家政学 \"59\", 建築 \"51\", 家譜・系図 \"288\" 等）を特定し、exclude_ndc_codes リストに出力してください。\n\n"
         "【NDC (日本十進分類法) 二次区分一覧表】:\n"
         "00:総記, 01:図書館・図書館情報学, 02:図書・書誌学, 03:百科事典, 04:一般論文集, 05:逐次刊行物, 06:団体・博物館, 07:ジャーナリズム・新聞, 08:叢書・全集, 09:貴重書・郷土資料\n"
         "10:哲学, 11:哲学各論, 12:東洋哲学, 13:西洋哲学, 14:心理学, 15:倫理学・道徳, 16:宗教, 17:神道, 18:仏教, 19:キリスト教\n"
@@ -591,6 +592,7 @@ def expand_query_with_llm(
         '  "domain_definition": "資料判定用ドメイン定義文",\n'
         '  "keywords": ["譜", "楽譜", "樂譜", "音譜", "譜面", "曲譜", "音律", "調子本", "謡本", "舞譜", "琴譜", "笛譜", "三味線譜", "聲明譜"],\n'
         '  "ndc_codes": ["76", "77", "18"],\n'
+        '  "exclude_ndc_codes": ["375", "49", "59", "288", "51"],\n'
         '  "title_regex": "譜|楽譜|樂譜|音譜|譜面|曲譜|音律|調子本|謡本|舞譜|琴譜|笛譜|三味線譜|聲明譜",\n'
         '  "desc_regex": "譜|楽譜|樂譜|音譜|譜面|曲譜|音律|調子本|謡本|舞譜|琴譜|笛譜|三味線譜|聲明譜"\n'
         "}\n"
@@ -763,6 +765,7 @@ def _build_fallback_result(theme_prompt: str, reason: str) -> dict:
     words = [w.strip() for w in re.split(r"[\s,・/／におけるについて等の文献資料]+", theme_prompt) if len(w.strip()) >= 2]
     keywords = words if words else [theme_prompt]
     ndc_codes = []
+    exclude_ndc_codes = ["375", "49", "59", "288", "51"]
 
     opt_kws = optimize_keywords_for_regex(keywords)
     title_regex = "|".join(opt_kws)
@@ -773,6 +776,7 @@ def _build_fallback_result(theme_prompt: str, reason: str) -> dict:
         "domain_definition": f"「{theme_prompt}」に関連する文化資源・文献・資料",
         "keywords": keywords,
         "ndc_codes": ndc_codes,
+        "exclude_ndc_codes": exclude_ndc_codes,
         "title_regex": title_regex,
         "desc_regex": desc_regex,
         "is_fallback": True,
@@ -782,18 +786,28 @@ def _build_fallback_result(theme_prompt: str, reason: str) -> dict:
 
 def generate_sparql_queries(expansion_result: dict) -> list:
     """
-    SPARQLクエリ一覧の自動生成 (Recall 最大化 ＆ 504 Timeout 回避チャンク分割仕様)
+    SPARQLクエリ一覧の自動生成 (Recall 最大化 ＆ 504 Timeout 回避チャンク分割 ＆ NDC除外フィルタ対応仕様)
     - rdf:type 絞り込みを排除し全RDFリソースを検索。
     - rdfs:label, schema:name, schema:about, schema:keywords, dct:subject, schema:description を網羅化。
+    - 除外(Negative) NDCコードが指定されている場合、FILTER NOT EXISTS でタイトル・主題・説明文検索から確実・安全にブロック。
     - REGEXパターン長を12語ごとに自動分割し、Virtuosoサーバーの504 Timeoutを完全に回避。
     """
     raw_title_regex = expansion_result.get("title_regex", "")
+    if not raw_title_regex and expansion_result.get("keywords"):
+        kws = expansion_result.get("keywords")
+        if isinstance(kws, list):
+            raw_title_regex = "|".join(optimize_keywords_for_regex(kws))
+        elif isinstance(kws, str):
+            parsed_k = [w.strip() for w in re.split(r"[\n,・/／]+", kws) if w.strip()]
+            raw_title_regex = "|".join(optimize_keywords_for_regex(parsed_k))
+
     raw_desc_regex = expansion_result.get("desc_regex", raw_title_regex)
+    if not raw_desc_regex:
+        raw_desc_regex = raw_title_regex
     
     rdf_types = expansion_result.get("blacklist_rdf_types", expansion_result.get("rdf_types", []))
     
     # システムメタデータノード（実態のないノード）を強制的に除外リストに追加
-    # ※ ユーザーの指摘により、PersonやPlace等の典拠データは「人物リスト」等を作成する用途を考慮し除外対象から外しました。
     system_excludes = [
         "https://jpsearch.go.jp/term/type/アクセス情報",
         "https://jpsearch.go.jp/term/type/ソース情報"
@@ -805,6 +819,53 @@ def generate_sparql_queries(expansion_result: dict) -> list:
         uris = " ".join([f"<{uri}>" for uri in rdf_types])
         type_filter_str = f"FILTER NOT EXISTS {{\n                    VALUES ?excluded_type {{ {uris} }}\n                    ?s rdf:type ?excluded_type .\n                  }}"
     
+    # --- 除外(Negative) NDC フィルターの構築 ---
+    raw_exclude_ndc = expansion_result.get("exclude_ndc_codes", [])
+    if isinstance(raw_exclude_ndc, str):
+        raw_exclude_ndc = [c.strip() for c in re.split(r"[\n,・/／\s]+", raw_exclude_ndc) if c.strip()]
+    
+    # リスト内の各要素にスラッシュやカンマが含まれる場合も再分割して平坦化
+    flattened_ex_codes = []
+    for item in raw_exclude_ndc:
+        if isinstance(item, str):
+            for sub in re.split(r"[\n,・/／\s]+", item):
+                if sub.strip():
+                    flattened_ex_codes.append(sub.strip())
+    
+    exclude_ndc_filter_str = ""
+    if flattened_ex_codes:
+        ex_conds = []
+        for code in flattened_ex_codes:
+            c = str(code).strip()
+            if not c:
+                continue
+            if c.startswith("http"):
+                ex_conds.append(f'STRSTARTS(STR(?_ex_g), "{c}")')
+            else:
+                # NDL系（ndc9, ndc8, ndc10, ndc）、JLA系、リテラルを完全網羅
+                ex_conds.extend([
+                    f'STRSTARTS(STR(?_ex_g), "http://jla.or.jp/data/ndc#{c}")',
+                    f'STRSTARTS(STR(?_ex_g), "http://jla.or.jp/data/ndc8#{c}")',
+                    f'STRSTARTS(STR(?_ex_g), "http://jla.or.jp/data/ndc9#{c}")',
+                    f'STRSTARTS(STR(?_ex_g), "http://id.ndl.go.jp/class/ndc9/{c}")',
+                    f'STRSTARTS(STR(?_ex_g), "http://id.ndl.go.jp/class/ndc8/{c}")',
+                    f'STRSTARTS(STR(?_ex_g), "http://id.ndl.go.jp/class/ndc10/{c}")',
+                    f'STRSTARTS(STR(?_ex_g), "http://id.ndl.go.jp/class/ndc/{c}")',
+                    f'STRSTARTS(STR(?_ex_g), "{c}")'
+                ])
+        if ex_conds:
+            ex_cond_str = " ||\n                        ".join(ex_conds)
+            exclude_ndc_filter_str = f"""FILTER NOT EXISTS {{
+                    {{ ?s schema:genre ?_ex_g . }} UNION {{ ?s schema:about ?_ex_g . }} UNION {{ ?s <http://purl.org/dc/terms/subject> ?_ex_g . }}
+                    FILTER (
+                      {ex_cond_str}
+                    )
+                  }}"""
+    
+    # 共通フィルタ文字列の結合
+    filter_elements = [f for f in [type_filter_str, exclude_ndc_filter_str] if f]
+    combined_filter_str = "\n                  ".join(filter_elements) if filter_elements else ""
+
     queries = []
     
     # 1. タイトル・名称 (rdfs:label / schema:name) 検索
@@ -815,7 +876,6 @@ def generate_sparql_queries(expansion_result: dict) -> list:
     multi_regex = "|".join(multi_char_kws) if multi_char_kws else ""
     title_chunks = chunk_regex_str(multi_regex, chunk_size=12) if multi_regex else []
     
-    # 1文字キーワードは、500エラー(メモリパンク)を避けるため全て1つずつの独立したクエリ（チャンク）にする
     for kw in single_char_kws:
         title_chunks.append(kw)
         
@@ -829,7 +889,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                 PREFIX schema: <http://schema.org/>
                 
                 SELECT DISTINCT ?s WHERE {{
-                  {type_filter_str}
+                  {combined_filter_str}
                   {{
                     ?s rdfs:label ?title .
                     ?title bif:contains "{pat}" .
@@ -844,7 +904,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
             return q_title
         queries.append((p_name, make_q_title(bif_str)))
 
-    # 2-A. 主題エンティティ (schema:about) 網羅検索 (超高速インデックス仕様: 0.39秒)
+    # 2-A. 主題エンティティ (schema:about) 網羅検索
     for c_idx, t_pattern in enumerate(title_chunks):
         bif_str = regex_to_bif_contains(t_pattern)
         p_name = f"2A-{c_idx+1}. 主題エンティティ (schema:about) 網羅検索 (Part {c_idx+1})" if len(title_chunks) > 1 else "2A. 主題エンティティ (schema:about) 網羅検索"
@@ -855,7 +915,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
                 
                 SELECT DISTINCT ?s WHERE {{
-                  {type_filter_str}
+                  {combined_filter_str}
                   ?s schema:about ?about .
                   {{
                     ?about rdfs:label ?aboutLabel .
@@ -882,7 +942,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                 PREFIX dct: <http://purl.org/dc/terms/>
                 
                 SELECT DISTINCT ?s WHERE {{
-                  {type_filter_str}
+                  {combined_filter_str}
                   {{
                     ?s schema:keywords ?kw .
                     ?kw bif:contains "{pat}" .
@@ -898,7 +958,6 @@ def generate_sparql_queries(expansion_result: dict) -> list:
         queries.append((p_name, make_q_subject(bif_str)))
 
     # 3. 説明文・内容記述 (schema:description) 検索
-    # 長文テキスト属性に対する重い全件走査(504)を防止するため、2文字以上の具体的キーワードに絞込み、最大5パートに最適化
     desc_kws = [w for w in re.split(r"\|", raw_desc_regex) if len(w.strip()) >= 2]
     safe_desc_regex = "|".join(desc_kws) if desc_kws else raw_desc_regex
     desc_chunks = chunk_regex_str(safe_desc_regex, chunk_size=8)[:5]
@@ -913,7 +972,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
                 
                 SELECT DISTINCT ?s WHERE {{
-                  {type_filter_str}
+                  {combined_filter_str}
                   ?s rdfs:label ?label .
                   ?s schema:description ?desc .
                   ?desc bif:contains "{pat}" .
@@ -924,7 +983,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
             return q_desc
         queries.append((p_name, make_q_desc(bif_str)))
 
-    # 4. NDC 二次区分分類 (schema:genre) 網羅検索
+    # 4. NDC 二次区分・細分類 (schema:genre / schema:about) 網羅検索
     ndc_codes = expansion_result.get("ndc_codes", [])
     if isinstance(ndc_codes, str):
         ndc_codes = [c.strip() for c in re.split(r"[\n,・/／]+", ndc_codes) if c.strip()]
@@ -938,7 +997,16 @@ def generate_sparql_queries(expansion_result: dict) -> list:
             if c.startswith("http"):
                 filter_exprs.append(f'STRSTARTS(STR(?genre), "{c}")')
             else:
-                filter_exprs.append(f'(STRSTARTS(STR(?genre), "http://jla.or.jp/data/ndc#{c}") || STRSTARTS(STR(?genre), "{c}"))')
+                filter_exprs.extend([
+                    f'STRSTARTS(STR(?genre), "http://jla.or.jp/data/ndc#{c}")',
+                    f'STRSTARTS(STR(?genre), "http://jla.or.jp/data/ndc8#{c}")',
+                    f'STRSTARTS(STR(?genre), "http://jla.or.jp/data/ndc9#{c}")',
+                    f'STRSTARTS(STR(?genre), "http://id.ndl.go.jp/class/ndc9/{c}")',
+                    f'STRSTARTS(STR(?genre), "http://id.ndl.go.jp/class/ndc8/{c}")',
+                    f'STRSTARTS(STR(?genre), "http://id.ndl.go.jp/class/ndc10/{c}")',
+                    f'STRSTARTS(STR(?genre), "http://id.ndl.go.jp/class/ndc/{c}")',
+                    f'STRSTARTS(STR(?genre), "{c}")'
+                ])
         
         if filter_exprs:
             filter_str = " ||\n              ".join(filter_exprs)
@@ -948,7 +1016,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                 
                 SELECT DISTINCT ?s WHERE {{
                   {type_filter_str}
-                  ?s schema:genre ?genre .
+                  {{ ?s schema:genre ?genre . }} UNION {{ ?s schema:about ?genre . }}
                   FILTER (
                     {filter_str}
                   )
@@ -956,7 +1024,7 @@ def generate_sparql_queries(expansion_result: dict) -> list:
                 OFFSET {offset}
                 LIMIT {lim}
                 """
-            queries.append(("4. NDC分類 (schema:genre) 網羅検索", q_ndc))
+            queries.append(("4. NDC分類 (schema:genre / about) 網羅検索", q_ndc))
 
     # 5. ホワイトリスト (強制全件取得) 検索
     whitelist_rdf_types = expansion_result.get("whitelist_rdf_types", [])
@@ -964,7 +1032,6 @@ def generate_sparql_queries(expansion_result: dict) -> list:
         uri_str = str(uri).strip()
         if not uri_str:
             continue
-        # タイプ名を見つける（URLの最後など）
         type_name = uri_str.split("/")[-1]
         if "#" in type_name:
             type_name = type_name.split("#")[-1]

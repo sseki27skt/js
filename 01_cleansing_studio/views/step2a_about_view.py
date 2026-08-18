@@ -9,7 +9,7 @@ import re
 from collections import defaultdict
 import streamlit as st
 
-from components.file_utils import safe_save_json
+from components.file_utils import safe_save_json, make_rich_search_links_md, make_rich_search_links
 from components.pill_board import render_pill_board
 from modules.rule_filter import (
     run_about_filter,
@@ -128,8 +128,10 @@ def render_step2a_view(paths: dict):
 
     os.makedirs(os.path.dirname(about_rules_path), exist_ok=True)
     
-    @st.cache_data(show_spinner=False)
-    def load_raw_item_features(path):
+    raw_mtime = os.path.getmtime(raw_metadata_path) if os.path.exists(raw_metadata_path) else 0
+
+    @st.cache_resource(show_spinner=False)
+    def load_raw_item_features(path, mtime):
         about_ranking = extract_about_keywords_from_jsonl(path)
         records_data = []
         kw_to_doc_indices = defaultdict(list)
@@ -146,9 +148,17 @@ def render_step2a_view(paths: dict):
                         label_val = item.get("rdfs:label", item.get("schema:name", ""))
                         title_str = str(label_val[0]) if isinstance(label_val, list) and label_val else str(label_val)
 
+                        desc_val = item.get("schema:description", "")
+                        desc_str = str(desc_val[0]) if isinstance(desc_val, list) and desc_val else str(desc_val)
+
+                        creator_val = item.get("schema:creator", "")
+                        creator_str = str(creator_val[0]) if isinstance(creator_val, list) and creator_val else str(creator_val)
+
                         records_data.append({
-                            "id": item.get("@id", ""),
+                            "id": item.get("@id", item.get("id", "")),
                             "title": title_str,
+                            "desc": desc_str,
+                            "creator": creator_str,
                             "about_set": kw_set
                         })
                         for kw in kw_set:
@@ -158,7 +168,7 @@ def render_step2a_view(paths: dict):
                         continue
         return about_ranking, records_data, kw_to_doc_indices
 
-    about_ranking, raw_records, kw_to_doc_indices = load_raw_item_features(raw_metadata_path)
+    about_ranking, raw_records, kw_to_doc_indices = load_raw_item_features(raw_metadata_path, raw_mtime)
 
     if not about_ranking:
         st.info("データ内に schema:about キーワードが見つかりませんでした。")
@@ -182,27 +192,70 @@ def render_step2a_view(paths: dict):
 
     checked_words = st.session_state["checked_words"]
 
+    # レコード（メタデータ件数）ベースの高速シミュレーション
+    total_records_cnt = len(raw_records)
+    
+    ng_doc_indices = set()
+    for ng_kw in current_ng:
+        # 完全一致をまず高速取得
+        if ng_kw in kw_to_doc_indices:
+            ng_doc_indices.update(kw_to_doc_indices[ng_kw])
+        # 部分一致の補完
+        for kw, doc_indices in kw_to_doc_indices.items():
+            if kw != ng_kw and ng_kw in kw:
+                ng_doc_indices.update(doc_indices)
+
+    ok_doc_indices = set()
+    for ok_kw in current_ok:
+        if ok_kw in kw_to_doc_indices:
+            ok_doc_indices.update([i for i in kw_to_doc_indices[ok_kw] if i not in ng_doc_indices])
+        for kw, doc_indices in kw_to_doc_indices.items():
+            if kw != ok_kw and ok_kw in kw:
+                ok_doc_indices.update([i for i in doc_indices if i not in ng_doc_indices])
+
+    active_doc_indices = set(range(total_records_cnt)) - ng_doc_indices
+    discarded_records_cnt = len(ng_doc_indices)
+    ok_records_cnt = len(ok_doc_indices)
+    remaining_records_cnt = len(active_doc_indices)
+    reduction_rate = discarded_records_cnt / max(1, total_records_cnt)
+
     total_about_types = len(about_ranking)
     all_kw_set = set([k for k, c in about_ranking])
     ng_classified_count = len(all_kw_set & current_ng)
     ok_classified_count = len(all_kw_set & current_ok)
     unclassified_count = total_about_types - ng_classified_count - ok_classified_count
 
-    st.subheader("Aboutキーワード分類サマリー")
+    st.subheader("Aboutルール適用によるメタデータ絞り込み進捗（レコード件数ベース）")
     m_col1, m_col2, m_col3, m_col4 = st.columns(4)
     with m_col1:
-        st.metric("Aboutキーワード総数", f"{total_about_types:,} 種類")
+        st.metric("母集団 Raw レコード", f"{total_records_cnt:,} 件")
     with m_col2:
-        st.metric("NG (除外) 設定数", f"{ng_classified_count:,} 種類", delta=f"{ng_classified_count/max(1,total_about_types):.1%}", delta_color="inverse")
+        st.metric(
+            "About除外対象 (削ぎ落とし)", 
+            f"{discarded_records_cnt:,} 件", 
+            delta=f"-{reduction_rate:.1%}", 
+            delta_color="inverse",
+            help="schema:aboutにNGキーワードが含まれるため本工程で除外されるメタデータ件数"
+        )
     with m_col3:
-        st.metric("OK (保持) 設定数", f"{ok_classified_count:,} 種類", delta=f"{ok_classified_count/max(1,total_about_types):.1%}")
+        st.metric(
+            "本工程通過残存レコード", 
+            f"{remaining_records_cnt:,} 件", 
+            delta=f"{remaining_records_cnt/max(1, total_records_cnt):.1%}",
+            help="NGルールを除外し、次の工程へ引き継がれるメタデータ件数"
+        )
     with m_col4:
-        st.metric("未判定キーワード数", f"{unclassified_count:,} 種類")
+        st.metric(
+            "キーワード判別進捗", 
+            f"全 {total_about_types:,} 語",
+            delta=f"NG: {ng_classified_count} / OK: {ok_classified_count} / 未: {unclassified_count}",
+            help="登録されたNG/OKキーワードの総種類数"
+        )
 
-    with st.expander(f"現在の About NG / OK 登録リスト (NG: {len(current_ng)} 件 / OK: {len(current_ok)} 件)", expanded=False):
+    with st.expander(f"現在の About NG / OK 登録リスト (NG: {len(current_ng)} 語 / OK: {len(current_ok)} 語)", expanded=False):
         c_manage_ng, c_manage_ok = st.columns(2)
         with c_manage_ng:
-            st.markdown(f"### 除外(NG) リスト ({len(current_ng)} 件)")
+            st.markdown(f"### 除外(NG) リスト ({len(current_ng)} 語)")
             if current_ng:
                 ng_list_sorted = sorted(list(current_ng))
                 try:
@@ -222,7 +275,7 @@ def render_step2a_view(paths: dict):
                 st.info("NG リストは現在空です。")
 
         with c_manage_ok:
-            st.markdown(f"### 保持(OK) リスト ({len(current_ok)} 件)")
+            st.markdown(f"### 保持(OK) リスト ({len(current_ok)} 語)")
             if current_ok:
                 ok_list_sorted = sorted(list(current_ok))
                 try:
@@ -241,25 +294,177 @@ def render_step2a_view(paths: dict):
             else:
                 st.info("OK リストは現在空です。")
 
-    ng_doc_indices = set()
-    for ng_kw in current_ng:
-        ng_doc_indices.update(kw_to_doc_indices.get(ng_kw, []))
-
-    active_doc_indices = set(range(len(raw_records))) - ng_doc_indices
-
     st.write("---")
 
-    @st.cache_data(show_spinner=False)
+    @st.cache_resource(show_spinner=False)
     def get_cached_about_clusters(about_ranking_list):
         return cluster_about_keywords(about_ranking_list)
 
     about_clusters = get_cached_about_clusters(about_ranking)
 
-    tab_cluster, tab_single, tab_llm = st.tabs([
+    tab_custom, tab_cluster, tab_single, tab_llm = st.tabs([
+        "🎯 自由入力キーワード一括指定 (カスタム指定)",
         "クラスタ一括判別 (推奨)",
         "単体キーワード判別ボード",
         "LLMによるノイズ候補提案"
     ])
+
+    # =========================================================================
+    # TAB 1: 自由入力キーワード一括指定 (カスタム指定)
+    # =========================================================================
+    with tab_custom:
+        st.markdown("### 自由入力による About キーワード除外・保持指定")
+        st.caption("主題 (schema:about) に含まれる特定の単語やジャンル（例: 政治, 法律, 経済, 医学, 地理 など）を入力し、ヒットする資料を確認しながら一括除外・保持指定できます。")
+
+        custom_about_input = st.text_area(
+            "除外・保持したい About キーワード (カンマ、読点、または改行区切りで複数入力可能):",
+            placeholder="例: 政治, 法律, 経済, 医学, 理学, 仏教, 哲学",
+            height=80,
+            key="txt_custom_about_kws"
+        )
+
+        parsed_custom_about = [
+            w.strip() for w in re.split(r"[\n,、・/／\s]+", custom_about_input) if len(w.strip()) >= 1
+        ]
+        parsed_custom_about = list(dict.fromkeys(parsed_custom_about))
+
+        if parsed_custom_about:
+            st.markdown(f"#### 🔍 入力された {len(parsed_custom_about)} 件のキーワードのヒット検証")
+            
+            kw_hit_stats = []
+            total_impact_docs = set()
+            active_impact_docs = set()
+
+            for kw in parsed_custom_about:
+                matched_about_kws = [k for k, c in about_ranking if kw in k]
+                
+                doc_indices_for_kw = set()
+                for mk in matched_about_kws:
+                    doc_indices_for_kw.update(kw_to_doc_indices.get(mk, []))
+                
+                total_impact_docs.update(doc_indices_for_kw)
+                act_docs = [i for i in doc_indices_for_kw if i in active_doc_indices]
+                active_impact_docs.update(act_docs)
+                
+                is_currently_ng = kw in current_ng
+                is_currently_ok = kw in current_ok
+                
+                samples_list = []
+                for i in list(doc_indices_for_kw)[:15]:
+                    rec = raw_records[i]
+                    samples_list.append({
+                        "id": rec.get("id", ""),
+                        "title": rec.get("title", ""),
+                        "desc": rec.get("desc", ""),
+                        "creator": rec.get("creator", "")
+                    })
+
+                kw_hit_stats.append({
+                    "keyword": kw,
+                    "matched_about": matched_about_kws,
+                    "total_hits": len(doc_indices_for_kw),
+                    "active_hits": len(act_docs),
+                    "samples": samples_list,
+                    "status": "NG" if is_currently_ng else ("OK" if is_currently_ok else "未登録")
+                })
+
+            c_s1, c_s2, c_s3 = st.columns(3)
+            with c_s1:
+                st.metric("指定キーワード総数", f"{len(parsed_custom_about)} 語")
+            with c_s2:
+                st.metric("ヒットする母集団レコード", f"{len(total_impact_docs):,} 件", help="全母データ中でいずれかのキーワードを含む資料数")
+            with c_s3:
+                st.metric("本工程での新規除外インパクト", f"{len(active_impact_docs):,} 件", delta=f"-{len(active_impact_docs):,} 件", delta_color="inverse", help="現在まだ除外されていないデータから新たに削ぎ落とされる件数")
+
+            c_a1, c_a2, c_a3 = st.columns([2, 2, 1])
+            with c_a1:
+                if st.button(f"🚫 指定した {len(parsed_custom_about)} 語を一括で NG (除外) ルールへ追加", type="primary", use_container_width=True, key="btn_apply_about_custom_ng"):
+                    for kw in parsed_custom_about:
+                        current_ng.add(kw)
+                        current_ok.discard(kw)
+                    save_dict = {k: "NG" for k in current_ng}
+                    save_dict.update({k: "OK" for k in current_ok})
+                    safe_save_json(save_dict, about_rules_path)
+                    st.session_state["chk_view_ver"] += 1
+                    st.cache_data.clear()
+                    st.success(f"{len(parsed_custom_about)} 件のキーワードを NG ルールへ登録しました。")
+                    st.rerun()
+
+            with c_a2:
+                if st.button(f"✅ 指定した {len(parsed_custom_about)} 語を一括で OK (保持) ルールへ追加", type="secondary", use_container_width=True, key="btn_apply_about_custom_ok"):
+                    for kw in parsed_custom_about:
+                        current_ok.add(kw)
+                        current_ng.discard(kw)
+                    save_dict = {k: "NG" for k in current_ng}
+                    save_dict.update({k: "OK" for k in current_ok})
+                    safe_save_json(save_dict, about_rules_path)
+                    st.session_state["chk_view_ver"] += 1
+                    st.cache_data.clear()
+                    st.success(f"{len(parsed_custom_about)} 件のキーワードを OK ルールへ登録しました。")
+                    st.rerun()
+
+            with c_a3:
+                if st.button("🔄 入力クリア", use_container_width=True, key="btn_clear_about_custom_input"):
+                    st.session_state["txt_custom_about_kws"] = ""
+                    st.rerun()
+
+            st.write("---")
+            st.markdown("##### 📋 キーワード別ヒット詳細 ＆ 該当資料プレビュー")
+            for stat in kw_hit_stats:
+                kw = stat["keyword"]
+                tot_h = stat["total_hits"]
+                act_h = stat["active_hits"]
+                cur_st = stat["status"]
+                m_abouts = stat["matched_about"]
+
+                if cur_st == "NG":
+                    st_badge = "🚫 [NG登録済]"
+                elif cur_st == "OK":
+                    st_badge = "✅ [OK登録済]"
+                else:
+                    st_badge = "❓ [未登録]"
+
+                exp_header = f"『{kw}』 ➔ 全 {tot_h:,} 件ヒット (未判定: {act_h:,} 件 / 一致About: {len(m_abouts)}種類) ｜ {st_badge}"
+                with st.expander(exp_header, expanded=(tot_h > 0 and cur_st == "未登録")):
+                    c_ak1, c_ak2 = st.columns([3, 1])
+                    with c_ak1:
+                        st.markdown(make_rich_search_links_md(kw))
+                        if m_abouts:
+                            st.caption(f"一致したAboutキーワード: {', '.join(m_abouts[:10])}{'...' if len(m_abouts)>10 else ''}")
+                    with c_ak2:
+                        if cur_st != "NG":
+                            if st.button(f"🚫 『{kw}』をNGに登録", key=f"btn_cust_ab_ng_{kw}", use_container_width=True):
+                                current_ng.add(kw)
+                                current_ok.discard(kw)
+                                save_dict = {k: "NG" for k in current_ng}
+                                save_dict.update({k: "OK" for k in current_ok})
+                                safe_save_json(save_dict, about_rules_path)
+                                st.session_state["chk_view_ver"] += 1
+                                st.cache_data.clear()
+                                st.rerun()
+                        else:
+                            if st.button(f"↩️ 『{kw}』をNG解除", key=f"btn_cust_ab_del_{kw}", use_container_width=True):
+                                current_ng.discard(kw)
+                                save_dict = {k: "NG" for k in current_ng}
+                                save_dict.update({k: "OK" for k in current_ok})
+                                safe_save_json(save_dict, about_rules_path)
+                                st.session_state["chk_view_ver"] += 1
+                                st.cache_data.clear()
+                                st.rerun()
+
+                    st.caption(f"該当資料の具体例 (先頭 {len(stat['samples'])} 件):")
+                    with st.container(height=200):
+                        for s in stat["samples"]:
+                            st.markdown(f"**📖 {s['title']}**")
+                            meta_p = []
+                            if s.get('creator'): meta_p.append(f"著者: `{s['creator']}`")
+                            if s.get('id'): meta_p.append(f"[🔗 Japan Search]({s['id']})")
+                            if meta_p: st.caption(" ｜ ".join(meta_p))
+                            if s.get('desc'):
+                                st.markdown(f"<div style='font-size:0.8rem; color:#bbb;'>{s['desc'][:120]}...</div>", unsafe_allow_html=True)
+                            st.markdown("<hr style='margin:4px 0; border:0; border-top:1px solid rgba(255,255,255,0.08);'/>", unsafe_allow_html=True)
+        else:
+            st.info("上記テキストエリアに除外したい単語（例: `政治, 法律, 経済, 医学`）を入力すると、一致するAboutキーワードの検出と一括除外が行えます。")
 
     with tab_cluster:
         st.markdown("類似性に基づいて抽出されたキーワード群に対し仮選択（OK/NG/未判定）を行い、一括確定を適用します。")
@@ -364,13 +569,13 @@ def render_step2a_view(paths: dict):
             with p_col1:
                 if st.button("◀ 前のページ", disabled=(current_page <= 1), key="btn_prev_cluster_page", use_container_width=True):
                     st.session_state["cluster_page_idx"] = max(1, current_page - 1)
-                    st.rerun(scope="fragment")
+                    st.rerun()
             with p_col2:
                 st.markdown(f"<div style='text-align: center; padding-top: 6px;'><b>全 {total_display_clusters} クラスタ中 {current_page} / {total_pages} ページを表示</b></div>", unsafe_allow_html=True)
             with p_col3:
                 if st.button("次のページ ▶", disabled=(current_page >= total_pages), key="btn_next_cluster_page", use_container_width=True):
                     st.session_state["cluster_page_idx"] = min(total_pages, current_page + 1)
-                    st.rerun(scope="fragment")
+                    st.rerun()
 
             start_idx = (current_page - 1) * safe_per_page
             end_idx = start_idx + safe_per_page
@@ -403,45 +608,61 @@ def render_step2a_view(paths: dict):
                         if st.button(f"一括 OK 仮設定 [{len(kws)}件]", key=f"btn_cl_ok_{cid}", type="secondary", use_container_width=True):
                             for k in kws:
                                 draft_ab[k] = "OK"
-                            st.rerun(scope="fragment")
+                            st.rerun()
                     with b_col2:
                         if st.button(f"一括 NG 仮設定 [{len(kws)}件]", key=f"btn_cl_ng_{cid}", type="primary", use_container_width=True):
                             for k in kws:
                                 draft_ab[k] = "NG"
-                            st.rerun(scope="fragment")
+                            st.rerun()
                     with b_col3:
                         if st.button(f"一括 未判定リセット", key=f"btn_cl_reset_{cid}", use_container_width=True):
                             for k in kws:
                                 draft_ab[k] = "RESET"
-                            st.rerun(scope="fragment")
+                            st.rerun()
 
-                    st.caption("個別切替 (クリックで OK / NG がトグル切替されます):")
-                    cl_cols = st.columns(4)
+                    st.caption("個別切替 (クリックで OK / NG / 未判定 がトグル切替、🔍 で検索・資料詳細):")
+                    cl_cols = st.columns(3)
                     for idx_k, kw in enumerate(kws):
-                        col_k = cl_cols[idx_k % 4]
+                        col_k = cl_cols[idx_k % 3]
                         st_val = get_eff_status(kw)
                         
                         if st_val == "OK":
-                            lbl = f"[OK] {kw}"
+                            lbl = f"✅ {kw}"
                         elif st_val == "NG":
-                            lbl = f"[NG] {kw}"
+                            lbl = f"🚫 {kw}"
                         else:
-                            lbl = f"[未判定] {kw}"
+                            lbl = f"❓ {kw}"
 
-                        def make_toggle_func(target_kw, current_st):
-                            def toggle_status():
-                                if current_st == "OK":
-                                    draft_ab[target_kw] = "NG"
+                        kw_indices = kw_to_doc_indices.get(kw, [])
+
+                        c_btn_k, c_pop_k = col_k.columns([5, 1])
+                        with c_btn_k:
+                            if st.button(lbl, key=f"tgl_kw_{cid}_{kw}", use_container_width=True):
+                                if st_val == "OK":
+                                    draft_ab[kw] = "NG"
+                                elif st_val == "NG":
+                                    draft_ab[kw] = "RESET"
                                 else:
-                                    draft_ab[target_kw] = "OK"
-                            return toggle_status
-
-                        col_k.button(
-                            lbl, 
-                            key=f"tgl_kw_{cid}_{kw}", 
-                            on_click=make_toggle_func(kw, st_val), 
-                            use_container_width=True
-                        )
+                                    draft_ab[kw] = "OK"
+                                st.rerun()
+                        with c_pop_k:
+                            with st.popover("🔍", help=f"『{kw}』の外部検索・該当資料詳細"):
+                                st.markdown(f"### 🔍 『{kw}』")
+                                st.markdown(make_rich_search_links_md(kw))
+                                st.markdown(f"- 出現資料件数: **{len(kw_indices):,} 件**")
+                                st.write("---")
+                                st.caption(f"📄 出現資料サンプル (先頭 {min(15, len(kw_indices))} 件):")
+                                with st.container(height=260):
+                                    for idx_doc in kw_indices[:15]:
+                                        rec = raw_records[idx_doc]
+                                        st.markdown(f"**📖 {rec['title']}**")
+                                        meta_items = []
+                                        if rec.get('creator'): meta_items.append(f"著者: `{rec['creator']}`")
+                                        if rec.get('id'): meta_items.append(f"[🔗 Japan Search]({rec['id']})")
+                                        if meta_items: st.caption(" ｜ ".join(meta_items))
+                                        if rec.get('desc'):
+                                            st.markdown(f"<div style='font-size:0.8rem; color:#bbb; background:rgba(255,255,255,0.04); padding:3px 6px; border-radius:3px;'>{rec['desc'][:120]}...</div>", unsafe_allow_html=True)
+                                        st.markdown("<hr style='margin:4px 0; border:0; border-top:1px solid rgba(255,255,255,0.08);'/>", unsafe_allow_html=True)
 
         render_cluster_board()
 
@@ -532,9 +753,18 @@ def render_step2a_view(paths: dict):
         for kw, cnt in filtered_ranking:
             doc_idx_list = kw_to_doc_indices.get(kw, [])
             act_indices = [idx for idx in doc_idx_list if idx in active_doc_indices]
+            samples_list = []
+            for i in act_indices[:30]:
+                rec = raw_records[i]
+                samples_list.append({
+                    "id": rec.get("id", ""),
+                    "title": rec.get("title", ""),
+                    "desc": rec.get("desc", ""),
+                    "creator": rec.get("creator", "")
+                })
             active_samples_info[kw] = {
                 "eff_cnt": len(act_indices),
-                "samples": [raw_records[i]["title"] for i in act_indices[:30]]
+                "samples": samples_list
             }
 
         if is_unclassified_mode and hide_zero_about:

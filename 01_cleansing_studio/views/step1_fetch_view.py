@@ -17,17 +17,30 @@ from modules.llm_query_expander import (
     ndc_codes_to_labels,
     ndc_labels_to_codes
 )
-from modules.sparql_collector import fetch_uris_with_query_func, build_metadata_for_uris
+import pandas as pd
+from modules.sparql_collector import (
+    fetch_uris_with_query_func, 
+    build_metadata_for_uris,
+    check_metadata_completeness,
+    verify_and_repair_metadata
+)
 
 def _on_rebuild_regex():
     kw_input_text = st.session_state.get("input_kw_manual", "")
     selected_ndc_labels = st.session_state.get("input_ndc_multiselect", [])
+    selected_ex_ndc_labels = st.session_state.get("input_exclude_ndc_multiselect", [])
+    ex_ndc_codes_input = st.session_state.get("input_exclude_ndc_codes_manual", "")
     domain_def_input = st.session_state.get("input_domain_def_manual", "")
 
     parsed_kws = [w.strip() for w in re.split(r"[\n,・/／]+", kw_input_text) if w.strip()]
     parsed_ndc = ndc_labels_to_codes(selected_ndc_labels)
     
+    parsed_ex_ndc_from_select = ndc_labels_to_codes(selected_ex_ndc_labels)
+    parsed_ex_ndc_from_text = [c.strip() for c in re.split(r"[\n,・/／]+", ex_ndc_codes_input) if c.strip()]
+    combined_ex_ndc = sorted(list(set(parsed_ex_ndc_from_select + parsed_ex_ndc_from_text)))
+    
     st.session_state["input_ndc_codes_manual"] = ", ".join(parsed_ndc)
+    st.session_state["input_exclude_ndc_codes_manual"] = ", ".join(combined_ex_ndc)
 
     opt_kws = optimize_keywords_for_regex(parsed_kws)
     rebuilt_regex = "|".join(opt_kws)
@@ -38,6 +51,7 @@ def _on_rebuild_regex():
     exp = st.session_state.get("expansion_res", {})
     exp["keywords"] = parsed_kws
     exp["ndc_codes"] = parsed_ndc
+    exp["exclude_ndc_codes"] = combined_ex_ndc
     exp["title_regex"] = rebuilt_regex
     exp["desc_regex"] = rebuilt_regex
     exp["domain_definition"] = domain_def_input.strip()
@@ -49,6 +63,8 @@ def _on_apply_manual_params():
     kw_input_text = st.session_state.get("input_kw_manual", "")
     selected_ndc_labels = st.session_state.get("input_ndc_multiselect", [])
     ndc_codes_input = st.session_state.get("input_ndc_codes_manual", "")
+    selected_ex_ndc_labels = st.session_state.get("input_exclude_ndc_multiselect", [])
+    ex_ndc_codes_input = st.session_state.get("input_exclude_ndc_codes_manual", "")
     title_regex_input = st.session_state.get("input_title_regex_manual", "")
     desc_regex_input = st.session_state.get("input_desc_regex_manual", "")
     domain_def_input = st.session_state.get("input_domain_def_manual", "")
@@ -61,6 +77,10 @@ def _on_apply_manual_params():
     parsed_ndc_from_text = [c.strip() for c in re.split(r"[\n,・/／]+", ndc_codes_input) if c.strip()]
     combined_ndc = sorted(list(set(parsed_ndc_from_select + parsed_ndc_from_text)))
 
+    parsed_ex_ndc_from_select = ndc_labels_to_codes(selected_ex_ndc_labels)
+    parsed_ex_ndc_from_text = [c.strip() for c in re.split(r"[\n,・/／]+", ex_ndc_codes_input) if c.strip()]
+    combined_ex_ndc = sorted(list(set(parsed_ex_ndc_from_select + parsed_ex_ndc_from_text)))
+
     auto_rebuilt_regex = "|".join(optimize_keywords_for_regex(parsed_kws))
 
     final_title_regex = optimize_regex_str(title_regex_input.strip()) if title_regex_input.strip() else auto_rebuilt_regex
@@ -68,12 +88,15 @@ def _on_apply_manual_params():
 
     st.session_state["input_ndc_multiselect"] = ndc_codes_to_labels(combined_ndc)
     st.session_state["input_ndc_codes_manual"] = ", ".join(combined_ndc)
+    st.session_state["input_exclude_ndc_multiselect"] = ndc_codes_to_labels(combined_ex_ndc)
+    st.session_state["input_exclude_ndc_codes_manual"] = ", ".join(combined_ex_ndc)
     st.session_state["input_title_regex_manual"] = final_title_regex
     st.session_state["input_desc_regex_manual"] = final_desc_regex
 
     exp = st.session_state.get("expansion_res", {})
     exp["keywords"] = parsed_kws
     exp["ndc_codes"] = combined_ndc
+    exp["exclude_ndc_codes"] = combined_ex_ndc
     exp["title_regex"] = final_title_regex
     exp["desc_regex"] = final_desc_regex
     exp["domain_definition"] = domain_def_input.strip()
@@ -177,9 +200,12 @@ def render_step1_view(paths: dict):
             st.session_state["expansion_res"] = expansion_res
             
             ndc_codes_res = expansion_res.get("ndc_codes", [])
+            exclude_ndc_res = expansion_res.get("exclude_ndc_codes", [])
             st.session_state["input_kw_manual"] = "\n".join(expansion_res.get("keywords", [])) if isinstance(expansion_res.get("keywords"), list) else str(expansion_res.get("keywords", ""))
             st.session_state["input_ndc_multiselect"] = ndc_codes_to_labels(ndc_codes_res)
             st.session_state["input_ndc_codes_manual"] = ", ".join(ndc_codes_res) if isinstance(ndc_codes_res, list) else str(ndc_codes_res)
+            st.session_state["input_exclude_ndc_multiselect"] = ndc_codes_to_labels(exclude_ndc_res)
+            st.session_state["input_exclude_ndc_codes_manual"] = ", ".join(exclude_ndc_res) if isinstance(exclude_ndc_res, list) else str(exclude_ndc_res)
             st.session_state["input_title_regex_manual"] = expansion_res.get("title_regex", "")
             st.session_state["input_desc_regex_manual"] = expansion_res.get("desc_regex", "")
             st.session_state["input_domain_def_manual"] = expansion_res.get("domain_definition", "")
@@ -205,7 +231,7 @@ def render_step1_view(paths: dict):
                         loaded_exp = json.loads(pasted_json)
                         st.session_state["expansion_res"] = loaded_exp
                         # Force refresh widget states
-                        for k in ["input_kw_manual", "input_ndc_multiselect", "input_ndc_codes_manual", "input_title_regex_manual", "input_desc_regex_manual", "input_domain_def_manual", "input_rdf_types_multiselect", "input_rdf_types_whitelist_multiselect"]:
+                        for k in ["input_kw_manual", "input_ndc_multiselect", "input_ndc_codes_manual", "input_exclude_ndc_multiselect", "input_exclude_ndc_codes_manual", "input_title_regex_manual", "input_desc_regex_manual", "input_domain_def_manual", "input_rdf_types_multiselect", "input_rdf_types_whitelist_multiselect"]:
                             if k in st.session_state:
                                 del st.session_state[k]
                         st.success("JSONからパラメータを読み込みました！画面が更新されます。")
@@ -227,6 +253,12 @@ def render_step1_view(paths: dict):
     if "input_ndc_codes_manual" not in st.session_state:
         cur_ndc = exp.get("ndc_codes", [])
         st.session_state["input_ndc_codes_manual"] = ", ".join(cur_ndc) if isinstance(cur_ndc, list) else str(cur_ndc)
+    if "input_exclude_ndc_multiselect" not in st.session_state:
+        cur_ex_ndc = exp.get("exclude_ndc_codes", [])
+        st.session_state["input_exclude_ndc_multiselect"] = ndc_codes_to_labels(cur_ex_ndc)
+    if "input_exclude_ndc_codes_manual" not in st.session_state:
+        cur_ex_ndc = exp.get("exclude_ndc_codes", [])
+        st.session_state["input_exclude_ndc_codes_manual"] = ", ".join(cur_ex_ndc) if isinstance(cur_ex_ndc, list) else str(cur_ex_ndc)
     if "input_title_regex_manual" not in st.session_state:
         st.session_state["input_title_regex_manual"] = exp.get("title_regex", "")
     if "input_desc_regex_manual" not in st.session_state:
@@ -261,6 +293,16 @@ def render_step1_view(paths: dict):
             height=200,
             key="input_kw_manual"
         )
+
+        title_regex_input = st.text_input(
+            "タイトル・主題用 正規表現 (REGEX) パターン (`|` 区切り):",
+            key="input_title_regex_manual"
+        )
+        desc_regex_input = st.text_input(
+            "内容記述 (schema:description) 用 正規表現 (REGEX) パターン (`|` 区切り):",
+            key="input_desc_regex_manual"
+        )
+
     with c_edit2:
         all_types = list(TYPE_MASTER.keys())
 
@@ -282,24 +324,33 @@ def render_step1_view(paths: dict):
         overlap = set(wl_selected).intersection(set(bl_selected))
         if overlap:
             st.error(f"⚠️ **指定の矛盾**: 以下のタイプがホワイトリストとブラックリストの両方に指定されています。正常に処理できないため、どちらかから削除してください。\n\n **重複項目**: {', '.join(overlap)}")
+
+        st.markdown("##### 📚 NDC (日本十進分類法) 分類コード指定")
+        
+        # 包含NDC
         st.multiselect(
-            "NDC (日本十進分類法) 二次区分選択リスト:",
+            "包含 (取得対象) NDC 二次区分選択リスト:",
             options=list(NDC_MASTER.values()),
-            help="LLM提案の分類コードに加え、一覧から対象ドメインの分類を追加・削除できます",
+            help="指定したNDCを持つ資料を網羅検索クエリで追加収集します",
             key="input_ndc_multiselect"
         )
         ndc_codes_input = st.text_input(
-            "適用中 NDC 分類コード:",
+            "包含 NDC 分類コード (手動入力・連動):",
             help="例: 76, 77, 18 (マルチセレクトと自動連動します)",
             key="input_ndc_codes_manual"
         )
-        title_regex_input = st.text_input(
-            "タイトル・主題用 正規表現 (REGEX) パターン (`|` 区切り):",
-            key="input_title_regex_manual"
+
+        # 除外NDC (Blacklist)
+        st.multiselect(
+            "🚫 除外 (Blacklist / ノイズ) NDC 二次区分選択リスト:",
+            options=list(NDC_MASTER.values()),
+            help="指定したNDCを持つ資料は、タイトル等にキーワードが含まれていても SPARQL 検索時点でブロック・除外します",
+            key="input_exclude_ndc_multiselect"
         )
-        desc_regex_input = st.text_input(
-            "内容記述 (schema:description) 用 正規表現 (REGEX) パターン (`|` 区切り):",
-            key="input_desc_regex_manual"
+        ex_ndc_codes_input = st.text_input(
+            "除外 NDC 分類コード (手動入力・連動):",
+            help="例: 375, 49, 59, 288, 51 (細分類コードも入力可能です)",
+            key="input_exclude_ndc_codes_manual"
         )
 
     domain_def_input = st.text_area(
@@ -409,15 +460,105 @@ def render_step1_view(paths: dict):
 
         st.success(f"リソースURIの収集完了: 重複のない **{len(all_collected_uris):,} 件** の対象URIを取得しました。")
         
+        # 対象URI一覧を CSV に永続化
+        unique_uri_list = sorted(list(all_collected_uris))
+        df_target_uris = pd.DataFrame({"uri": unique_uri_list})
+        df_target_uris.to_csv(paths['PATH_TARGET_URIS'], index=False, encoding='utf-8')
+        st.caption(f"対象URI一覧を `{paths['PATH_TARGET_URIS']}` に保存しました。")
+        
         def on_build_progress(done_count, total_count):
             status_box.markdown(f"詳細書誌メタデータ構築中: **{done_count:,} / {total_count:,} 件** 完了 ({done_count/total_count*100:.1f}%)")
             progress_bar.progress(done_count / total_count)
 
-        with st.spinner(f"詳細書誌メタデータ（全 {len(all_collected_uris):,} 件）の深層グラフ構築処理を実行中..."):
+        with st.spinner(f"詳細書誌メタデータ（全 {len(unique_uri_list):,} 件）の深層グラフ構築処理を実行中..."):
             count = build_metadata_for_uris(
-                list(all_collected_uris), 
+                unique_uri_list, 
                 paths['PATH_RAW_METADATA'], 
-                batch_size=20, 
-                progress_callback=on_build_progress
+                batch_size=10, 
+                progress_callback=on_build_progress,
+                auto_repair=True
             )
             st.success(f"メタデータ構築完了: 全 {count:,} 件の構造化データを `{paths['PATH_RAW_METADATA']}` に保存しました。")
+
+    # --- 5. メタデータ完全性検証 ＆ 欠損自動修復セクション ---
+    st.markdown("---")
+    st.subheader("4. 取得済みメタデータの整合性・完全性検証 ＆ 欠損自動修復")
+    st.caption("収集されたすべてのURIに対して、深層メタデータ（JSON）が欠落なく正常に取得できているかを照合・検証し、取得失敗（504・タイムアウト等）や未取得のデータがあれば自動で再取得してマージ・修復します。")
+
+    raw_path = paths['PATH_RAW_METADATA']
+    target_uris_path = paths['PATH_TARGET_URIS']
+
+    # 対象URIリストの特定（CSVがあればCSVから、なければraw_metadataから抽出）
+    target_uris_for_check = []
+    if os.path.exists(target_uris_path):
+        try:
+            df_u = pd.read_csv(target_uris_path)
+            if 'uri' in df_u.columns:
+                target_uris_for_check = df_u['uri'].dropna().unique().tolist()
+        except Exception:
+            pass
+
+    if not target_uris_for_check and os.path.exists(raw_path):
+        try:
+            with open(raw_path, 'r', encoding='utf-8', errors='ignore') as f:
+                for line in f:
+                    if line.strip():
+                        item = json.loads(line)
+                        u = item.get("@id", item.get("id", item.get("uri", "")))
+                        if u:
+                            target_uris_for_check.append(u)
+            target_uris_for_check = sorted(list(set(target_uris_for_check)))
+        except Exception:
+            pass
+
+    if target_uris_for_check:
+        report = check_metadata_completeness(target_uris_for_check, raw_path)
+
+        c_v1, c_v2, c_v3, c_v4 = st.columns(4)
+        with c_v1:
+            st.metric("総対象URI数", f"{report['total_target']:,} 件")
+        with c_v2:
+            st.metric("正常取得完了数", f"{report['valid_count']:,} 件", delta=f"{report['valid_count']/max(1,report['total_target']):.1%}")
+        with c_v3:
+            st.metric("取得失敗 (status:failed)", f"{report['failed_count']:,} 件", delta_color="inverse" if report['failed_count'] > 0 else "off")
+        with c_v4:
+            st.metric("未取得 (未処理)", f"{report['missing_count']:,} 件", delta_color="inverse" if report['missing_count'] > 0 else "off")
+
+        if report['is_complete']:
+            st.success(f"✅ 完全性チェック合格: 全 {report['total_target']:,} 件すべてのメタデータが正常に取得・格納されています。欠損はありません。")
+        else:
+            total_missing = len(report['need_retry_uris'])
+            st.warning(f"⚠️ 合計 **{total_missing:,} 件** のメタデータに欠損または取得失敗が検知されました。以下のボタンより自動再取得（修復）を実行できます。")
+
+            with st.expander("欠損・取得失敗URI一覧（先頭50件）", expanded=False):
+                st.write(report['need_retry_uris'][:50])
+
+            if st.button("🛠️ 欠損・失敗メタデータの自動再取得（自律リカバリー）を実行", type="primary", use_container_width=True):
+                repair_status = st.empty()
+                repair_progress = st.progress(0)
+
+                def on_repair_progress(round_idx, done_cnt, total_cnt, recovered_cnt):
+                    repair_status.markdown(
+                        f"修復ラウンド **第 {round_idx} 回**: "
+                        f"**{done_cnt:,} / {total_cnt:,} 件** 再取得試行中... "
+                        f"(今回修復成功: **{recovered_cnt:,} 件**)"
+                    )
+                    repair_progress.progress(min(1.0, done_cnt / max(1, total_cnt)))
+
+                with st.spinner("欠損メタデータのフォールバック再取得および修復マージを実行中..."):
+                    final_rep = verify_and_repair_metadata(
+                        target_uris_for_check, 
+                        raw_path, 
+                        max_repair_rounds=3, 
+                        progress_callback=on_repair_progress
+                    )
+
+                if final_rep['is_complete']:
+                    st.success(f"🎉 修復完了: 全 {final_rep['total_target']:,} 件のメタデータがすべて正常に取得されました！")
+                else:
+                    st.info(f"修復完了: 正常取得 {final_rep['valid_count']:,} 件 / 残り未修復 {len(final_rep['need_retry_uris']):,} 件")
+                time.sleep(1)
+                st.rerun()
+    else:
+        st.info("メタデータ取得実行後に、このセクションで全件の整合性チェックおよび欠損補完を実行できます。")
+
