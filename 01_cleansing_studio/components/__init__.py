@@ -1,4 +1,4 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - 共通UI ＆ ユーティリティコンポーネントパッケージ
+JS-Refine Studio - 共通UI ＆ ユーティリティコンポーネントパッケージ
 """

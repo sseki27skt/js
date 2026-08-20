@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - 専門家による最終査読・手動オーバーライドポータル モジュール
+JS-Refine Studio - 専門家による最終査読・手動オーバーライドポータル モジュール
 """
 
 import json

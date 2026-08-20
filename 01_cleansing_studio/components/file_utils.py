@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - ファイル操作 ＆ ヘルパーユーティリティ
+JS-Refine Studio - ファイル操作 ＆ ヘルパーユーティリティ
 """
 
 import json

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - カスタムCSS ＆ スタイル定義モジュール
+JS-Refine Studio - カスタムCSS ＆ スタイル定義モジュール
 """
 import streamlit as st
 
@@ -14,32 +14,13 @@ def inject_custom_css():
         font-family: 'Plus Jakarta Sans', 'Noto Sans JP', -apple-system, sans-serif;
     }
 
-    /* ページ遷移時のレイアウトシフト・スクロールブレ・不要アニメーションの完全抑止 */
+    /* ページ遷移時のレイアウトシフト・スクロールブレの最適化 */
     html, body, section.main {
         scroll-behavior: auto !important;
-    }
-    
-    div[data-testid="stAppViewContainer"],
-    div[data-testid="stAppViewBlockContainer"],
-    div[data-testid="stMainBlockContainer"],
-    div[data-testid="stVerticalBlock"] {
-        opacity: 1 !important;
-        transition: none !important;
-        animation: none !important;
     }
 
     div[data-testid="stAppViewBlockContainer"] {
         padding-top: 1.2rem !important;
-    }
-
-    .element-container, .stButton, div[data-st-mode="running"] {
-        opacity: 1 !important;
-        transition: none !important;
-        animation: none !important;
-    }
-
-    [data-testid="stStatusWidget"] {
-        visibility: hidden !important;
     }
 
     /* メトリックカード */

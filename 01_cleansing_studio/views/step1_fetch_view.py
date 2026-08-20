@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - Step 1: LLMクエリ拡張 ＆ Japan Searchメタデータ一括取得ビュー
+JS-Refine Studio - Step 1: LLMクエリ拡張 ＆ Japan Searchメタデータ一括取得ビュー
 """
 import os
 import re

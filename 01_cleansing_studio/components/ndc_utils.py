@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - NDC ＆ Web NDL Authorities (NDLNA) API 連携 ＆ 超高速ローカルキャッシュ解決ユーティリティ
+JS-Refine Studio - NDC ＆ Web NDL Authorities (NDLNA) API 連携 ＆ 超高速ローカルキャッシュ解決ユーティリティ
 - NDC 公式 API: https://api-4pccg7v5ma-an.a.run.app/ndc9/{notation}
 - NDLNA 公式 API: https://id.ndl.go.jp/auth/ndlna/{auth_id}
 """
@@ -60,13 +60,16 @@ def save_ndc_cache(force: bool = False):
         pass
 
 
-def fetch_ndc_from_api(ndc_num: str, save_immediate: bool = False) -> dict:
+def fetch_ndc_from_api(ndc_num: str, save_immediate: bool = False, allow_network: bool = False) -> dict:
     global _mem_ndc_cache, _ndc_cache_dirty
     if not ndc_num:
         return None
     _load_ndc_cache()
     if ndc_num in _mem_ndc_cache:
         return _mem_ndc_cache[ndc_num]
+
+    if not allow_network:
+        return None
 
     # 1〜2桁の場合は3桁形式（例: 76 -> 760）もAPIキーとして試行
     fetch_key = ndc_num
@@ -77,7 +80,7 @@ def fetch_ndc_from_api(ndc_num: str, save_immediate: bool = False) -> dict:
 
     url = f"https://api-4pccg7v5ma-an.a.run.app/ndc9/{fetch_key}"
     try:
-        res = requests.get(url, headers={"accept": "application/json"}, timeout=3)
+        res = requests.get(url, headers={"accept": "application/json"}, timeout=1.0)
         if res.status_code == 200:
             data = res.json()
             info = {
@@ -124,7 +127,7 @@ def resolve_ndc_label(ndc_num: str) -> tuple:
     if ndc_num in _resolved_ndc_memo:
         return _resolved_ndc_memo[ndc_num]
 
-    info = fetch_ndc_from_api(ndc_num)
+    info = fetch_ndc_from_api(ndc_num, allow_network=False)
     if info and info.get("status") == 200:
         lbl = info.get("prefLabel") or info.get("label", "")
         res = (lbl, True, ndc_num)
@@ -210,7 +213,7 @@ def extract_ndlna_id(text: str) -> str:
     return None
 
 
-def fetch_ndlna_from_api(auth_id: str, save_immediate: bool = False) -> dict:
+def fetch_ndlna_from_api(auth_id: str, save_immediate: bool = False, allow_network: bool = False) -> dict:
     global _mem_ndlna_cache, _ndlna_cache_dirty
     if not auth_id:
         return None
@@ -218,9 +221,12 @@ def fetch_ndlna_from_api(auth_id: str, save_immediate: bool = False) -> dict:
     if auth_id in _mem_ndlna_cache:
         return _mem_ndlna_cache[auth_id]
 
+    if not allow_network:
+        return None
+
     url = f"https://id.ndl.go.jp/auth/ndlna/{auth_id}"
     try:
-        res = requests.get(url, headers={"Accept": "application/json"}, timeout=3)
+        res = requests.get(url, headers={"Accept": "application/json"}, timeout=1.0)
         if res.status_code == 200:
             data = res.json()
             lbl = data.get("label", "")
@@ -268,7 +274,7 @@ def resolve_ndlna_label(auth_id: str) -> str:
     if auth_id in _resolved_ndlna_memo:
         return _resolved_ndlna_memo[auth_id]
 
-    info = fetch_ndlna_from_api(auth_id)
+    info = fetch_ndlna_from_api(auth_id, allow_network=False)
     if info and info.get("status") == 200:
         lbl = info.get("prefLabel") or info.get("label", "")
         alts = info.get("altLabel", [])
@@ -287,7 +293,7 @@ def resolve_ndlna_label(auth_id: str) -> str:
 # 一括バッチ事前解決 ＆ キャッシュ永続化
 # =============================================================================
 
-def prefetch_about_keywords_batch(keywords: list, max_workers: int = 8):
+def prefetch_about_keywords_batch(keywords: list, max_workers: int = 8, max_items: int = 30):
     """
     キーワードリストから未解決の NDC / NDLNA を抽出し、並列で一括取得・キャッシュ化。
     画面描画時のフリーズをゼロにします。
@@ -298,7 +304,7 @@ def prefetch_about_keywords_batch(keywords: list, max_workers: int = 8):
     ndc_to_fetch = set()
     ndlna_to_fetch = set()
 
-    for kw in keywords:
+    for kw in keywords[:max_items]:
         if not kw:
             continue
         ndc_num = extract_ndc_number(kw)

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - Step 2-A: データ種別 (rdf:type) 分析・除外ビュー
-母データに含まれるリソース型（記事・論文、公演、絵画、図書、録音資料等）を分析し、
+JS-Refine Studio - Step 2-A: データ種別 (rdf:type) 分析・除外ビュー
+初期メタデータセットに含まれるリソース型（記事・論文、公演、絵画、図書、録音資料等）を分析し、
 書誌作成において不要な種別を粗削り（大分類ノイズ除外）します。
 ※ データ種別ではOKルールを設けず、NG（確実な異物の除外）のみで安全に運用します。
 """
@@ -30,7 +30,7 @@ def render_step2_type_view(paths: dict):
     st.caption("不要なリソース型（記事・論文、公演、絵画、木工、絵葉書など）をクリックして除外（🚫 NG）に設定します。誤合格防止のためTypeでは除外のみを適用します。")
 
     if not os.path.exists(raw_path) or os.path.getsize(raw_path) == 0:
-        st.warning("⚠️ 母データ (`data/raw_metadata.jsonl`) が見つかりません。先に Step 1 でデータを取得してください。")
+        st.warning("⚠️ 初期メタデータセット (`data/raw_metadata.jsonl`) が見つかりません。先に Step 1 でデータを取得してください。")
         return
 
     # セッション状態の初期化
@@ -75,7 +75,7 @@ def render_step2_type_view(paths: dict):
         with st.container(border=True):
             st.markdown("#### 📊 絞り込み状況")
             c_m1, c_m2 = st.columns(2)
-            c_m1.metric("母データ", f"{total_raw_records:,}")
+            c_m1.metric("初期メタデータセット", f"{total_raw_records:,}")
             c_m2.metric("除外対象", f"{discarded_records:,}", delta=f"-{reduction_rate:.1%}", delta_color="inverse")
             
             c_m3, c_m4 = st.columns(2)
@@ -108,21 +108,7 @@ def render_step2_type_view(paths: dict):
                     st.rerun()
 
             st.write("---")
-            c_head_ng, c_clr_ng = st.columns([3, 2])
-            with c_head_ng:
-                st.markdown("##### 🚫 登録済除外種別")
-            with c_clr_ng:
-                if effective_ng:
-                    if st.button("全解除", key="btn_clear_all_right", help="すべての除外設定を解除してリセットします", use_container_width=True):
-                        for item in effective_ng:
-                            draft_types[item] = "RESET"
-                        current_ng.clear()
-                        save_type_rules(type_rules_path, {"NG": set(), "OK": set()})
-                        apply_type_filter(raw_path, type_filtered_path, type_rules_path)
-                        draft_types.clear()
-                        st.cache_data.clear()
-                        st.success("すべての除外設定を解除しました。")
-                        st.rerun()
+            st.markdown("##### 🚫 登録済除外種別")
 
             if effective_ng:
                 for ng_item in sorted(list(effective_ng)):

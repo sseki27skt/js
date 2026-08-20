@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - Step 2-A: 主題 (schema:about) キーワード分析・判別ビュー
+JS-Refine Studio - Step 2-A: 主題 (schema:about) キーワード分析・判別ビュー
 """
 import json
 import math
@@ -25,9 +25,10 @@ try:
 except Exception:
     hotkeys = None
 
-def cluster_about_keywords(about_ranking):
-    """AboutキーワードをNDC分類（公式API）・階層構造および共通プレフィックス・バケットで超高速クラスタリング"""
-    if not about_ranking:
+@st.cache_data(show_spinner=False)
+def cluster_about_keywords(about_ranking_tuples: list):
+    """AboutキーワードをNDC分類（公式API）・階層構造および共通プレフィックス・バケットで超高速クラスタリング（キャッシュ済）"""
+    if not about_ranking_tuples:
         return []
     
     from components.ndc_utils import (
@@ -44,7 +45,7 @@ def cluster_about_keywords(about_ranking):
     from components.ndc_utils import extract_ndlna_id, resolve_ndlna_label
 
     # 1. NDCコード / NDLNA典拠 / 階層区切り文字による分類
-    for kw, count in about_ranking:
+    for kw, count in about_ranking_tuples:
         # A. NDCコードの判定
         ndc_num = extract_ndc_number(kw)
         if ndc_num:
@@ -163,7 +164,7 @@ def render_step2a_view(paths: dict):
     ngram_filtered_path = paths.get('PATH_NGRAM_FILTERED', 'data/ngram_filtered.jsonl')
 
     if not os.path.exists(raw_metadata_path):
-        st.warning("先に Step 1 で生メタデータ (raw_metadata.jsonl) を取得してください。")
+        st.warning("先に Step 1 で初期メタデータセット (raw_metadata.jsonl) を取得してください。")
         st.stop()
 
     os.makedirs(os.path.dirname(about_rules_path), exist_ok=True)
@@ -174,7 +175,7 @@ def render_step2a_view(paths: dict):
         data_source_options.append("Step 2-A (データ種別) 適用後データ (type_filtered.jsonl)")
     if os.path.exists(ngram_filtered_path):
         data_source_options.append("Step 2-C (タイトル文字列) 適用後データ (ngram_filtered.jsonl)")
-    data_source_options.append("生メタデータ全件 (raw_metadata.jsonl)")
+    data_source_options.append("初期メタデータセット全件 (raw_metadata.jsonl)")
 
     c_src1, c_src2 = st.columns([3, 2])
     with c_src1:
@@ -201,7 +202,7 @@ def render_step2a_view(paths: dict):
         if has_ngram_rules and "ngram_filtered" not in chosen_source:
             link_ngram_rules = st.toggle(
                 "⚡ Step 2-C (タイトルNGルール) をリアルタイム連動",
-                value=True,
+                value=False,
                 help="Step 2-C で登録済みのタイトル除外ルールに一致するレコードを、Step 2-B のシミュレーション上でも除外扱いにして分析します。",
                 key="tgl_step2a_link_ngram"
             )
@@ -261,11 +262,6 @@ def render_step2a_view(paths: dict):
     if not about_ranking:
         st.info("データ内に schema:about キーワードが見つかりませんでした。")
         st.stop()
-
-    # 上位キーワードのNDC/NDLNAを一括事前解決（画面フリーズを防止）
-    from components.ndc_utils import prefetch_about_keywords_batch
-    top_kws = [k for k, c in about_ranking[:200]]
-    prefetch_about_keywords_batch(top_kws)
     
     # 常に about_rules.json とセッションステートを同期ロード
     rules = {}
@@ -351,9 +347,10 @@ def render_step2a_view(paths: dict):
 
     # Step 2-B N-Gram ルールによる事前除外の加算 (連動時)
     if ngram_ng_set:
+        ngram_pat = re.compile("|".join(re.escape(k) for k in sorted(ngram_ng_set, key=len, reverse=True)))
         for idx, rec in enumerate(raw_records):
             t_str = rec.get("title", "")
-            if any(ng_pat in t_str for ng_pat in ngram_ng_set):
+            if ngram_pat.search(t_str):
                 ng_doc_indices.add(idx)
 
     active_doc_indices = set(range(total_records_cnt)) - ng_doc_indices
@@ -414,7 +411,7 @@ def render_step2a_view(paths: dict):
 
         # 1. 絞り込み進捗メトリクス
         st.markdown("##### 📊 絞り込み進捗 (レコード件数)")
-        st.metric("母集団 Raw レコード", f"{total_records_cnt:,} 件")
+        st.metric("初期メタデータセット", f"{total_records_cnt:,} 件")
         st.metric(
             "About 除外 (削ぎ落とし)", 
             f"{discarded_records_cnt:,} 件", 
@@ -579,39 +576,6 @@ def render_step2a_view(paths: dict):
         # ---------------------------------------------------------------------
         with tab_cluster:
             st.markdown("類似性に基づいて抽出されたキーワード群に対し、一括/個別の判定（OK/NG/未判定）を行います。")
-            
-            # スクロール位置自動保持スクリプト
-            js_scroll_restore = """
-            <script>
-            (function() {
-                try {
-                    const parentDoc = window.parent.document;
-                    const scroller = parentDoc.querySelector('[data-testid="stAppViewContainer"]') || parentDoc.querySelector('section.main') || window.parent;
-                    
-                    const saved = window.parent.sessionStorage.getItem('step2a_scroll_y');
-                    if (saved) {
-                        const targetY = parseInt(saved, 10);
-                        if (scroller.scrollTop !== undefined) {
-                            scroller.scrollTop = targetY;
-                        } else if (window.parent.scrollTo) {
-                            window.parent.scrollTo(0, targetY);
-                        }
-                    }
-
-                    function onScroll() {
-                        const y = (scroller.scrollTop !== undefined) ? scroller.scrollTop : window.parent.scrollY;
-                        window.parent.sessionStorage.setItem('step2a_scroll_y', y);
-                    }
-
-                    if (scroller && scroller.addEventListener) {
-                        scroller.addEventListener('scroll', onScroll, {passive: true});
-                    }
-                    window.parent.addEventListener('scroll', onScroll, {passive: true});
-                } catch(e) {}
-            })();
-            </script>
-            """
-            components.html(js_scroll_restore, height=0, width=0)
 
             def render_single_cluster_card(c, cid, kws):
                 ng_c = sum(1 for k in kws if get_eff_status(k) == "NG")
@@ -696,8 +660,14 @@ def render_step2a_view(paths: dict):
                         hidden_count = len(kws) - len(visible_kws_info)
                         cur_m_name = st.session_state.get("click_action_about_mode", "NGに設定")
                         st.caption(f"個別判定 (クリックで『{cur_m_name}』、右側パネルで切替可能):" + (f" [非表示: {hidden_count} 件]" if hidden_count > 0 else ""))
+                        
+                        # 1クラスタあたりの描画上限（最大24件、展開可能）
+                        cl_limit_key = f"cl_kws_limit_{cid}"
+                        cur_kw_limit = st.session_state.get(cl_limit_key, 24)
+                        display_kws_info = visible_kws_info[:cur_kw_limit]
+
                         cl_cols = st.columns(3)
-                        for idx_k, (kw, eff_kw_cnt, st_val, tot_kw_cnt, is_in_draft) in enumerate(visible_kws_info):
+                        for idx_k, (kw, eff_kw_cnt, st_val, tot_kw_cnt, is_in_draft) in enumerate(display_kws_info):
                             col_k = cl_cols[idx_k % 3]
                             disp_k = format_about_keyword_display(kw, max_label_len=24)
                             
@@ -732,25 +702,36 @@ def render_step2a_view(paths: dict):
                                 with st.popover("🔍", help=f"『{disp_k}』の外部検索・該当資料詳細"):
                                     st.markdown(f"### 🔍 『{format_about_keyword_display(kw)}』")
                                     st.markdown(make_rich_search_links_md(kw))
-                                    st.markdown(f"- 該当資料件数: **未除外残存: {eff_kw_cnt:,} 件** （母データ全体: {tot_kw_cnt:,} 件）")
+                                    st.markdown(f"- 該当資料件数: **未除外残存: {eff_kw_cnt:,} 件** （初期メタデータセット全体: {tot_kw_cnt:,} 件）")
                                     kw_indices = kw_to_doc_indices.get(kw, [])
                                     if kw_indices:
                                         st.write("---")
-                                        st.caption(f"📄 **該当資料一覧 (アクティブ残存資料を優先表示)**:")
+                                        st.caption(f"📄 **該当資料一覧 (アクティブ残存資料を優先表示、上位15件)**:")
                                         
                                         sorted_kw_indices = sorted(kw_indices, key=lambda i: 0 if i in active_doc_indices else 1)
-                                        with st.container(height=320):
-                                            from components.file_utils import make_jps_item_url
-                                            for idx_doc in sorted_kw_indices:
-                                                rec = raw_records[idx_doc]
-                                                r_title = rec.get('title', '') or "（無題）"
-                                                r_id = rec.get('id', '')
-                                                creator_part = f" （著者: `{rec.get('creator')}`）" if rec.get('creator') else ""
-                                                is_act = idx_doc in active_doc_indices
-                                                tag = "" if is_act else " <span style='color: #ff6b6b; font-size: 0.8rem;'>[🚫他条件で除外済]</span>"
-                                                
-                                                item_link = make_jps_item_url(r_id, r_title)
-                                                st.markdown(f"• [📖 **{r_title}**]({item_link}){creator_part}{tag}", unsafe_allow_html=True)
+                                        sample_lines = []
+                                        from components.file_utils import make_jps_item_url
+                                        for idx_doc in sorted_kw_indices[:15]:
+                                            rec = raw_records[idx_doc]
+                                            r_title = rec.get('title', '') or "（無題）"
+                                            r_id = rec.get('id', '')
+                                            creator_part = f" （著者: `{rec.get('creator')}`）" if rec.get('creator') else ""
+                                            is_act = idx_doc in active_doc_indices
+                                            tag = "" if is_act else " <span style='color: #ff6b6b; font-size: 0.8rem;'>[🚫他条件で除外済]</span>"
+                                            item_link = make_jps_item_url(r_id, r_title)
+                                            sample_lines.append(f"• [📖 **{r_title}**]({item_link}){creator_part}{tag}")
+                                        
+                                        if len(sorted_kw_indices) > 15:
+                                            sample_lines.append(f"\n*※ 他 {len(sorted_kw_indices) - 15:,} 件の資料があります（上位15件を表示中）*")
+                                            
+                                        with st.container(height=280):
+                                            st.markdown("\n".join(sample_lines), unsafe_allow_html=True)
+
+                        if len(visible_kws_info) > cur_kw_limit:
+                            rem_kw_cnt = len(visible_kws_info) - cur_kw_limit
+                            if st.button(f"➕ クラスタ内の残りのキーワード ({rem_kw_cnt}件) をすべて表示", key=f"btn_more_kws_{cid}", use_container_width=True):
+                                st.session_state[cl_limit_key] = len(visible_kws_info)
+                                st.rerun()
 
                     # クラスタ内に仮設定がある場合はカード内にも即時確定保存ボタンを表示
                     cluster_draft_kws = [k for k in kws if k in draft_ab]
@@ -782,6 +763,11 @@ def render_step2a_view(paths: dict):
                                 st.success(f"クラスタ『{c['name']}』のルールを確定保存しました。")
                                 st.rerun()
 
+            # 各キーワードのアクティブ残存件数を一括事前計算 (O(N))
+            kw_eff_counts_map = {}
+            for kw, indices in kw_to_doc_indices.items():
+                kw_eff_counts_map[kw] = sum(1 for idx in indices if idx in active_doc_indices)
+
             def render_cluster_board():
                 display_clusters = []
                 for c in about_clusters:
@@ -790,15 +776,23 @@ def render_step2a_view(paths: dict):
                     # 各キーワードのアクティブ残存状況と表示対象判定
                     cluster_visible_kws = []
                     has_draft_in_cluster = False
+                    ng_c = 0
+                    ok_c = 0
+                    un_c = 0
                     
                     for k in kws:
                         is_in_draft = (k in draft_ab)
                         if is_in_draft:
                             has_draft_in_cluster = True
                         
-                        k_indices = kw_to_doc_indices.get(k, [])
-                        eff_k_cnt = sum(1 for idx in k_indices if idx in active_doc_indices)
+                        eff_k_cnt = kw_eff_counts_map.get(k, 0)
                         st_val = get_eff_status(k)
+                        if st_val == "NG":
+                            ng_c += 1
+                        elif st_val == "OK":
+                            ok_c += 1
+                        else:
+                            un_c += 1
                         
                         is_classified = (st_val in ("OK", "NG")) and not is_in_draft
                         is_zero_remaining = (eff_k_cnt == 0) and not is_in_draft
@@ -823,10 +817,6 @@ def render_step2a_view(paths: dict):
 
                     if hide_zero_cluster_pills and cl_act_cnt == 0 and not has_draft_in_cluster:
                         continue
-
-                    ng_c = sum(1 for k in kws if get_eff_status(k) == "NG")
-                    ok_c = sum(1 for k in kws if get_eff_status(k) == "OK")
-                    un_c = len(kws) - ng_c - ok_c
 
                     display_clusters.append({
                         **c,
@@ -855,7 +845,7 @@ def render_step2a_view(paths: dict):
                 cur_cl_limit = min(total_display_clusters, max(int(clusters_per_page), int(st.session_state.get("cluster_visible_limit", clusters_per_page))))
                 st.session_state["cluster_visible_limit"] = cur_cl_limit
 
-                st.markdown(f"<div style='padding: 4px 0 8px 0;'><b>全 {total_display_clusters} クラスタ中 {cur_cl_limit} クラスタを表示中</b> <span style='color: #4CAF50; font-size: 0.85rem; margin-left: 8px;'>⚡ スクロールで自動追加読み込み</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='padding: 4px 0 8px 0;'><b>全 {total_display_clusters} クラスタ中 {cur_cl_limit} クラスタを表示中</b></div>", unsafe_allow_html=True)
 
                 page_clusters = display_clusters[:cur_cl_limit]
 
@@ -864,99 +854,13 @@ def render_step2a_view(paths: dict):
                 for c in page_clusters:
                     render_single_cluster_card(c, c["cluster_id"], c["keywords"])
 
-                # ボトムの追加読み込み ＆ 自動スクロール検知
+                # ボトムの追加読み込み
                 if cur_cl_limit < total_display_clusters:
                     st.write("---")
-                    cl_sentinel_id = "sentinel_about_clusters"
-                    st.markdown(f'<div id="{cl_sentinel_id}" style="height: 20px; width: 100%; text-align: center; color: #777; font-size: 0.8rem;">🔽 スクロールでクラスタを自動読み込み中...</div>', unsafe_allow_html=True)
-                    
-                    btn_cl_txt = f"🔽 次の {int(clusters_per_page)} クラスタを読み込む (スクロールで自動追加中... 現在 {cur_cl_limit} / 全 {total_display_clusters} クラスタ)"
+                    btn_cl_txt = f"🔽 次の {int(clusters_per_page)} クラスタを読み込む (現在 {cur_cl_limit} / 全 {total_display_clusters} クラスタ)"
                     if st.button(btn_cl_txt, key="btn_bot_more_clusters", type="secondary", use_container_width=True):
                         st.session_state["cluster_visible_limit"] = min(total_display_clusters, cur_cl_limit + int(clusters_per_page))
                         st.rerun()
-
-                    js_cl_observer = f"""
-                    <script>
-                    (function() {{
-                        let triggered = false;
-
-                        function triggerLoadMore() {{
-                            if (triggered) return;
-                            try {{
-                                const parentDoc = window.parent.document;
-                                if (!parentDoc) return;
-                                const buttons = parentDoc.querySelectorAll('button');
-                                let triggerBtn = null;
-                                for (let b of buttons) {{
-                                    const t = (b.innerText || '').trim();
-                                    if (t.includes('クラスタを読み込む') || t.includes('自動追加中') || t.includes('次の')) {{
-                                        triggerBtn = b;
-                                        break;
-                                    }}
-                                }}
-                                if (triggerBtn) {{
-                                    triggered = true;
-                                    triggerBtn.click();
-                                    triggerBtn.dispatchEvent(new MouseEvent('click', {{bubbles: true, cancelable: true, view: window.parent}}));
-                                }}
-                            }} catch(e) {{}}
-                        }}
-
-                        function initClObserver() {{
-                            try {{
-                                const parentDoc = window.parent.document;
-                                if (!parentDoc) return;
-                                const sentinel = parentDoc.getElementById('{cl_sentinel_id}');
-                                if (!sentinel) return;
-
-                                // 1. IntersectionObserver
-                                const observer = new IntersectionObserver((entries) => {{
-                                    entries.forEach(entry => {{
-                                        if (entry.isIntersecting) {{
-                                            triggerLoadMore();
-                                        }}
-                                    }});
-                                }}, {{
-                                    root: null,
-                                    rootMargin: "600px",
-                                    threshold: 0
-                                }});
-                                observer.observe(sentinel);
-
-                                // 2. スクロールコンテナの直接検知 (フォールバック)
-                                const scrollers = [
-                                    window.parent,
-                                    parentDoc.querySelector('section.main'),
-                                    parentDoc.querySelector('[data-testid="stAppViewContainer"]')
-                                ];
-
-                                function onScrollCheck() {{
-                                    if (triggered) return;
-                                    const rect = sentinel.getBoundingClientRect();
-                                    const vh = window.parent.innerHeight || 800;
-                                    if (rect.top <= vh + 600) {{
-                                        triggerLoadMore();
-                                    }}
-                                }}
-
-                                scrollers.forEach(s => {{
-                                    if (s && s.addEventListener) {{
-                                        s.addEventListener('scroll', onScrollCheck, {{passive: true}});
-                                    }}
-                                }});
-
-                                // 初回位置チェック
-                                onScrollCheck();
-                            }} catch(e) {{}}
-                        }}
-
-                        setTimeout(initClObserver, 150);
-                        setTimeout(initClObserver, 500);
-                        setTimeout(initClObserver, 1200);
-                    }})();
-                    </script>
-                    """
-                    components.html(js_cl_observer, height=0, width=0)
                 else:
                     st.caption(f"✅ 全 {total_display_clusters} クラスタを表示完了しました。")
 
@@ -1058,30 +962,32 @@ def render_step2a_view(paths: dict):
                 if kw_eff_counts.get(kw, 0) > 0 or kw in current_ng or kw in current_ok
             ]
 
-        # 現在のページ（最大36件）に表示されるキーワードのみ詳細サンプルをオンデマンド遅延生成
-        cur_page = int(st.session_state.get("about_single_page", 1))
-        items_per_page = 36
-        start_idx = max(0, (cur_page - 1) * items_per_page)
-        page_kws = set([k for k, c in filtered_ranking[start_idx : start_idx + items_per_page]])
+        class LazySamplesMap(dict):
+            def __init__(self, kw_to_doc_indices, active_doc_indices, raw_records, kw_eff_counts):
+                self.kw_to_doc_indices = kw_to_doc_indices
+                self.active_doc_indices = active_doc_indices
+                self.raw_records = raw_records
+                self.kw_eff_counts = kw_eff_counts
 
-        active_samples_info = {}
-        for kw, cnt in filtered_ranking:
-            eff_c = kw_eff_counts.get(kw, cnt)
-            doc_idx_list = kw_to_doc_indices.get(kw, [])
-            act_indices = [idx for idx in doc_idx_list if idx in active_doc_indices]
-            samples_list = []
-            for i in act_indices[:150]:
-                rec = raw_records[i]
-                samples_list.append({
-                    "id": rec.get("id", ""),
-                    "title": rec.get("title", ""),
-                    "desc": rec.get("desc", ""),
-                    "creator": rec.get("creator", "")
-                })
-            active_samples_info[kw] = {
-                "eff_cnt": eff_c,
-                "samples": samples_list
-            }
+            def get(self, kw, default=None):
+                eff_c = self.kw_eff_counts.get(kw, 0)
+                doc_idx_list = self.kw_to_doc_indices.get(kw, [])
+                act_indices = [idx for idx in doc_idx_list if idx in self.active_doc_indices]
+                samples_list = []
+                for i in act_indices[:10]:
+                    rec = self.raw_records[i]
+                    samples_list.append({
+                        "id": rec.get("id", ""),
+                        "title": rec.get("title", ""),
+                        "desc": rec.get("desc", ""),
+                        "creator": rec.get("creator", "")
+                    })
+                return {
+                    "eff_cnt": eff_c,
+                    "samples": samples_list
+                }
+        
+        active_samples_info = LazySamplesMap(kw_to_doc_indices, active_doc_indices, raw_records, kw_eff_counts)
 
         if "draft_about_changes" not in st.session_state:
             st.session_state["draft_about_changes"] = {}
@@ -1182,7 +1088,7 @@ def render_step2a_view(paths: dict):
             with c_s1:
                 st.metric("指定キーワード総数", f"{len(parsed_custom_ab)} 語")
             with c_s2:
-                st.metric("ヒットする資料総数", f"{len(total_impact_docs):,} 件", help="全母集団中でいずれかのキーワードが付与された資料数")
+                st.metric("ヒットする資料総数", f"{len(total_impact_docs):,} 件", help="初期メタデータセット全体でいずれかのキーワードが付与された資料数")
             with c_s3:
                 st.metric("新規除外インパクト", f"{len(active_impact_docs):,} 件", delta=f"-{len(active_impact_docs):,} 件", delta_color="inverse", help="現在まだ除外されていないデータから新たに削ぎ落とされる件数")
 

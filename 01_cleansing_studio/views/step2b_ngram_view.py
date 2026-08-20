@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - Step 2-B: タイトル N-Gram (N=2〜9) パターン分析・除外ビュー
+JS-Refine Studio - Step 2-B: タイトル N-Gram (N=2〜9) パターン分析・除外ビュー
 """
 import json
 import math
@@ -33,7 +33,7 @@ def render_step2b_view(paths: dict):
     data_dir = os.path.dirname(ngram_filtered_path)
 
     if not os.path.exists(raw_metadata_path):
-        st.warning("対象データが存在しません。先に Step 1 で生メタデータを取得してください。")
+        st.warning("対象データが存在しません。先に Step 1 で初期メタデータセットを取得してください。")
         st.stop()
 
     os.makedirs(os.path.dirname(ngram_rules_path), exist_ok=True)
@@ -44,7 +44,7 @@ def render_step2b_view(paths: dict):
         data_source_options.append("Step 2-B (主題 about) 適用後データ (about_filtered.jsonl)")
     if os.path.exists(type_filtered_path):
         data_source_options.append("Step 2-A (データ種別) 適用後データ (type_filtered.jsonl)")
-    data_source_options.append("生メタデータ全件 (raw_metadata.jsonl)")
+    data_source_options.append("初期メタデータセット全件 (raw_metadata.jsonl)")
 
     c_src1, c_src2 = st.columns([3, 2])
     with c_src1:
@@ -72,7 +72,7 @@ def render_step2b_view(paths: dict):
         elif "type_filtered" in chosen_source:
             st.success("✅ Step 2-A の除外結果を反映したデータセットで分析中")
         else:
-            st.caption("ℹ️ 生メタデータ全件を対象に分析中")
+            st.caption("ℹ️ 初期メタデータセット全件を対象に分析中")
 
     if "edited_ngram_ng" not in st.session_state:
         ngram_rules = {}
@@ -479,7 +479,7 @@ def render_step2b_view(paths: dict):
                 with c_s1:
                     st.metric("指定キーワード総数", f"{len(parsed_custom_kws)} 語")
                 with c_s2:
-                    st.metric("ヒットする資料総数", f"{len(total_impact_docs):,} 件", help="全母集団中でいずれかのキーワードを含む資料数")
+                    st.metric("ヒットする資料総数", f"{len(total_impact_docs):,} 件", help="初期メタデータセット全体でいずれかのキーワードを含む資料数")
                 with c_s3:
                     st.metric("新規除外インパクト", f"{len(active_impact_docs):,} 件", delta=f"-{len(active_impact_docs):,} 件", delta_color="inverse", help="現在まだ除外されていないデータから新たに削ぎ落とされる件数")
 

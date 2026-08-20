@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - Step 3: データエクスポートビュー
+JS-Refine Studio - Step 3: データエクスポートビュー
 """
 import json
 import os

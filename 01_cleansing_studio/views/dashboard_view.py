@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - Dashboard ビュー
+JS-Refine Studio - Dashboard ビュー
 """
 import streamlit as st
 from components.file_utils import count_lines
@@ -9,7 +9,7 @@ def render_dashboard_view(paths: dict):
     """ダッシュボード画面を描画"""
     st.markdown("""
     <div class="hero-card">
-        <h1>MetaClean Studio</h1>
+        <h1>JS-Refine Studio</h1>
         <p>人文学文化資源メタデータの網羅的抽出・多層ルールフィルタリング・LLMセマンティック適合判定・専門家査読を統合した精緻化システムです。</p>
     </div>
     """, unsafe_allow_html=True)
@@ -19,7 +19,7 @@ def render_dashboard_view(paths: dict):
     cols = st.columns(4)
     with cols[0]:
         st.info("Step 1: メタデータ取得")
-        st.metric("母集団 Raw メタデータ", f"{count_lines(paths['PATH_RAW_METADATA']):,} 件")
+        st.metric("初期メタデータセット", f"{count_lines(paths['PATH_RAW_METADATA']):,} 件")
 
     with cols[1]:
         st.warning("Step 2: ルールフィルタ")
@@ -59,7 +59,7 @@ def render_dashboard_view(paths: dict):
         <div style="background-color: rgba(255, 75, 75, 0.1); border-left: 5px solid #ff4b4b; padding: 12px 16px; border-radius: 4px; margin-bottom: 12px;">
             <h4 style="color: #ff4b4b; margin: 0 0 6px 0;">【警告】すべての作業データおよび設定ルールが完全に消去されます</h4>
             <p style="margin: 0; font-size: 0.92rem; color: #dcdcdc; line-height: 1.5;">
-                この操作を実行すると、Japan Searchから収集した<b>生メタデータ（raw_metadata.jsonl）</b>、
+                この操作を実行すると、Japan Searchから収集した<b>初期メタデータセット（raw_metadata.jsonl）</b>、
                 Step 2の<b>全フィルタリング結果（Type/About/N-Gram/LLM判定結果）</b>、
                 構築された<b>除外・保持ルール設定（JSON）</b>、
                 および<b>専門家査読データ</b>を含むすべてのファイルが<b>物理的に完全削除</b>されます。<br>
@@ -69,7 +69,7 @@ def render_dashboard_view(paths: dict):
         """, unsafe_allow_html=True)
 
         confirm_reset = st.checkbox(
-            "取得した生メタデータ、設定ルール、判定ログを含むすべてのデータを完全に削除し、ゼロからやり直すことを確認・同意しました",
+            "取得した初期メタデータセット、設定ルール、判定ログを含むすべてのデータを完全に削除し、ゼロからやり直すことを確認・同意しました",
             key="chk_confirm_full_reset"
         )
 

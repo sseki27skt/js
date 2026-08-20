@@ -178,102 +178,13 @@ def render_pill_board(
                                 jps_search_url = make_jps_keyword_url(s_str)
                                 st.markdown(f"• [📖 **{s_str}**]({jps_search_url})")
 
-        # 自動スクロール検知用のセンチネル要素（コンテナ内部最下部）
-        sentinel_id = f"sentinel_{page_session_key}"
-        trigger_btn_id = f"btn_auto_more_{page_session_key}"
-        if cur_limit < total_items:
-            st.markdown(f'<div id="{sentinel_id}" style="height: 20px; width: 100%; text-align: center; color: #777; font-size: 0.8rem; padding-top: 4px;">🔽 スクロールで読み込み中...</div>', unsafe_allow_html=True)
-
-    # ボトムの追加読み込みバー ＆ 自動トリガーボタン
+    # ボトムの追加読み込みバー
     if cur_limit < total_items:
-        btn_txt = f"🔽 次の 36 件を読み込む (スクロールで自動追加中... 現在 {cur_limit:,} 件 / 全 {total_items:,} 件)"
+        btn_txt = f"🔽 次の {items_per_page} 件を読み込む (現在 {cur_limit:,} 件 / 全 {total_items:,} 件)"
+        trigger_btn_id = f"load_more_{page_session_key}_{cur_limit}"
         if st.button(btn_txt, key=trigger_btn_id, type="secondary", use_container_width=True):
-            st.session_state[limit_key] = min(total_items, cur_limit + 36)
+            st.session_state[limit_key] = min(total_items, cur_limit + items_per_page)
             st.rerun(scope="fragment")
-
-        # JS IntersectionObserver 自動トリガースクリプトの注入
-        js_observer = f"""
-        <script>
-        (function() {{
-            let triggered = false;
-
-            function triggerLoadMore() {{
-                if (triggered) return;
-                try {{
-                    const parentDoc = window.parent.document;
-                    if (!parentDoc) return;
-                    const buttons = parentDoc.querySelectorAll('button');
-                    let triggerBtn = null;
-                    for (let b of buttons) {{
-                        const t = (b.innerText || '').trim();
-                        if (t.includes('スクロールで自動追加中') || t.includes('件を読み込む') || t.includes('次の')) {{
-                            triggerBtn = b;
-                            break;
-                        }}
-                    }}
-                    if (triggerBtn) {{
-                        triggered = true;
-                        triggerBtn.click();
-                        triggerBtn.dispatchEvent(new MouseEvent('click', {{bubbles: true, cancelable: true, view: window.parent}}));
-                    }}
-                }} catch(e) {{}}
-            }}
-
-            function initSentinelObserver() {{
-                try {{
-                    const parentDoc = window.parent.document;
-                    if (!parentDoc) return;
-                    const sentinel = parentDoc.getElementById('{sentinel_id}');
-                    if (!sentinel) return;
-
-                    // 1. IntersectionObserver
-                    const observer = new IntersectionObserver((entries) => {{
-                        entries.forEach(entry => {{
-                            if (entry.isIntersecting) {{
-                                triggerLoadMore();
-                            }}
-                        }});
-                    }}, {{
-                        root: null,
-                        rootMargin: "600px",
-                        threshold: 0
-                    }});
-                    observer.observe(sentinel);
-
-                    // 2. スクロールコンテナの直接検知 (フォールバック)
-                    const scrollers = [
-                        window.parent,
-                        parentDoc.querySelector('section.main'),
-                        parentDoc.querySelector('[data-testid="stAppViewContainer"]')
-                    ];
-
-                    function onScrollCheck() {{
-                        if (triggered) return;
-                        const rect = sentinel.getBoundingClientRect();
-                        const vh = window.parent.innerHeight || 800;
-                        if (rect.top <= vh + 600) {{
-                            triggerLoadMore();
-                        }}
-                    }}
-
-                    scrollers.forEach(s => {{
-                        if (s && s.addEventListener) {{
-                            s.addEventListener('scroll', onScrollCheck, {{passive: true}});
-                        }}
-                    }});
-
-                    // 初回位置チェック
-                    onScrollCheck();
-                }} catch(e) {{}}
-            }}
-
-            setTimeout(initSentinelObserver, 150);
-            setTimeout(initSentinelObserver, 500);
-            setTimeout(initSentinelObserver, 1200);
-        }})();
-        </script>
-        """
-        components.html(js_observer, height=0, width=0)
     else:
         st.caption(f"✅ 全 {total_items:,} 件のキーワードを表示完了しました。")
 

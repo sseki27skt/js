@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - 人文学文化資源メタデータ抽出・構造化システム
+JS-Refine Studio - 人文学文化資源メタデータ抽出・構造化システム
 メインエントリーポイント ＆ ルーティング
 """
 
@@ -23,7 +23,7 @@ from views.step2d_review_view import render_step2d_view
 from views.step3_export_view import render_step3_view
 
 # Streamlit ページ初期化
-st.set_page_config(layout="wide", page_title="MetaClean Studio | メタデータ精緻化システム", page_icon="📚")
+st.set_page_config(layout="wide", page_title="JS-Refine Studio | メタデータ精緻化システム", page_icon="📚")
 
 # 全体CSSの注入
 inject_custom_css()
@@ -52,7 +52,7 @@ PATHS = {
 }
 
 # サイドバーメニュー構築
-st.sidebar.title("MetaClean Studio")
+st.sidebar.title("JS-Refine Studio")
 st.sidebar.caption("人文学文化資源 メタデータ精緻化システム")
 
 def check_status(path):
@@ -88,23 +88,20 @@ def format_menu_label(opt):
 
 choice = st.sidebar.radio("工程を選択:", menu_options, format_func=format_menu_label, key="main_menu_choice")
 
-# 画面切り替え時に以前のDOM要素を100%確実に消去するための独立コンテナ
-main_view_container = st.empty()
-
-with main_view_container.container():
-    if choice == "Dashboard":
-        render_dashboard_view(PATHS)
-    elif choice == "Step 1: LLMクエリ拡張およびJapan Searchメタデータ取得":
-        render_step1_view(PATHS)
-    elif choice == "Step 2-A: データ種別 (rdf:type) 分析・除外":
-        render_step2_type_view(PATHS)
-    elif choice == "Step 2-B: 主題 (schema:about) キーワード分析・判別":
-        render_step2a_view(PATHS)
-    elif choice == "Step 2-C: タイトル語彙・文字列パターン分析・除外":
-        render_step2b_view(PATHS)
-    elif choice == "Step 3: LLMセマンティック適合判定 (判定保留群の分類)":
-        render_step2c_view(PATHS)
-    elif choice == "Step 4: 専門家による最終査読・手動オーバーライド":
-        render_step2d_view(PATHS)
-    elif choice == "Step 5: データエクスポート (統合検索ポータル出力)":
-        render_step3_view(PATHS)
+# メインビュー描画（トップレベル直接ルーティング）
+if choice == "Dashboard":
+    render_dashboard_view(PATHS)
+elif choice == "Step 1: LLMクエリ拡張およびJapan Searchメタデータ取得":
+    render_step1_view(PATHS)
+elif choice == "Step 2-A: データ種別 (rdf:type) 分析・除外":
+    render_step2_type_view(PATHS)
+elif choice == "Step 2-B: 主題 (schema:about) キーワード分析・判別":
+    render_step2a_view(PATHS)
+elif choice == "Step 2-C: タイトル語彙・文字列パターン分析・除外":
+    render_step2b_view(PATHS)
+elif choice == "Step 3: LLMセマンティック適合判定 (判定保留群の分類)":
+    render_step2c_view(PATHS)
+elif choice == "Step 4: 専門家による最終査読・手動オーバーライド":
+    render_step2d_view(PATHS)
+elif choice == "Step 5: データエクスポート (統合検索ポータル出力)":
+    render_step3_view(PATHS)

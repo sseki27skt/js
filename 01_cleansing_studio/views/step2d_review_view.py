@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - Step 2-D: 専門家最終査読ビュー
+JS-Refine Studio - Step 2-D: 専門家最終査読ビュー
 """
 import os
 import streamlit as st
@@ -20,7 +20,7 @@ def render_step2d_view(paths: dict):
     verified_jsonl_path = paths['PATH_VERIFIED_JSONL']
 
     if not os.path.exists(raw_metadata_path):
-        st.warning("生メタデータが存在しません。Step 1 を実行してください。")
+        st.warning("初期メタデータセットが存在しません。Step 1 を実行してください。")
         st.stop()
 
     with st.spinner("全フェーズの判定結果および参照Web情報を集約中..."):

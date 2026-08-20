@@ -1,4 +1,4 @@
 # -*- coding: utf-8 -*-
 """
-MetaClean Studio - ビューモジュールパッケージ
+JS-Refine Studio - ビューモジュールパッケージ
 """
